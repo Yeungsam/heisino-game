@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://heisino-game.local/schema/item-instance.schema.json",
+  "title": "大劫卡西诺运行时物品实例",
+  "description": "记录房间物资、战斗掉落、玩家背包和装备的运行时状态。",
+  "type": "object",
+  "required": [
+    "instance_id",
+    "card_id",
+    "state",
+    "location",
+    "interaction",
+    "created_turn",
+    "updated_turn"
+  ],
+  "properties": {
+    "instance_id": {
+      "type": "string",
+    "pattern": "^[a-zA-Z0-9_-]{3,96}$"
+    },
+    "card_id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]{2,63}$"
+    },
+    "state": {
+      "type": "string",
+      "enum": [
+        "HIDDEN",
+        "REVEALED",
+        "IN_INVENTORY",
+        "EQUIPPED",
+        "DROPPED",
+        "DISCARDED",
+        "STOLEN",
+        "DESTROYED"
+      ]
+    },
+    "location": {
+      "type": "object",
+      "required": ["location_type", "node_id", "player_id"],
+      "properties": {
+        "location_type": {
+          "type": "string",
+          "enum": ["ROOM", "PLAYER", "DISCARD", "DESTROYED"]
+        },
+        "node_id": {
+          "type": ["string", "null"]
+        },
+        "player_id": {
+          "type": ["string", "null"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "interaction": {
+      "type": "object",
+      "required": ["revealed_by_player_id", "revealed_at_turn", "picked_up_by_player_id", "picked_up_at_turn"],
+      "properties": {
+        "revealed_by_player_id": {
+          "type": ["string", "null"]
+        },
+        "revealed_at_turn": {
+          "type": ["integer", "null"],
+          "minimum": 1
+        },
+        "picked_up_by_player_id": {
+          "type": ["string", "null"]
+        },
+        "picked_up_at_turn": {
+          "type": ["integer", "null"],
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "created_turn": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "updated_turn": {
+      "type": "integer",
+      "minimum": 1
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,8 @@
+.DS_Store
+node_modules/
+coverage/
+*.log
+
+# Local authentication/QR artifacts must never enter source control.
+feishu-auth-qr*.png
+client/project.private.config.json

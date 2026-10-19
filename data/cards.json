@@ -1,0 +1,405 @@
+{
+  "schema_version": "0.1.0",
+  "cards": [
+    {
+      "card_id": "wp_001",
+      "kind": "EQUIPMENT",
+      "category": "WEAPON",
+      "name": "黄金钢笔",
+      "rarity": "RED",
+      "attack_multiplier": 1.0,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "PER_BATTLE",
+        "max": 2,
+        "loss_per_battle": 1
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "PURCHASE_PRICE",
+        "purchase_price": null,
+        "fixed_value": null
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": true,
+        "usable_phases": ["NONE"],
+        "effects": []
+      },
+      "assets": {
+        "icon_key": "card_wp_001",
+        "card_art_key": null
+      },
+      "data_status": "BLOCKED",
+      "source": {
+        "document": "大劫卡西诺游戏卡牌说明和图片资源",
+        "notes": "购买价格待补充；攻击倍率以当前卡牌文档为准。"
+      }
+    },
+    {
+      "card_id": "wp_002",
+      "kind": "EQUIPMENT",
+      "category": "WEAPON",
+      "name": "左轮手枪",
+      "rarity": "PURPLE",
+      "attack_multiplier": 0.9,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "PER_BATTLE",
+        "max": 2,
+        "loss_per_battle": 1
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "PURCHASE_PRICE",
+        "purchase_price": null,
+        "fixed_value": null
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": true,
+        "usable_phases": ["NONE"],
+        "effects": []
+      },
+      "assets": {
+        "icon_key": "card_wp_002",
+        "card_art_key": null
+      },
+      "data_status": "BLOCKED",
+      "source": {
+        "document": "大劫卡西诺游戏卡牌说明和图片资源",
+        "notes": "购买价格待补充；攻击倍率以当前卡牌文档为准。"
+      }
+    },
+    {
+      "card_id": "wp_003",
+      "kind": "EQUIPMENT",
+      "category": "WEAPON",
+      "name": "zippo打火机",
+      "rarity": "PURPLE",
+      "attack_multiplier": 0.9,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "PER_BATTLE",
+        "max": 2,
+        "loss_per_battle": 1
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "PURCHASE_PRICE",
+        "purchase_price": null,
+        "fixed_value": null
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": true,
+        "usable_phases": ["NONE"],
+        "effects": []
+      },
+      "assets": {
+        "icon_key": "card_wp_003",
+        "card_art_key": null
+      },
+      "data_status": "BLOCKED",
+      "source": {
+        "document": "大劫卡西诺游戏卡牌说明和图片资源",
+        "notes": "购买价格待补充；攻击倍率以当前卡牌文档为准。"
+      }
+    },
+    {
+      "card_id": "wp_004",
+      "kind": "EQUIPMENT",
+      "category": "WEAPON",
+      "name": "手提包",
+      "rarity": "BLUE",
+      "attack_multiplier": 0.8,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "PER_BATTLE",
+        "max": 2,
+        "loss_per_battle": 1
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "PURCHASE_PRICE",
+        "purchase_price": null,
+        "fixed_value": null
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": true,
+        "usable_phases": ["NONE"],
+        "effects": []
+      },
+      "assets": {
+        "icon_key": "card_wp_004",
+        "card_art_key": null
+      },
+      "data_status": "BLOCKED",
+      "source": {
+        "document": "大劫卡西诺游戏卡牌说明和图片资源",
+        "notes": "购买价格待补充；攻击倍率以当前卡牌文档为准。"
+      }
+    },
+    {
+      "card_id": "wp_005",
+      "kind": "EQUIPMENT",
+      "category": "WEAPON",
+      "name": "拳套",
+      "rarity": "BLUE",
+      "attack_multiplier": 0.8,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "PER_BATTLE",
+        "max": 2,
+        "loss_per_battle": 1
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "PURCHASE_PRICE",
+        "purchase_price": null,
+        "fixed_value": null
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": true,
+        "usable_phases": ["NONE"],
+        "effects": []
+      },
+      "assets": {
+        "icon_key": "card_wp_005",
+        "card_art_key": null
+      },
+      "data_status": "BLOCKED",
+      "source": {
+        "document": "大劫卡西诺游戏卡牌说明和图片资源",
+        "notes": "购买价格待补充；攻击倍率以当前卡牌文档为准。"
+      }
+    },
+    {
+      "card_id": "wp_006",
+      "kind": "EQUIPMENT",
+      "category": "WEAPON",
+      "name": "礼宾伞",
+      "rarity": "GREEN",
+      "attack_multiplier": 0.6,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "PER_BATTLE",
+        "max": 2,
+        "loss_per_battle": 1
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "PURCHASE_PRICE",
+        "purchase_price": null,
+        "fixed_value": null
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": true,
+        "usable_phases": ["NONE"],
+        "effects": []
+      },
+      "assets": {
+        "icon_key": "card_wp_006",
+        "card_art_key": null
+      },
+      "data_status": "BLOCKED",
+      "source": {
+        "document": "大劫卡西诺游戏卡牌说明和图片资源",
+        "notes": "购买价格待补充；攻击倍率以当前卡牌文档为准。"
+      }
+    },
+    {
+      "card_id": "wp_007",
+      "kind": "EQUIPMENT",
+      "category": "WEAPON",
+      "name": "旅行箱",
+      "rarity": "GREEN",
+      "attack_multiplier": 0.6,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "PER_BATTLE",
+        "max": 2,
+        "loss_per_battle": 1
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "PURCHASE_PRICE",
+        "purchase_price": null,
+        "fixed_value": null
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": true,
+        "usable_phases": ["NONE"],
+        "effects": []
+      },
+      "assets": {
+        "icon_key": "card_wp_007",
+        "card_art_key": null
+      },
+      "data_status": "BLOCKED",
+      "source": {
+        "document": "大劫卡西诺游戏卡牌说明和图片资源",
+        "notes": "购买价格待补充；攻击倍率以当前卡牌文档为准。"
+      }
+    },
+    {
+      "card_id": "loot_001",
+      "kind": "LOOT",
+      "category": "LOOT",
+      "name": "高级西装",
+      "rarity": "SPECIAL",
+      "attack_multiplier": null,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "NONE",
+        "max": 0,
+        "loss_per_battle": 0
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "FIXED_LOOT_VALUE",
+        "purchase_price": null,
+        "fixed_value": 25000
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": false,
+        "usable_phases": ["NONE"],
+        "effects": []
+      },
+      "assets": {
+        "icon_key": "card_loot_001",
+        "card_art_key": null
+      },
+      "data_status": "ACTIVE",
+      "source": {
+        "document": "大劫卡西诺游戏卡牌说明和图片资源",
+        "notes": "固定物资价值。"
+      }
+    },
+    {
+      "card_id": "loot_002",
+      "kind": "LOOT",
+      "category": "LOOT",
+      "name": "纯金扑克",
+      "rarity": "SPECIAL",
+      "attack_multiplier": null,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "NONE",
+        "max": 0,
+        "loss_per_battle": 0
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "FIXED_LOOT_VALUE",
+        "purchase_price": null,
+        "fixed_value": 30000
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": false,
+        "usable_phases": ["NONE"],
+        "effects": []
+      },
+      "assets": {
+        "icon_key": "card_loot_002",
+        "card_art_key": null
+      },
+      "data_status": "ACTIVE",
+      "source": {
+        "document": "大劫卡西诺游戏卡牌说明和图片资源",
+        "notes": "固定物资价值。"
+      }
+    },
+    {
+      "card_id": "loot_003",
+      "kind": "LOOT",
+      "category": "LOOT",
+      "name": "赌徒之眼",
+      "rarity": "SPECIAL",
+      "attack_multiplier": null,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "NONE",
+        "max": 0,
+        "loss_per_battle": 0
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "FIXED_LOOT_VALUE",
+        "purchase_price": null,
+        "fixed_value": 50000
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": false,
+        "usable_phases": ["NONE"],
+        "effects": []
+      },
+      "assets": {
+        "icon_key": "card_loot_003",
+        "card_art_key": null
+      },
+      "data_status": "ACTIVE",
+      "source": {
+        "document": "大劫卡西诺游戏卡牌说明和图片资源",
+        "notes": "固定物资价值。"
+      }
+    }
+  ]
+}

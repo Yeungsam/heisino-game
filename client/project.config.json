@@ -1,0 +1,44 @@
+{
+  "appid": "wxac0dd152fc261ffd",
+  "compileType": "game",
+  "libVersion": "latest",
+  "projectname": "heisino-game",
+  "description": "大劫卡西诺 MVP 规则原型",
+  "setting": {
+    "es6": true,
+    "enhance": false,
+    "postcss": true,
+    "minified": false,
+    "urlCheck": false,
+    "compileHotReLoad": true,
+    "compileWorklet": false,
+    "uglifyFileName": false,
+    "uploadWithSourceMap": true,
+    "packNpmManually": false,
+    "packNpmRelationList": [],
+    "minifyWXSS": true,
+    "minifyWXML": true,
+    "localPlugins": false,
+    "disableUseStrict": false,
+    "useCompilerPlugins": false,
+    "condition": false,
+    "babelSetting": {
+      "ignore": [],
+      "disablePlugins": [],
+      "outputPath": ""
+    }
+  },
+  "condition": {
+    "game": {
+      "currentL": -1,
+      "list": []
+    }
+  },
+  "simulatorPluginLibVersion": {},
+  "packOptions": {
+    "ignore": [],
+    "include": []
+  },
+  "isGameTourist": false,
+  "editorSetting": {}
+}

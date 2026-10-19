@@ -1,0 +1,225 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://heisino-game.local/schema/cards.schema.json",
+  "title": "大劫卡西诺卡牌配置",
+  "description": "静态卡牌定义。运行时的拾取、丢弃、装备和掠夺状态由 item-instance.schema.json 表示。",
+  "type": "object",
+  "required": ["schema_version", "cards"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "0.1.0"
+    },
+    "cards": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/card"
+      },
+      "uniqueItems": true
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "card": {
+      "type": "object",
+      "required": [
+        "card_id",
+        "kind",
+        "category",
+        "name",
+        "rarity",
+        "attack_multiplier",
+        "defense_multiplier",
+        "durability",
+        "economy",
+        "inventory",
+        "rules",
+        "assets",
+        "data_status",
+        "source"
+      ],
+      "properties": {
+        "card_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{2,63}$"
+        },
+        "kind": {
+          "type": "string",
+          "enum": ["EQUIPMENT", "LOOT"]
+        },
+        "category": {
+          "type": "string",
+          "enum": ["WEAPON", "ARMOR", "SKILL", "LOOT"]
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32
+        },
+        "rarity": {
+          "type": "string",
+          "enum": ["GREEN", "BLUE", "PURPLE", "RED", "SPECIAL"]
+        },
+        "attack_multiplier": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 2
+        },
+        "defense_multiplier": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 2
+        },
+        "durability": {
+          "type": "object",
+          "required": ["mode", "max", "loss_per_battle"],
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": ["PER_BATTLE", "NONE"]
+            },
+            "max": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "loss_per_battle": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false
+        },
+        "economy": {
+          "type": "object",
+          "required": ["currency", "value_source", "purchase_price", "fixed_value"],
+          "properties": {
+            "currency": {
+              "type": "string",
+              "const": "GOLD"
+            },
+            "value_source": {
+              "type": "string",
+              "enum": ["PURCHASE_PRICE", "FIXED_LOOT_VALUE", "NONE"]
+            },
+            "purchase_price": {
+              "type": ["integer", "null"],
+              "minimum": 0
+            },
+            "fixed_value": {
+              "type": ["integer", "null"],
+              "minimum": 0
+            }
+          },
+          "additionalProperties": false
+        },
+        "inventory": {
+          "type": "object",
+          "required": ["slot_cost", "can_pickup", "can_drop", "can_steal"],
+          "properties": {
+            "slot_cost": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "can_pickup": {
+              "type": "boolean"
+            },
+            "can_drop": {
+              "type": "boolean"
+            },
+            "can_steal": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": false
+        },
+        "rules": {
+          "type": "object",
+          "required": ["requires_equipped", "usable_phases", "effects"],
+          "properties": {
+            "requires_equipped": {
+              "type": "boolean"
+            },
+            "usable_phases": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["BEFORE_ROLL", "DICE_ALLOCATION", "RESOLUTION", "NONE"]
+              },
+              "uniqueItems": true
+            },
+            "effects": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/effect"
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "assets": {
+          "type": "object",
+          "required": ["icon_key", "card_art_key"],
+          "properties": {
+            "icon_key": {
+              "type": ["string", "null"]
+            },
+            "card_art_key": {
+              "type": ["string", "null"]
+            }
+          },
+          "additionalProperties": false
+        },
+        "data_status": {
+          "type": "string",
+          "enum": ["DRAFT", "ACTIVE", "BLOCKED"]
+        },
+        "source": {
+          "type": "object",
+          "required": ["document", "notes"],
+          "properties": {
+            "document": {
+              "type": "string",
+              "minLength": 1
+            },
+            "notes": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "effect": {
+      "type": "object",
+      "required": ["effect_id", "effect_type", "duration", "parameters"],
+      "properties": {
+        "effect_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{2,63}$"
+        },
+        "effect_type": {
+          "type": "string",
+          "enum": [
+            "NONE",
+            "MODIFY_ATTACK_MULTIPLIER",
+            "MODIFY_DEFENSE_MULTIPLIER",
+            "MODIFY_DICE",
+            "REROLL_DICE",
+            "LOCK_DICE_MINIMUM",
+            "DISABLE_EQUIPMENT_EFFECT",
+            "MODIFY_LOOT"
+          ]
+        },
+        "duration": {
+          "type": "string",
+          "enum": ["NONE", "SUB_ROUND", "BATTLE", "TURN", "INSTANCE"]
+        },
+        "parameters": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
