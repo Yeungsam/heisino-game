@@ -19,6 +19,15 @@ test('玩家只能移动到相邻节点或停留', () => {
   assert.equal(game.submitMove('P1', { x: 1, y: 0 }).ok, true)
 })
 
+test('中央金库第6回合才开放', () => {
+  const { game } = createGame()
+  const player = game.getPlayer('P1')
+  player.position = { x: 2, y: 1 }
+  assert.equal(game.submitMove('P1', { x: 2, y: 2 }).reason, 'NODE_LOCKED')
+  game.turn = 6
+  assert.equal(game.submitMove('P1', { x: 2, y: 2 }).ok, true)
+})
+
 test('倒计时未选择的玩家默认停留原地', () => {
   const { game } = createGame()
   const before = { ...game.getPlayer('P1').position }
@@ -102,4 +111,39 @@ test('完成一轮战斗后武器耐久减少且不会低于零', () => {
     const weapon = game.items.find(item => item.instanceId === instanceId)
     assert.ok(weapon.durability >= 0 && weapon.durability <= 1)
   })
+})
+
+test('到达唯一撤离点后消耗一回合完成撤离', () => {
+  const { game } = createGame()
+  const player = game.getPlayer('P1')
+  player.position = { x: 4, y: 4 }
+  game.phase = 'ROUND_RESULT'
+  assert.equal(game.requestExtraction('P1').ok, true)
+  game.finishTurn()
+  assert.equal(player.status, 'EXTRACTED')
+  assert.equal(game.phase, 'GAME_OVER')
+  assert.equal(game.settlementFor('P1').success, true)
+})
+
+test('第10回合警报圈伤害先于撤离完成结算', () => {
+  const { game } = createGame()
+  const player = game.getPlayer('P1')
+  player.position = { x: 4, y: 4 }
+  player.hp = 10
+  game.turn = 9
+  game.phase = 'ROUND_RESULT'
+  game.requestExtraction('P1')
+  game.finishTurn()
+  assert.equal(player.hp, 0)
+  assert.equal(player.status, 'DEFEATED')
+  assert.equal(game.settlementFor('P1').success, false)
+})
+
+test('第12回合结束仍未撤离时结算失败', () => {
+  const { game } = createGame()
+  game.turn = 12
+  game.phase = 'ROUND_RESULT'
+  game.finishTurn()
+  assert.equal(game.getPlayer('P1').status, 'TIMED_OUT')
+  assert.equal(game.settlementFor('P1').success, false)
 })

@@ -54,7 +54,8 @@ class GameEngine {
       position: { x, y },
       previousPosition: { x, y },
       inventory: [weapon.instanceId],
-      equippedWeaponId: weapon.instanceId
+      equippedWeaponId: weapon.instanceId,
+      extractionRequestedTurn: null
     }
   }
 
@@ -91,6 +92,12 @@ class GameEngine {
     this.searchAccess = {}
     this.encounters = []
     if (this.turn >= C.ALERT_START_TURN) this.applyAlertDamage()
+    this.completeExtractions()
+    const localPlayer = this.getPlayer(this.localPlayerId)
+    if (localPlayer && localPlayer.status !== 'ACTIVE') {
+      this.phase = 'GAME_OVER'
+      return
+    }
     if (this.activePlayers().length <= 1) {
       this.phase = 'GAME_OVER'
       this.addLog('场上仅剩一名玩家，对局结束。')
@@ -116,6 +123,15 @@ class GameEngine {
     })
   }
 
+  completeExtractions() {
+    this.activePlayers().forEach(player => {
+      if (player.extractionRequestedTurn !== null && this.turn > player.extractionRequestedTurn) {
+        player.status = 'EXTRACTED'
+        this.addLog(`${player.name}已从白鸽撤离点安全离场。`)
+      }
+    })
+  }
+
   activePlayers() {
     return this.players.filter(player => player.status === 'ACTIVE')
   }
@@ -136,12 +152,16 @@ class GameEngine {
     ]
     return candidates.filter(position => (
       position.x >= 0 && position.y >= 0 &&
-      position.x < C.BOARD_SIZE && position.y < C.BOARD_SIZE
+      position.x < C.BOARD_SIZE && position.y < C.BOARD_SIZE &&
+      !(position.x === 2 && position.y === 2 && this.turn < C.VAULT_OPEN_TURN)
     ))
   }
 
   submitMove(playerId, target) {
     if (this.phase !== 'MOVE_SELECTION') return { ok: false, reason: 'INVALID_PHASE' }
+    if (target.x === 2 && target.y === 2 && this.turn < C.VAULT_OPEN_TURN) {
+      return { ok: false, reason: 'NODE_LOCKED' }
+    }
     const legal = this.legalMoves(playerId).some(position => position.x === target.x && position.y === target.y)
     if (!legal) return { ok: false, reason: 'NOT_ADJACENT' }
     this.moveSelections[playerId] = { x: target.x, y: target.y }
@@ -319,13 +339,49 @@ class GameEngine {
   finishTurn() {
     if (!['SEARCH', 'ROUND_RESULT'].includes(this.phase)) return { ok: false, reason: 'INVALID_PHASE' }
     if (this.turn >= C.MAX_TURNS) {
+      this.activePlayers().forEach(player => {
+        player.status = 'TIMED_OUT'
+      })
       this.phase = 'GAME_OVER'
-      this.addLog('第 12 回合结束，进入结算。撤离判定将在下一闭环接入。')
+      this.addLog('第 12 回合结束，未完成撤离的玩家判定失败。')
       return { ok: true, gameOver: true }
     }
     this.turn += 1
     this.beginTurn()
     return { ok: true, gameOver: this.phase === 'GAME_OVER' }
+  }
+
+  requestExtraction(playerId) {
+    if (!['SEARCH', 'ROUND_RESULT'].includes(this.phase)) return { ok: false, reason: 'INVALID_PHASE' }
+    const player = this.getPlayer(playerId)
+    if (!player || player.status !== 'ACTIVE') return { ok: false, reason: 'NOT_ACTIVE' }
+    if (positionKey(player.position) !== C.EXTRACTION_NODE_ID) return { ok: false, reason: 'NOT_AT_EXTRACTION' }
+    if (player.extractionRequestedTurn !== null) return { ok: false, reason: 'ALREADY_REQUESTED' }
+    player.extractionRequestedTurn = this.turn
+    this.addLog(`${player.name}已呼叫白鸽接应，需消耗 1 回合完成撤离。`)
+    return { ok: true, completesAtTurn: this.turn + 1 }
+  }
+
+  settlementFor(playerId) {
+    const player = this.getPlayer(playerId)
+    if (!player) return null
+    const reasonByStatus = {
+      EXTRACTED: '成功撤离',
+      DEFEATED: '战斗或警报圈战败',
+      TIMED_OUT: '第 12 回合结束前未撤离',
+      ACTIVE: '对局提前结束'
+    }
+    return {
+      playerId,
+      success: player.status === 'EXTRACTED',
+      status: player.status,
+      reason: reasonByStatus[player.status] || player.status,
+      turn: this.turn,
+      hp: player.hp,
+      itemCount: player.inventory.length,
+      lootValue: this.inventoryValue(playerId),
+      itemIds: player.inventory.slice()
+    }
   }
 
   tick(timestamp = this.now()) {

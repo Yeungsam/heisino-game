@@ -2,7 +2,7 @@
   "name": "heisino-game",
   "version": "0.1.0",
   "private": true,
-  "description": "大劫卡西诺微信小游戏规则原型",
+  "description": "大劫卡西诺微信小游戏完整流程测试包",
   "scripts": {
     "test": "node --test tests/*.test.js",
     "check": "node --check client/game.js && node --check client/js/main.js && node --test tests/*.test.js"
