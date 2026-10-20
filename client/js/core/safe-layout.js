@@ -27,36 +27,52 @@ function validMenuRect(rect, width, height) {
   )
 }
 
+function createCoverPlacement(options) {
+  const zoom = options.zoom || 1
+  const focusX = options.focusX === undefined ? 0.5 : options.focusX
+  const focusY = options.focusY === undefined ? 0.5 : options.focusY
+  const scale = Math.max(options.viewWidth / options.imageWidth, options.viewHeight / options.imageHeight) * zoom
+  const width = options.imageWidth * scale
+  const height = options.imageHeight * scale
+  return {
+    x: (options.viewWidth - width) * focusX,
+    y: (options.viewHeight - height) * focusY,
+    width,
+    height,
+    scale
+  }
+}
+
 function createSafeLayout(options) {
   const windowInfo = options.windowInfo
   const width = windowInfo.windowWidth
   const height = windowInfo.windowHeight
   const shortSide = Math.min(width, height)
-  const bleedRatio = options.bleedRatio || 0.025
-  const bleed = clamp(Math.round(shortSide * bleedRatio), 8, 18)
+  const contentPaddingRatio = options.contentPaddingRatio || 0.025
+  const contentPadding = clamp(Math.round(shortSide * contentPaddingRatio), 8, 18)
   const safeArea = normalizeSafeArea(windowInfo)
   const menuButtonRect = validMenuRect(options.menuButtonRect, width, height)
     ? { ...options.menuButtonRect }
     : null
 
   const contentBounds = {
-    left: safeArea.left + bleed,
-    top: safeArea.top + bleed,
-    right: safeArea.right - bleed,
-    bottom: safeArea.bottom - bleed
+    left: safeArea.left + contentPadding,
+    top: safeArea.top + contentPadding,
+    right: safeArea.right - contentPadding,
+    bottom: safeArea.bottom - contentPadding
   }
   if (menuButtonRect && menuButtonRect.top < height * 0.3) {
-    contentBounds.top = Math.max(contentBounds.top, menuButtonRect.bottom + bleed)
+    contentBounds.top = Math.max(contentBounds.top, menuButtonRect.bottom + contentPadding)
   } else {
     const fallbackSystemTop = clamp(Math.round(height * 0.11), 40, 56)
-    contentBounds.top = Math.max(contentBounds.top, safeArea.top + fallbackSystemTop + bleed)
+    contentBounds.top = Math.max(contentBounds.top, safeArea.top + fallbackSystemTop + contentPadding)
   }
 
   if (contentBounds.right <= contentBounds.left || contentBounds.bottom <= contentBounds.top) {
-    contentBounds.left = bleed
-    contentBounds.top = bleed
-    contentBounds.right = width - bleed
-    contentBounds.bottom = height - bleed
+    contentBounds.left = contentPadding
+    contentBounds.top = contentPadding
+    contentBounds.right = width - contentPadding
+    contentBounds.bottom = height - contentPadding
   }
 
   const contentWidth = contentBounds.right - contentBounds.left
@@ -70,7 +86,7 @@ function createSafeLayout(options) {
   return {
     width,
     height,
-    bleed,
+    contentPadding,
     scale,
     offsetX,
     offsetY,
@@ -94,4 +110,4 @@ function createSafeLayout(options) {
   }
 }
 
-module.exports = { createSafeLayout, normalizeSafeArea }
+module.exports = { createSafeLayout, createCoverPlacement, normalizeSafeArea }
