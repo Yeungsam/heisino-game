@@ -35,6 +35,15 @@ const PALETTE = {
   blue: '#56a6db'
 }
 
+const BLEED_THEMES = {
+  LOADING: ['#6d214d', '#b83b45', '#d89a45'],
+  HOME: ['#70213f', '#c33d43', '#e0a14d'],
+  LOADOUT: ['#692143', '#a83248', '#d79a48'],
+  MATCHING: ['#263f83', '#65346f', '#bf3c55'],
+  MATCH_FOUND: ['#285796', '#69407c', '#d24d58'],
+  GAME: ['#234c7a', '#5a326d', '#a9334d']
+}
+
 const assetSources = {
   home: 'assets/home.jpg',
   map: 'assets/map.jpg',
@@ -146,27 +155,68 @@ function button(id, label, rect, options = {}) {
   ui.hotspots.push({ id, rect, data: options.data })
 }
 
-function drawCover(image) {
+function bleedTheme() {
+  return BLEED_THEMES[scene] || BLEED_THEMES.HOME
+}
+
+function drawBleedBackground() {
+  const colors = bleedTheme()
   context.save()
   context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0)
+
+  const base = context.createLinearGradient(0, 0, viewWidth, viewHeight)
+  base.addColorStop(0, colors[0])
+  base.addColorStop(0.52, colors[1])
+  base.addColorStop(1, colors[2])
+  context.fillStyle = base
+  context.fillRect(0, 0, viewWidth, viewHeight)
+
+  const warmGlow = context.createRadialGradient(viewWidth * 0.12, viewHeight * 0.18, 0, viewWidth * 0.12, viewHeight * 0.18, viewWidth * 0.5)
+  warmGlow.addColorStop(0, 'rgba(255, 225, 128, 0.38)')
+  warmGlow.addColorStop(1, 'rgba(255, 225, 128, 0)')
+  context.fillStyle = warmGlow
+  context.fillRect(0, 0, viewWidth, viewHeight)
+
+  const coolGlow = context.createRadialGradient(viewWidth * 0.86, viewHeight * 0.8, 0, viewWidth * 0.86, viewHeight * 0.8, viewWidth * 0.48)
+  coolGlow.addColorStop(0, 'rgba(97, 171, 226, 0.3)')
+  coolGlow.addColorStop(1, 'rgba(97, 171, 226, 0)')
+  context.fillStyle = coolGlow
+  context.fillRect(0, 0, viewWidth, viewHeight)
+
+  context.strokeStyle = 'rgba(255, 232, 166, 0.16)'
+  context.lineWidth = 1
+  const stripeGap = Math.max(34, Math.round(viewHeight * 0.11))
+  for (let x = -viewHeight; x < viewWidth + viewHeight; x += stripeGap) {
+    context.beginPath()
+    context.moveTo(x, viewHeight)
+    context.lineTo(x + viewHeight, 0)
+    context.stroke()
+  }
+  context.restore()
+}
+
+function drawCover(image) {
+  context.save()
+  roundedPath(0, 0, viewWidth, viewHeight, 18)
+  context.clip()
+
   if (!image) {
-    context.fillStyle = PALETTE.ink
+    const colors = bleedTheme()
+    const fallback = context.createLinearGradient(0, 0, viewWidth, viewHeight)
+    fallback.addColorStop(0, colors[0])
+    fallback.addColorStop(0.52, colors[1])
+    fallback.addColorStop(1, colors[2])
+    context.fillStyle = fallback
     context.fillRect(0, 0, viewWidth, viewHeight)
     context.restore()
     return
   }
-  const scale = Math.max(viewWidth / image.width, viewHeight / image.height)
-  const width = image.width * scale
-  const height = image.height * scale
-  context.drawImage(image, (viewWidth - width) / 2, (viewHeight - height) / 2, width, height)
-  context.fillStyle = 'rgba(14, 8, 18, 0.72)'
-  context.fillRect(0, 0, viewWidth, viewHeight)
-  context.restore()
 
   const safeScale = Math.max(viewWidth / image.width, viewHeight / image.height)
   const safeWidth = image.width * safeScale
   const safeHeight = image.height * safeScale
   context.drawImage(image, (viewWidth - safeWidth) / 2, (viewHeight - safeHeight) / 2, safeWidth, safeHeight)
+  context.restore()
 }
 
 function drawImageCoverInRect(image, rect, source = null) {
@@ -915,11 +965,7 @@ function update() {
 }
 
 function draw() {
-  context.save()
-  context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0)
-  context.fillStyle = PALETTE.ink
-  context.fillRect(0, 0, viewWidth, viewHeight)
-  context.restore()
+  drawBleedBackground()
 
   context.save()
   context.translate(safeLayout.offsetX, safeLayout.offsetY)
