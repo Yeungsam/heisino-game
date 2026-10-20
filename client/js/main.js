@@ -4,6 +4,7 @@ const { GameEngine, positionKey } = require('./core/game-engine')
 const { MatchmakingSession } = require('./core/matchmaking')
 const { LoadoutSession } = require('./core/loadout')
 const { createSeededRng } = require('./core/rng')
+const { createSafeLayout } = require('./core/safe-layout')
 
 const canvas = wx.createCanvas()
 const context = canvas.getContext('2d')
@@ -11,6 +12,13 @@ const windowInfo = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync(
 const pixelRatio = windowInfo.pixelRatio || 1
 const viewWidth = windowInfo.windowWidth
 const viewHeight = windowInfo.windowHeight
+let menuButtonRect = null
+try {
+  menuButtonRect = wx.getMenuButtonBoundingClientRect ? wx.getMenuButtonBoundingClientRect() : null
+} catch (error) {
+  menuButtonRect = null
+}
+const safeLayout = createSafeLayout({ windowInfo, menuButtonRect })
 canvas.width = viewWidth * pixelRatio
 canvas.height = viewHeight * pixelRatio
 context.scale(pixelRatio, pixelRatio)
@@ -139,15 +147,26 @@ function button(id, label, rect, options = {}) {
 }
 
 function drawCover(image) {
+  context.save()
+  context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0)
   if (!image) {
     context.fillStyle = PALETTE.ink
     context.fillRect(0, 0, viewWidth, viewHeight)
+    context.restore()
     return
   }
   const scale = Math.max(viewWidth / image.width, viewHeight / image.height)
   const width = image.width * scale
   const height = image.height * scale
   context.drawImage(image, (viewWidth - width) / 2, (viewHeight - height) / 2, width, height)
+  context.fillStyle = 'rgba(14, 8, 18, 0.72)'
+  context.fillRect(0, 0, viewWidth, viewHeight)
+  context.restore()
+
+  const safeScale = Math.max(viewWidth / image.width, viewHeight / image.height)
+  const safeWidth = image.width * safeScale
+  const safeHeight = image.height * safeScale
+  context.drawImage(image, (viewWidth - safeWidth) / 2, (viewHeight - safeHeight) / 2, safeWidth, safeHeight)
 }
 
 function drawImageCoverInRect(image, rect, source = null) {
@@ -896,6 +915,15 @@ function update() {
 }
 
 function draw() {
+  context.save()
+  context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0)
+  context.fillStyle = PALETTE.ink
+  context.fillRect(0, 0, viewWidth, viewHeight)
+  context.restore()
+
+  context.save()
+  context.translate(safeLayout.offsetX, safeLayout.offsetY)
+  context.scale(safeLayout.scale, safeLayout.scale)
   ui.hotspots = []
   ui.inventoryRects = []
   ui.loadoutWarehouseRects = []
@@ -910,6 +938,7 @@ function draw() {
   if (scene === 'MATCH_FOUND') drawMatchmaking(true)
   if (scene === 'GAME') drawGame()
   drawToast()
+  context.restore()
 }
 
 function pointInRect(point, rect) {
@@ -919,7 +948,7 @@ function pointInRect(point, rect) {
 function touchPoint(event, changed = true) {
   const list = changed ? event.changedTouches : event.touches
   const touch = list && list[0]
-  return touch ? { x: touch.clientX, y: touch.clientY } : { x: 0, y: 0 }
+  return touch ? safeLayout.toLogicalPoint({ x: touch.clientX, y: touch.clientY }) : { x: 0, y: 0 }
 }
 
 function nextTurn() {
