@@ -2,6 +2,7 @@ const cards = require('../data/cards')
 const C = require('./core/constants')
 const { GameEngine, positionKey } = require('./core/game-engine')
 const { MatchmakingSession } = require('./core/matchmaking')
+const { LoadoutSession } = require('./core/loadout')
 const { createSeededRng } = require('./core/rng')
 
 const canvas = wx.createCanvas()
@@ -37,6 +38,7 @@ let assetsLoaded = 0
 let scene = 'LOADING'
 let sceneEnteredAt = Date.now()
 let matchmaking = new MatchmakingSession()
+let loadout = new LoadoutSession({ cards })
 let engine = null
 let presentation = 'MAP'
 let selectedMove = null
@@ -46,11 +48,17 @@ let simulatedJoinStep = 0
 let toast = ''
 let toastUntil = 0
 let draggingItemId = null
+let loadoutSelection = null
+let loadoutDragging = null
 
 const ui = {
   hotspots: [],
   inventoryRects: [],
-  discardRect: null
+  discardRect: null,
+  loadoutWarehouseRects: [],
+  loadoutBackpackRects: [],
+  loadoutWarehouseDropRect: null,
+  loadoutBackpackDropRect: null
 }
 
 function setScene(nextScene) {
@@ -142,6 +150,22 @@ function drawCover(image) {
   context.drawImage(image, (viewWidth - width) / 2, (viewHeight - height) / 2, width, height)
 }
 
+function drawImageCoverInRect(image, rect, source = null) {
+  if (!image) return
+  const sx = source ? source.x : 0
+  const sy = source ? source.y : 0
+  const sw = source ? source.width : image.width
+  const sh = source ? source.height : image.height
+  const scale = Math.max(rect.width / sw, rect.height / sh)
+  const width = sw * scale
+  const height = sh * scale
+  context.save()
+  roundedPath(rect.x, rect.y, rect.width, rect.height, 14)
+  context.clip()
+  context.drawImage(image, sx, sy, sw, sh, rect.x + (rect.width - width) / 2, rect.y + (rect.height - height) / 2, width, height)
+  context.restore()
+}
+
 function darken(alpha = 0.45, color = '0, 0, 0') {
   context.fillStyle = `rgba(${color}, ${alpha})`
   context.fillRect(0, 0, viewWidth, viewHeight)
@@ -203,7 +227,200 @@ function drawHome() {
   ui.hotspots.push({ id: 'home_map', rect: { x: viewWidth * 0.625, y: viewHeight * 0.715, width: viewWidth * 0.225, height: viewHeight * 0.11 } })
   panel(14, 12, 126, 32, { fill: 'rgba(33,17,23,.68)', stroke: 'rgba(255,231,162,.65)', radius: 16 })
   text('♠  离岸码头 · 01', 77, 28, 11, '#fff0be', 'center', 'bold')
-  text('MVP TEST BUILD 0.2', viewWidth - 14, viewHeight - 12, 9, 'rgba(255,255,255,.72)', 'right')
+  text('MVP TEST BUILD 0.3', viewWidth - 14, viewHeight - 12, 9, 'rgba(255,255,255,.72)', 'right')
+}
+
+function enterLoadout() {
+  loadoutSelection = null
+  loadoutDragging = null
+  setScene('LOADOUT')
+}
+
+function cardColor(card) {
+  const colors = {
+    RED: '#df4854',
+    PURPLE: '#9d6ae5',
+    BLUE: '#4e9bd8',
+    GREEN: '#55b985',
+    SPECIAL: '#d9a43e'
+  }
+  return colors[card.rarity] || '#9b8d99'
+}
+
+function cardMeta(card) {
+  if (card.kind === 'EQUIPMENT') return `武器 · 攻击倍率 ${card.attackMultiplier || 0}`
+  return `物资 · ${card.value ? formatGold(card.value) : '价值待定'}`
+}
+
+function drawLoadoutCard(card, rect, selected, location) {
+  const color = cardColor(card)
+  context.save()
+  roundedPath(rect.x, rect.y, rect.width, rect.height, 7)
+  const gradient = context.createLinearGradient(rect.x, rect.y, rect.x, rect.y + rect.height)
+  gradient.addColorStop(0, `${color}e8`)
+  gradient.addColorStop(0.42, 'rgba(49,30,43,.96)')
+  gradient.addColorStop(1, 'rgba(22,16,25,.98)')
+  context.fillStyle = gradient
+  context.fill()
+  context.strokeStyle = selected ? PALETTE.paleGold : color
+  context.lineWidth = selected ? 2.5 : 1.2
+  context.stroke()
+  if (selected) {
+    context.shadowColor = PALETTE.gold
+    context.shadowBlur = 12
+    context.stroke()
+  }
+  text(card.kind === 'EQUIPMENT' ? '⚔' : '♦', rect.x + rect.width / 2, rect.y + rect.height * 0.31, Math.max(15, rect.height * 0.24), color, 'center', 'bold')
+  text(card.name, rect.x + rect.width / 2, rect.y + rect.height * 0.62, Math.max(7, Math.min(10, rect.width * 0.14)), '#fff2d8', 'center', 'bold')
+  text(location === 'BACKPACK' ? '已携带' : card.rarity, rect.x + rect.width / 2, rect.y + rect.height - 9, 7, location === 'BACKPACK' ? '#86e0b4' : '#c8b6c3', 'center')
+  context.restore()
+}
+
+function addLoadoutCard(cardId) {
+  const result = loadout.add(cardId)
+  if (result.ok) {
+    loadoutSelection = null
+    addToast('卡牌已放入行动背包。')
+    return true
+  }
+  addToast(result.reason === 'LOADOUT_FULL' ? '本次行动最多携带 4 张卡牌。' : '该卡牌无法放入背包。')
+  return false
+}
+
+function removeLoadoutCard(cardId) {
+  const result = loadout.remove(cardId)
+  if (result.ok) {
+    loadoutSelection = null
+    addToast('卡牌已放回仓库。')
+    return true
+  }
+  return false
+}
+
+function drawLoadout() {
+  drawCover(assets.home)
+  darken(0.68, '20, 8, 26')
+  const top = 48
+  const bottom = 58
+  const gap = 10
+  const contentHeight = viewHeight - top - bottom
+  const npcWidth = viewWidth * 0.22
+  const backpackWidth = viewWidth * 0.245
+  const warehouseWidth = viewWidth - npcWidth - backpackWidth - gap * 4
+  const npcRect = { x: gap, y: top, width: npcWidth, height: contentHeight }
+  const warehouseRect = { x: npcRect.x + npcRect.width + gap, y: top, width: warehouseWidth, height: contentHeight }
+  const backpackRect = { x: warehouseRect.x + warehouseRect.width + gap, y: top, width: backpackWidth, height: contentHeight }
+  const state = loadout.snapshot()
+
+  const headerGradient = context.createLinearGradient(0, 0, viewWidth, 0)
+  headerGradient.addColorStop(0, 'rgba(126,24,38,.97)')
+  headerGradient.addColorStop(0.55, 'rgba(47,23,48,.97)')
+  headerGradient.addColorStop(1, 'rgba(31,20,46,.97)')
+  context.fillStyle = headerGradient
+  context.fillRect(0, 0, viewWidth, 42)
+  context.strokeStyle = 'rgba(247,201,92,.75)'
+  context.beginPath()
+  context.moveTo(0, 41)
+  context.lineTo(viewWidth, 41)
+  context.stroke()
+  text('行 动 战 备', 16, 21, 18, PALETTE.paleGold, 'left', 'bold')
+  text('卡西诺主岛 · 进入匹配前配置本次携带物资', viewWidth / 2, 21, 10, '#d9c9d6', 'center')
+  text(`已携带 ${state.selectedCardIds.length}/${C.LOADOUT_CARD_LIMIT}`, viewWidth - 16, 21, 11, state.selectedCardIds.length === C.LOADOUT_CARD_LIMIT ? '#ffcf68' : '#9fe5c2', 'right', 'bold')
+
+  panel(npcRect.x, npcRect.y, npcRect.width, npcRect.height, { fill: 'rgba(39,20,33,.93)', stroke: '#bd785d', radius: 15 })
+  const npcImageRect = { x: npcRect.x + 6, y: npcRect.y + 6, width: npcRect.width - 12, height: npcRect.height * 0.65 }
+  drawImageCoverInRect(assets.home, npcImageRect, assets.home ? { x: 0, y: 0, width: assets.home.width * 0.58, height: assets.home.height } : null)
+  const speechRect = { x: npcRect.x + 9, y: npcRect.y + npcRect.height * 0.61, width: npcRect.width - 18, height: npcRect.height * 0.34 }
+  panel(speechRect.x, speechRect.y, speechRect.width, speechRect.height, { fill: 'rgba(255,244,220,.96)', stroke: '#d59d54', radius: 10 })
+  text('白鸽接应员', speechRect.x + 10, speechRect.y + 15, 10, '#9d2e38', 'left', 'bold')
+  text('行动前准备好武器、', speechRect.x + 10, speechRect.y + 36, 9, '#3a2830')
+  text('防具或者技能。', speechRect.x + 10, speechRect.y + 51, 9, '#3a2830')
+  text('准备好了再出发。', speechRect.x + 10, speechRect.y + 66, 9, '#3a2830', 'left', 'bold')
+
+  panel(warehouseRect.x, warehouseRect.y, warehouseRect.width, warehouseRect.height, { fill: 'rgba(31,20,35,.94)', stroke: 'rgba(247,201,92,.74)', radius: 15 })
+  text('玩家仓库', warehouseRect.x + 14, warehouseRect.y + 18, 14, PALETTE.paleGold, 'left', 'bold')
+  text(`当前拥有全部 ${state.ownedCardIds.length} 张卡牌`, warehouseRect.x + warehouseRect.width - 14, warehouseRect.y + 18, 9, '#bfaebe', 'right')
+  ui.loadoutWarehouseDropRect = warehouseRect
+  const detailHeight = 36
+  const gridTop = warehouseRect.y + 34
+  const gridHeight = warehouseRect.height - 42 - detailHeight
+  const columns = 5
+  const rows = 2
+  const cardGap = 6
+  const cardWidth = (warehouseRect.width - 20 - cardGap * (columns - 1)) / columns
+  const cardHeight = (gridHeight - cardGap) / rows
+  state.warehouseCardIds.forEach((cardId, index) => {
+    const card = cards.find(candidate => candidate.cardId === cardId)
+    const column = index % columns
+    const row = Math.floor(index / columns)
+    const rect = { x: warehouseRect.x + 10 + column * (cardWidth + cardGap), y: gridTop + row * (cardHeight + cardGap), width: cardWidth, height: cardHeight }
+    const selected = loadoutSelection && loadoutSelection.cardId === cardId && loadoutSelection.source === 'WAREHOUSE'
+    drawLoadoutCard(card, rect, selected, 'WAREHOUSE')
+    ui.loadoutWarehouseRects.push({ ...rect, cardId })
+    ui.hotspots.push({ id: 'loadout_warehouse_card', rect, data: cardId })
+  })
+  if (state.warehouseCardIds.length === 0) text('仓库中暂无可选卡牌', warehouseRect.x + warehouseRect.width / 2, warehouseRect.y + warehouseRect.height / 2, 11, '#8e7e8c', 'center')
+
+  const selectedCard = loadoutSelection && cards.find(card => card.cardId === loadoutSelection.cardId)
+  const detailY = warehouseRect.y + warehouseRect.height - detailHeight
+  context.fillStyle = 'rgba(255,255,255,.035)'
+  context.fillRect(warehouseRect.x + 1, detailY, warehouseRect.width - 2, detailHeight - 1)
+  text(selectedCard ? selectedCard.name : '操作提示', warehouseRect.x + 13, detailY + 12, 10, selectedCard ? cardColor(selectedCard) : '#b9a9b7', 'left', 'bold')
+  text(selectedCard ? `${cardMeta(selectedCard)} · 再次点击${loadoutSelection.source === 'WAREHOUSE' ? '放入背包' : '放回仓库'}` : '拖拽卡牌，或点开后再次点击', warehouseRect.x + 13, detailY + 27, 8, '#d4c5d1')
+
+  panel(backpackRect.x, backpackRect.y, backpackRect.width, backpackRect.height, { fill: 'rgba(27,19,34,.96)', stroke: 'rgba(154,112,208,.82)', radius: 15 })
+  text('行动背包', backpackRect.x + 12, backpackRect.y + 18, 14, '#e9d7ff', 'left', 'bold')
+  text('10 格 · 最多带 4 张', backpackRect.x + backpackRect.width - 10, backpackRect.y + 18, 8, '#ae9aba', 'right')
+  ui.loadoutBackpackDropRect = backpackRect
+  const bagColumns = 2
+  const bagRows = 5
+  const bagGap = 5
+  const bagTop = backpackRect.y + 34
+  const slotWidth = (backpackRect.width - 20 - bagGap) / bagColumns
+  const slotHeight = (backpackRect.height - 44 - bagGap * (bagRows - 1)) / bagRows
+  for (let index = 0; index < C.BACKPACK_SLOTS; index += 1) {
+    const column = index % bagColumns
+    const row = Math.floor(index / bagColumns)
+    const rect = { x: backpackRect.x + 10 + column * (slotWidth + bagGap), y: bagTop + row * (slotHeight + bagGap), width: slotWidth, height: slotHeight }
+    roundedPath(rect.x, rect.y, rect.width, rect.height, 6)
+    context.fillStyle = index < C.LOADOUT_CARD_LIMIT ? 'rgba(103,61,113,.22)' : 'rgba(255,255,255,.035)'
+    context.fill()
+    context.strokeStyle = index < C.LOADOUT_CARD_LIMIT ? 'rgba(205,161,241,.45)' : 'rgba(255,255,255,.13)'
+    context.stroke()
+    const cardId = state.selectedCardIds[index]
+    if (cardId) {
+      const card = cards.find(candidate => candidate.cardId === cardId)
+      const selected = loadoutSelection && loadoutSelection.cardId === cardId && loadoutSelection.source === 'BACKPACK'
+      drawLoadoutCard(card, rect, selected, 'BACKPACK')
+      ui.loadoutBackpackRects.push({ ...rect, cardId })
+      ui.hotspots.push({ id: 'loadout_backpack_card', rect, data: cardId })
+    } else if (index < C.LOADOUT_CARD_LIMIT) {
+      text(`携带位 ${index + 1}`, rect.x + rect.width / 2, rect.y + rect.height / 2, 8, '#8f7899', 'center')
+    } else {
+      text(`${index + 1}`, rect.x + rect.width / 2, rect.y + rect.height / 2, 8, '#5d5361', 'center')
+    }
+  }
+  if (loadoutDragging) {
+    const target = loadoutDragging.source === 'WAREHOUSE' ? backpackRect : warehouseRect
+    context.save()
+    roundedPath(target.x + 3, target.y + 3, target.width - 6, target.height - 6, 12)
+    context.strokeStyle = '#ffe18b'
+    context.lineWidth = 3
+    context.setLineDash([8, 5])
+    context.stroke()
+    context.restore()
+  }
+
+  context.fillStyle = 'rgba(22,13,25,.96)'
+  context.fillRect(0, viewHeight - bottom + 4, viewWidth, bottom - 4)
+  context.strokeStyle = 'rgba(247,201,92,.45)'
+  context.beginPath()
+  context.moveTo(0, viewHeight - bottom + 4)
+  context.lineTo(viewWidth, viewHeight - bottom + 4)
+  context.stroke()
+  button('loadout_home', '返回首页', { x: 14, y: viewHeight - 45, width: 124, height: 32 }, { top: '#554653', bottom: '#2a222c', stroke: '#a692a4', size: 11 })
+  text('可空手出发 · 推荐至少携带 1 张武器卡', viewWidth / 2, viewHeight - 28, 9, '#b9a9b8', 'center')
+  button('loadout_match', '开始匹配', { x: viewWidth - 154, y: viewHeight - 47, width: 140, height: 35 }, { top: '#dc9f3a', bottom: '#882e25', stroke: '#ffe19a', size: 12 })
 }
 
 function beginMatchmaking() {
@@ -234,6 +451,7 @@ function drawMatchmaking(found = false) {
   panel(x, y, panelWidth, panelHeight, { fill: 'rgba(28,15,33,.92)', stroke: PALETTE.gold, lineWidth: 2, radius: 20 })
   text(found ? '牌 局 集 结 完 成' : '正 在 寻 找 同 行 者', viewWidth / 2, y + 34, 22, PALETTE.paleGold, 'center', 'bold')
   text(found ? '三名劫匪已登船，准备登陆卡西诺岛' : '白鸽接应队正在为你安排同局玩家', viewWidth / 2, y + 62, 11, '#d8c8dc', 'center')
+  text(`本次战备 ${loadout.snapshot().selectedCardIds.length}/${C.LOADOUT_CARD_LIMIT}`, x + panelWidth - 18, y + 34, 9, '#bcaac2', 'right', 'bold')
 
   const suits = ['♠', '♥', '♣']
   const colors = [PALETTE.gold, '#ef6975', '#9f7ee8']
@@ -268,7 +486,12 @@ function drawMatchmaking(found = false) {
 }
 
 function startGame() {
-  engine = new GameEngine({ cards, rng: createSeededRng(Date.now()), localPlayerId: 'P1' })
+  engine = new GameEngine({
+    cards,
+    rng: createSeededRng(Date.now()),
+    localPlayerId: 'P1',
+    localLoadoutCardIds: loadout.snapshot().selectedCardIds
+  })
   engine.start()
   selectedMove = null
   activeBattle = null
@@ -406,9 +629,13 @@ function drawInventory(state, x, y, width, interactive = true) {
   text(weapon ? `耐久 ${'■'.repeat(weapon.durability)}${'□'.repeat(Math.max(0, 2 - weapon.durability))}` : '攻击倍率 0.3', x + 20, y + 72, 9, '#d7bca9')
   text(`背包 ${local.inventory.length}/${C.BACKPACK_SLOTS}`, x + 14, y + 103, 11, '#d8cbd7', 'left', 'bold')
   ui.inventoryRects = []
-  const columns = 4
+  const columns = 5
+  const rows = Math.ceil(C.BACKPACK_SLOTS / columns)
   const gap = 5
-  const slot = (width - 25 - gap * (columns - 1)) / columns
+  const slotByWidth = (width - 20 - gap * (columns - 1)) / columns
+  const availableGridHeight = Math.max(60, viewHeight - 70 - (y + 117) - 8)
+  const slotByHeight = (availableGridHeight - gap * (rows - 1)) / rows
+  const slot = Math.min(slotByWidth, slotByHeight)
   for (let index = 0; index < C.BACKPACK_SLOTS; index += 1) {
     const column = index % columns
     const row = Math.floor(index / columns)
@@ -671,8 +898,14 @@ function update() {
 function draw() {
   ui.hotspots = []
   ui.inventoryRects = []
+  ui.loadoutWarehouseRects = []
+  ui.loadoutBackpackRects = []
+  ui.loadoutWarehouseDropRect = null
+  ui.loadoutBackpackDropRect = null
+  ui.discardRect = null
   if (scene === 'LOADING') drawLoading()
   if (scene === 'HOME') drawHome()
+  if (scene === 'LOADOUT') drawLoadout()
   if (scene === 'MATCHING') drawMatchmaking(false)
   if (scene === 'MATCH_FOUND') drawMatchmaking(true)
   if (scene === 'GAME') drawGame()
@@ -698,9 +931,19 @@ function nextTurn() {
 
 function handleAction(action) {
   if (!action) return
-  if (action.id === 'home_start') beginMatchmaking()
+  if (action.id === 'home_start') enterLoadout()
   if (action.id === 'home_equipment') addToast('装备商店将在后续内容闭环开放。')
   if (action.id === 'home_map') addToast('当前测试地图：卡西诺主岛。')
+  if (action.id === 'loadout_home') setScene('HOME')
+  if (action.id === 'loadout_match') beginMatchmaking()
+  if (action.id === 'loadout_warehouse_card') {
+    if (loadoutSelection && loadoutSelection.cardId === action.data && loadoutSelection.source === 'WAREHOUSE') addLoadoutCard(action.data)
+    else loadoutSelection = { cardId: action.data, source: 'WAREHOUSE' }
+  }
+  if (action.id === 'loadout_backpack_card') {
+    if (loadoutSelection && loadoutSelection.cardId === action.data && loadoutSelection.source === 'BACKPACK') removeLoadoutCard(action.data)
+    else loadoutSelection = { cardId: action.data, source: 'BACKPACK' }
+  }
   if (action.id === 'match_cancel') {
     matchmaking.cancel('P1')
     addToast('已取消匹配，空房间已销毁。')
@@ -750,17 +993,37 @@ function handleAction(action) {
     engine = null
     setScene('HOME')
   }
-  if (action.id === 'settlement_replay') beginMatchmaking()
+  if (action.id === 'settlement_replay') enterLoadout()
 }
 
 wx.onTouchStart(event => {
   const point = touchPoint(event, false)
+  if (scene === 'LOADOUT') {
+    const warehouseCard = ui.loadoutWarehouseRects.find(rect => pointInRect(point, rect))
+    const backpackCard = ui.loadoutBackpackRects.find(rect => pointInRect(point, rect))
+    if (warehouseCard) loadoutDragging = { cardId: warehouseCard.cardId, source: 'WAREHOUSE' }
+    else if (backpackCard) loadoutDragging = { cardId: backpackCard.cardId, source: 'BACKPACK' }
+    return
+  }
   const inventory = ui.inventoryRects.find(rect => pointInRect(point, rect))
   draggingItemId = inventory ? inventory.instanceId : null
 })
 
 wx.onTouchEnd(event => {
   const point = touchPoint(event)
+  if (scene === 'LOADOUT' && loadoutDragging) {
+    let handled = false
+    if (loadoutDragging.source === 'WAREHOUSE' && pointInRect(point, ui.loadoutBackpackDropRect)) {
+      addLoadoutCard(loadoutDragging.cardId)
+      handled = true
+    }
+    if (loadoutDragging.source === 'BACKPACK' && pointInRect(point, ui.loadoutWarehouseDropRect)) {
+      removeLoadoutCard(loadoutDragging.cardId)
+      handled = true
+    }
+    loadoutDragging = null
+    if (handled) return
+  }
   if (draggingItemId && ui.discardRect && pointInRect(point, ui.discardRect) && engine) {
     const result = engine.dropItem('P1', draggingItemId)
     addToast(result.ok ? '物品已丢弃并保留在当前房间。' : '无法丢弃该物品。')

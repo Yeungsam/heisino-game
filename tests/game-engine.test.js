@@ -19,6 +19,20 @@ test('玩家只能移动到相邻节点或停留', () => {
   assert.equal(game.submitMove('P1', { x: 1, y: 0 }).ok, true)
 })
 
+test('战备卡牌成为玩家本局初始背包，第一张武器自动装备', () => {
+  const game = new GameEngine({
+    cards,
+    rng: createSeededRng(7),
+    now: () => 1000,
+    localLoadoutCardIds: ['loot_001', 'wp_001', 'wp_002', 'loot_002']
+  })
+  game.start()
+  const player = game.getPlayer('P1')
+  const inventoryCards = player.inventory.map(instanceId => game.items.find(item => item.instanceId === instanceId).cardId)
+  assert.deepEqual(inventoryCards, ['loot_001', 'wp_001', 'wp_002', 'loot_002'])
+  assert.equal(game.items.find(item => item.instanceId === player.equippedWeaponId).cardId, 'wp_001')
+})
+
 test('中央金库第6回合才开放', () => {
   const { game } = createGame()
   const player = game.getPlayer('P1')

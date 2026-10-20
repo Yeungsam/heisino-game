@@ -21,6 +21,9 @@ class GameEngine {
     this.rng = options.rng || Math.random
     this.now = options.now || (() => Date.now())
     this.localPlayerId = options.localPlayerId || 'P1'
+    this.localLoadoutCardIds = Array.isArray(options.localLoadoutCardIds)
+      ? options.localLoadoutCardIds.slice(0, C.LOADOUT_CARD_LIMIT)
+      : ['wp_006']
     this.turn = 1
     this.phase = 'BOOT'
     this.players = []
@@ -34,17 +37,27 @@ class GameEngine {
 
   start() {
     this.players = [
-      this.createPlayer('P1', '玩家', 0, 0, 'wp_006'),
-      this.createPlayer('P2', '黑桃客', 0, 4, 'wp_005'),
-      this.createPlayer('P3', '红心客', 4, 0, 'wp_002')
+      this.createPlayer('P1', '玩家', 0, 0, this.localLoadoutCardIds),
+      this.createPlayer('P2', '黑桃客', 0, 4, ['wp_005']),
+      this.createPlayer('P3', '红心客', 4, 0, ['wp_002'])
     ]
     this.seedRooms()
     this.beginTurn()
     return this.snapshot()
   }
 
-  createPlayer(id, name, x, y, weaponCardId) {
-    const weapon = this.createItem(weaponCardId, nodeId(x, y), 'EQUIPPED', id)
+  createPlayer(id, name, x, y, startingCardIds) {
+    const validCardIds = startingCardIds
+      .filter(cardId => this.cardById[cardId])
+      .slice(0, C.BACKPACK_SLOTS)
+    let equippedWeaponId = null
+    const inventory = validCardIds.map(cardId => {
+      const card = this.cardById[cardId]
+      const canEquip = !equippedWeaponId && card.kind === 'EQUIPMENT' && card.category === 'WEAPON'
+      const item = this.createItem(cardId, null, canEquip ? 'EQUIPPED' : 'IN_INVENTORY', id)
+      if (canEquip) equippedWeaponId = item.instanceId
+      return item.instanceId
+    })
     return {
       id,
       name,
@@ -53,8 +66,8 @@ class GameEngine {
       status: 'ACTIVE',
       position: { x, y },
       previousPosition: { x, y },
-      inventory: [weapon.instanceId],
-      equippedWeaponId: weapon.instanceId,
+      inventory,
+      equippedWeaponId,
       extractionRequestedTurn: null
     }
   }
