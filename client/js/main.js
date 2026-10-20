@@ -4,7 +4,7 @@ const { GameEngine, positionKey } = require('./core/game-engine')
 const { MatchmakingSession } = require('./core/matchmaking')
 const { LoadoutSession } = require('./core/loadout')
 const { createSeededRng } = require('./core/rng')
-const { createSafeLayout, createCoverPlacement } = require('./core/safe-layout')
+const { createSafeLayout } = require('./core/safe-layout')
 
 const canvas = wx.createCanvas()
 const context = canvas.getContext('2d')
@@ -37,7 +37,6 @@ const PALETTE = {
 
 const assetSources = {
   home: 'assets/home.jpg',
-  homeBackground: 'assets/home-background.jpg',
   map: 'assets/map.jpg',
   characters: 'assets/characters.jpg',
   loading: 'assets/loading.jpg'
@@ -147,31 +146,27 @@ function button(id, label, rect, options = {}) {
   ui.hotspots.push({ id, rect, data: options.data })
 }
 
-function drawFullscreenBackdrop(image, options = {}) {
+function drawCover(image) {
   context.save()
   context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0)
-
-  context.fillStyle = options.fallback || PALETTE.ink
-  context.fillRect(0, 0, viewWidth, viewHeight)
-
-  if (image) {
-    const placement = createCoverPlacement({
-      viewWidth,
-      viewHeight,
-      imageWidth: image.width,
-      imageHeight: image.height,
-      zoom: options.zoom,
-      focusX: options.focusX,
-      focusY: options.focusY
-    })
-    context.drawImage(image, placement.x, placement.y, placement.width, placement.height)
-  }
-
-  if (options.dimAlpha) {
-    context.fillStyle = `rgba(${options.dimColor || '0, 0, 0'}, ${options.dimAlpha})`
+  if (!image) {
+    context.fillStyle = PALETTE.ink
     context.fillRect(0, 0, viewWidth, viewHeight)
+    context.restore()
+    return
   }
+  const scale = Math.max(viewWidth / image.width, viewHeight / image.height)
+  const width = image.width * scale
+  const height = image.height * scale
+  context.drawImage(image, (viewWidth - width) / 2, (viewHeight - height) / 2, width, height)
+  context.fillStyle = 'rgba(14, 8, 18, 0.72)'
+  context.fillRect(0, 0, viewWidth, viewHeight)
   context.restore()
+
+  const safeScale = Math.max(viewWidth / image.width, viewHeight / image.height)
+  const safeWidth = image.width * safeScale
+  const safeHeight = image.height * safeScale
+  context.drawImage(image, (viewWidth - safeWidth) / 2, (viewHeight - safeHeight) / 2, safeWidth, safeHeight)
 }
 
 function drawImageCoverInRect(image, rect, source = null) {
@@ -219,7 +214,7 @@ function drawToast() {
 }
 
 function drawLoading() {
-  drawFullscreenBackdrop(assets.loading)
+  drawCover(assets.loading)
   const progress = assetsLoaded / Object.keys(assetSources).length
   const width = viewWidth * 0.46
   const x = (viewWidth - width) / 2
@@ -237,21 +232,18 @@ function drawLoading() {
 }
 
 function drawHome() {
-  drawFullscreenBackdrop(assets.homeBackground || assets.home, { zoom: 1.02, focusX: 0.52 })
-  const menuCenterX = viewWidth * 0.735
-  text('大 劫 卡 西 诺', menuCenterX, viewHeight * 0.2, 34, '#fff0a8', 'center', 'bold')
-  text('CASINO HEIST', menuCenterX, viewHeight * 0.285, 12, '#7b2631', 'center', 'bold')
+  drawCover(assets.home)
   const pulse = 0.55 + Math.sin(Date.now() / 280) * 0.18
   const startRect = { x: viewWidth * 0.625, y: viewHeight * 0.465, width: viewWidth * 0.225, height: viewHeight * 0.11 }
-  button('home_start', '开始游戏', startRect, { top: '#da3d42', bottom: '#821b28', stroke: '#ffe28a', size: 14 })
-  button('home_equipment', '购买装备', { x: viewWidth * 0.625, y: viewHeight * 0.59, width: viewWidth * 0.225, height: viewHeight * 0.11 }, { top: '#69409b', bottom: '#382255', stroke: '#f1c76b', size: 14 })
-  button('home_map', '地图选择', { x: viewWidth * 0.625, y: viewHeight * 0.715, width: viewWidth * 0.225, height: viewHeight * 0.11 }, { top: '#9c572d', bottom: '#53301f', stroke: '#f3c776', size: 14 })
   context.save()
   roundedPath(startRect.x, startRect.y, startRect.width, startRect.height, 12)
   context.strokeStyle = `rgba(255, 239, 142, ${pulse})`
   context.lineWidth = 3
   context.stroke()
   context.restore()
+  ui.hotspots.push({ id: 'home_start', rect: startRect })
+  ui.hotspots.push({ id: 'home_equipment', rect: { x: viewWidth * 0.625, y: viewHeight * 0.59, width: viewWidth * 0.225, height: viewHeight * 0.11 } })
+  ui.hotspots.push({ id: 'home_map', rect: { x: viewWidth * 0.625, y: viewHeight * 0.715, width: viewWidth * 0.225, height: viewHeight * 0.11 } })
   panel(14, 12, 126, 32, { fill: 'rgba(33,17,23,.68)', stroke: 'rgba(255,231,162,.65)', radius: 16 })
   text('♠  离岸码头 · 01', 77, 28, 11, '#fff0be', 'center', 'bold')
   text('MVP TEST BUILD 0.3', viewWidth - 14, viewHeight - 12, 9, 'rgba(255,255,255,.72)', 'right')
@@ -325,7 +317,8 @@ function removeLoadoutCard(cardId) {
 }
 
 function drawLoadout() {
-  drawFullscreenBackdrop(assets.homeBackground || assets.home, { zoom: 1.02, focusX: 0.52, dimAlpha: 0.68, dimColor: '20, 8, 26' })
+  drawCover(assets.home)
+  darken(0.68, '20, 8, 26')
   const top = 48
   const bottom = 58
   const gap = 10
@@ -458,7 +451,8 @@ function beginMatchmaking() {
 }
 
 function drawMatchBackground() {
-  drawFullscreenBackdrop(assets.map, { dimAlpha: 0.56, dimColor: '18, 9, 32' })
+  drawCover(assets.map)
+  darken(0.56, '18, 9, 32')
   const topGradient = context.createLinearGradient(0, 0, 0, viewHeight * 0.35)
   topGradient.addColorStop(0, 'rgba(73,20,30,.82)')
   topGradient.addColorStop(1, 'rgba(25,14,35,0)')
@@ -682,7 +676,8 @@ function drawInventory(state, x, y, width, interactive = true) {
 }
 
 function drawMapScene(state) {
-  drawFullscreenBackdrop(assets.map, { dimAlpha: 0.23, dimColor: '5, 13, 24' })
+  drawCover(assets.map)
+  darken(0.23, '5, 13, 24')
   drawTopHud(state)
   const layout = gameLayout()
   drawMapGrid(state, layout)
@@ -729,7 +724,8 @@ function decidePostMove() {
 }
 
 function drawBattle(state) {
-  drawFullscreenBackdrop(assets.characters, { dimAlpha: 0.5, dimColor: '14, 5, 22' })
+  drawCover(assets.characters)
+  darken(0.5, '14, 5, 22')
   drawTopHud(state)
   const local = state.players.find(player => player.id === 'P1')
   const opponentId = activeBattle.playerIds.find(id => id !== 'P1')
@@ -764,7 +760,8 @@ function drawBattle(state) {
 }
 
 function drawSearch(state) {
-  drawFullscreenBackdrop(assets.map, { dimAlpha: 0.62, dimColor: '12, 5, 24' })
+  drawCover(assets.map)
+  darken(0.62, '12, 5, 24')
   drawTopHud(state)
   const layout = gameLayout()
   const roomX = 24
@@ -844,7 +841,8 @@ function drawRoundResult(state) {
 }
 
 function drawSettlement(state) {
-  drawFullscreenBackdrop(assets.loading, { dimAlpha: 0.58, dimColor: '15, 6, 25' })
+  drawCover(assets.loading)
+  darken(0.58, '15, 6, 25')
   const settlement = engine.settlementFor('P1')
   const width = Math.min(520, viewWidth * 0.62)
   const height = Math.min(310, viewHeight * 0.78)
