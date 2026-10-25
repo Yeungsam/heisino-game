@@ -4,6 +4,7 @@ const { GameEngine, positionKey } = require('./core/game-engine')
 const { MatchmakingSession } = require('./core/matchmaking')
 const { LoadoutSession } = require('./core/loadout')
 const { createSeededRng } = require('./core/rng')
+const { ROOM_MASK_ALPHA, createMovementLayout, roomRect, roomTypeAt } = require('./ui/movement-map')
 
 const canvas = wx.createCanvas()
 const context = canvas.getContext('2d')
@@ -30,11 +31,13 @@ const PALETTE = {
 const assetSources = {
   homeMenu: 'assets/home-menu.png',
   home: 'assets/home.jpg',
+  movementMap: 'assets/movement-map.png',
   map: 'assets/map.jpg',
   characters: 'assets/characters.jpg',
   loading: 'assets/loading.jpg'
 }
 const assets = {}
+const PLAYER_ACCOUNT_GOLD = 12000
 let assetsLoaded = 0
 let scene = 'LOADING'
 let sceneEnteredAt = Date.now()
@@ -161,6 +164,12 @@ function drawContained(image) {
   context.drawImage(image, (viewWidth - width) / 2, (viewHeight - height) / 2, width, height)
 }
 
+function drawContainedBackdrop(image, color = '#110a12') {
+  context.fillStyle = color
+  context.fillRect(0, 0, viewWidth, viewHeight)
+  drawContained(image)
+}
+
 function containedSourceRect(image, sourceRect) {
   if (!image) return sourceRect
   const scale = Math.min(viewWidth / image.width, viewHeight / image.height)
@@ -238,8 +247,7 @@ function drawLoading() {
 }
 
 function drawHome() {
-  drawCover(assets.homeMenu)
-  drawContained(assets.homeMenu)
+  drawContainedBackdrop(assets.homeMenu, '#120b16')
   const shopRect = containedSourceRect(assets.homeMenu, { x: 382, y: 590, width: 246, height: 112 })
   const warehouseRect = containedSourceRect(assets.homeMenu, { x: 630, y: 590, width: 266, height: 112 })
   const startRect = containedSourceRect(assets.homeMenu, { x: 900, y: 580, width: 356, height: 126 })
@@ -767,32 +775,140 @@ function drawInventory(state, x, y, width, interactive = true) {
   }
 }
 
-function drawMapScene(state) {
-  drawCover(assets.map)
-  darken(0.23, '5, 13, 24')
-  drawTopHud(state)
-  const layout = gameLayout()
-  drawMapGrid(state, layout)
-  drawInventory(state, layout.sideX, layout.gridY, layout.sideWidth)
+function drawHudPlate(rect, options = {}) {
+  context.save()
+  roundedPath(rect.x, rect.y, rect.width, rect.height, Math.max(6, rect.height * 0.2))
+  const gradient = context.createLinearGradient(rect.x, rect.y, rect.x, rect.y + rect.height)
+  gradient.addColorStop(0, options.top || 'rgba(34,17,22,.98)')
+  gradient.addColorStop(1, options.bottom || 'rgba(9,7,12,.98)')
+  context.fillStyle = gradient
+  context.fill()
+  context.strokeStyle = options.stroke || '#f2c14e'
+  context.lineWidth = Math.max(1.5, rect.height * 0.045)
+  context.stroke()
+  roundedPath(rect.x + 3, rect.y + 3, rect.width - 6, rect.height - 6, Math.max(4, rect.height * 0.16))
+  context.strokeStyle = options.inner || 'rgba(170,36,37,.9)'
+  context.lineWidth = Math.max(1, rect.height * 0.02)
+  context.stroke()
+  context.restore()
+}
+
+function drawMovementRooms(state, layout) {
   const local = state.players.find(player => player.id === 'P1')
+  const selecting = state.phase === 'MOVE_SELECTION'
+  const legalKeys = new Set(selecting ? engine.legalMoves('P1').map(position => `${position.x},${position.y}`) : [])
+  const scale = layout.transform.scale
+
+  for (let y = 0; y < C.BOARD_SIZE; y += 1) {
+    for (let x = 0; x < C.BOARD_SIZE; x += 1) {
+      const key = `${x},${y}`
+      const current = local.position.x === x && local.position.y === y
+      const reachable = legalKeys.has(key) && !current
+      const selected = selectedMove && selectedMove.x === x && selectedMove.y === y
+      const rect = roomRect(layout, x, y, Math.max(1, scale * 1.5))
+
+      context.save()
+      roundedPath(rect.x, rect.y, rect.width, rect.height, Math.max(3, scale * 7))
+      if (!current && !reachable) {
+        context.fillStyle = `rgba(0,0,0,${ROOM_MASK_ALPHA})`
+        context.fill()
+        context.strokeStyle = 'rgba(196,205,210,.34)'
+        context.lineWidth = Math.max(1, scale * 1.2)
+        context.stroke()
+      } else {
+        context.fillStyle = current ? 'rgba(255,177,34,.12)' : 'rgba(36,255,137,.11)'
+        context.fill()
+        context.shadowColor = current ? '#ffb52b' : '#41ff9a'
+        context.shadowBlur = Math.max(8, 15 * scale)
+        context.strokeStyle = current ? '#ffca45' : '#35f58e'
+        context.lineWidth = Math.max(2, 3.4 * scale)
+        context.stroke()
+      }
+
+      if (selected) {
+        const pulse = 0.72 + Math.sin(Date.now() / 180) * 0.22
+        roundedPath(rect.x + 4 * scale, rect.y + 4 * scale, rect.width - 8 * scale, rect.height - 8 * scale, Math.max(3, scale * 6))
+        context.shadowColor = '#fff4a8'
+        context.shadowBlur = Math.max(12, 22 * scale)
+        context.strokeStyle = `rgba(255,248,186,${pulse})`
+        context.lineWidth = Math.max(2, 4 * scale)
+        context.stroke()
+      }
+      context.restore()
+
+      if (selecting && (current || reachable)) ui.hotspots.push({ id: 'map_node', rect, data: { x, y } })
+    }
+  }
+}
+
+function drawMovementHud(state, layout) {
+  const local = state.players.find(player => player.id === 'P1')
+  const scale = layout.transform.scale
+  const headlineSize = Math.max(10, 23 * scale)
+  const mediumSize = Math.max(9, 19 * scale)
+
+  drawHudPlate(layout.round, { stroke: '#f3c350', inner: '#a9272c' })
+  text('♦ ♠', layout.round.x + 30 * scale, layout.round.y + layout.round.height / 2, Math.max(9, 18 * scale), '#fff1c2', 'center', 'bold')
+  text(`回 合  ${String(state.turn).padStart(2, '0')}/${C.MAX_TURNS}`, layout.round.x + layout.round.width / 2, layout.round.y + layout.round.height / 2, headlineSize, '#fff3d2', 'center', 'bold')
+  text('♠', layout.round.x + layout.round.width - 28 * scale, layout.round.y + layout.round.height / 2, Math.max(10, 21 * scale), '#fff1c2', 'center', 'bold')
+
+  const vaultOpen = state.turn >= C.VAULT_OPEN_TURN
+  drawHudPlate(layout.vault, {
+    top: vaultOpen ? 'rgba(73,61,16,.99)' : 'rgba(144,17,27,.99)',
+    bottom: vaultOpen ? 'rgba(38,33,10,.99)' : 'rgba(72,8,17,.99)',
+    stroke: vaultOpen ? '#ffe36e' : '#ffbd39',
+    inner: vaultOpen ? '#a57a24' : '#b22929'
+  })
+  text(vaultOpen ? '◆  中央金库  已开放' : `▣  中央金库  第${C.VAULT_OPEN_TURN}回合开启`, layout.vault.x + layout.vault.width / 2, layout.vault.y + layout.vault.height / 2, mediumSize, '#fff0ba', 'center', 'bold')
+
+  drawHudPlate(layout.alert, { top: '#3b0d78', bottom: '#1f0747', stroke: '#df56ff', inner: '#7750ff' })
+  const alertActive = state.turn >= C.ALERT_START_TURN
+  context.beginPath()
+  context.arc(layout.alert.x + 30 * scale, layout.alert.y + layout.alert.height / 2, Math.max(11, 23 * scale), 0, Math.PI * 2)
+  context.fillStyle = '#190e49'
+  context.fill()
+  context.strokeStyle = '#aa6cff'
+  context.lineWidth = Math.max(1.5, 3 * scale)
+  context.stroke()
+  text('☣', layout.alert.x + 30 * scale, layout.alert.y + layout.alert.height / 2, Math.max(12, 25 * scale), alertActive ? '#ff5f76' : '#5cd6ff', 'center', 'bold')
+  text(alertActive ? '毒圈：生效中' : `毒圈：第${C.ALERT_START_TURN}轮`, layout.alert.x + layout.alert.width * 0.63, layout.alert.y + layout.alert.height / 2, mediumSize, '#eee7ff', 'center', 'bold')
+
+  drawHudPlate(layout.gold, { stroke: '#ef8c38', inner: '#b84023' })
+  context.beginPath()
+  context.arc(layout.gold.x + 29 * scale, layout.gold.y + layout.gold.height / 2, Math.max(11, 23 * scale), 0, Math.PI * 2)
+  context.fillStyle = '#e84a21'
+  context.fill()
+  context.strokeStyle = '#ffe077'
+  context.lineWidth = Math.max(1.5, 3 * scale)
+  context.stroke()
+  text('♦', layout.gold.x + 29 * scale, layout.gold.y + layout.gold.height / 2, Math.max(10, 21 * scale), '#fff2b0', 'center', 'bold')
+  text(`${PLAYER_ACCOUNT_GOLD}g`, layout.gold.x + layout.gold.width * 0.64, layout.gold.y + layout.gold.height / 2, headlineSize, '#fff2d6', 'center', 'bold')
+
+  const target = selectedMove || local.position
   const deadline = state.phase === 'MOVE_SELECTION' ? state.moveDeadlineAt : state.turnDeadlineAt
   const seconds = Math.max(0, Math.ceil((deadline - Date.now()) / 1000))
-  panel(layout.sideX, viewHeight - 61, layout.sideWidth, 48, { fill: 'rgba(25,16,29,.93)', stroke: 'rgba(247,201,92,.55)', radius: 10 })
-  text(state.phase === 'MOVE_SELECTION' ? '移动回合' : '行动结算', layout.sideX + 12, viewHeight - 45, 11, PALETTE.gold, 'left', 'bold')
-  text(`${seconds}s`, layout.sideX + layout.sideWidth - 12, viewHeight - 45, 11, state.turn >= 10 ? '#ff6c6c' : '#d9cbd6', 'right', 'bold')
   if (state.phase === 'MOVE_SELECTION') {
-    text(selectedMove ? `目标节点 (${selectedMove.x},${selectedMove.y})` : '选择高亮相邻节点', layout.sideX + 12, viewHeight - 27, 9, '#c9bcc8')
-    button('confirm_move', '锁定移动', { x: layout.sideX + layout.sideWidth - 112, y: viewHeight - 54, width: 102, height: 32 }, { size: 11 })
+    button('confirm_move', selectedMove ? `确认移动  ${seconds}s` : `原地停留  ${seconds}s`, layout.action, {
+      top: selectedMove ? '#c43b32' : '#78552e',
+      bottom: selectedMove ? '#6d1423' : '#372519',
+      stroke: '#ffe17d',
+      size: Math.max(9, 17 * scale),
+      radius: Math.max(7, 12 * scale)
+    })
   } else {
-    text(`当前位置 ${positionKey(local.position).replace('n_', '(').replace('_', ',')})`, layout.sideX + 12, viewHeight - 27, 9, '#c9bcc8')
+    drawHudPlate(layout.action, { stroke: '#a99470', inner: '#584332' })
+    text('行动结算中', layout.action.x + layout.action.width / 2, layout.action.y + layout.action.height / 2, Math.max(9, 17 * scale), '#eadfc9', 'center', 'bold')
   }
-  ui.discardRect = { x: viewWidth - 118, y: 7, width: 104, height: 31 }
-  roundedPath(ui.discardRect.x, ui.discardRect.y, ui.discardRect.width, ui.discardRect.height, 8)
-  context.fillStyle = draggingItemId ? 'rgba(180,50,55,.92)' : 'rgba(45,27,36,.88)'
-  context.fill()
-  context.strokeStyle = draggingItemId ? '#ff9b7e' : 'rgba(255,255,255,.2)'
-  context.stroke()
-  text('拖到此处丢弃', ui.discardRect.x + ui.discardRect.width / 2, ui.discardRect.y + 16, 9, '#efd8d3', 'center')
+  text(`目标：${roomTypeAt(target.x, target.y)}`, layout.action.x + layout.action.width / 2, layout.action.y + layout.action.height + 17 * scale, Math.max(8, 12 * scale), '#fff0c8', 'center', 'bold')
+}
+
+function drawMapScene(state) {
+  const image = assets.movementMap || assets.map
+  drawContainedBackdrop(image, '#09080b')
+  const layout = createMovementLayout(viewWidth, viewHeight, image ? image.width : 1280, image ? image.height : 722)
+  drawMovementRooms(state, layout)
+  drawMovementHud(state, layout)
+  ui.discardRect = null
 }
 
 function decidePostMove() {
