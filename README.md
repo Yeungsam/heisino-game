@@ -90,6 +90,8 @@ tests/                       # Node.js 自动化测试
 scripts/                     # OCR、卡牌目录和资源生成脚本
 server/                      # 卡牌 API 与服务端卡面资源
 Dockerfile                   # CloudBase 云托管构建入口
+functions/heisino-cards/     # 生产环境卡牌 Web 云函数
+cloudbaserc.json             # CloudBase 环境与函数配置
 ```
 
 客户端目前采用微信小游戏原生 Canvas + CommonJS JavaScript。卡牌目录通过 `GET /api/cards` 从服务端获取，卡面通过服务端静态资源地址按需加载；接口不可用时使用内置结构化目录作为降级数据。规则引擎和表现层分离，后续可继续原生开发，也可迁移至 Cocos Creator + TypeScript。
@@ -97,7 +99,7 @@ Dockerfile                   # CloudBase 云托管构建入口
 ## 本地运行
 
 1. 运行 `npm run server` 启动本地卡牌服务。
-2. 将 `client/js/config.js` 中的地址设置为开发机局域网地址和端口 `3000`。
+2. 如需调试本地服务，将 `client/js/config.js` 中的地址临时设置为开发机局域网地址和端口 `3000`；默认配置连接正式 CloudBase API。
 3. 打开微信开发者工具，选择“小游戏”，导入仓库中的 `client/` 目录。
 4. 使用横屏模拟器编译；仓库顶部应显示“云端卡库”。
 5. 从开始页进入行动战备，选择最多 4 张卡牌后点击“开始匹配”。
@@ -121,7 +123,10 @@ npm run cards:build -- "/absolute/path/to/卡牌！"
 - CloudBase 环境 ID：`cloud1-d5ghcmrajdca722b5`
 - 微信小游戏 AppID：`wxac0dd152fc261ffd`
 - 当前用途：微信体验版测试环境
-- 卡牌服务名：`heisino-cards`（CloudBase CLI 授权后部署）
+- 卡牌云函数：`heisino-cards`（已部署）
+- 正式 API：`https://cloud1-d5ghcmrajdca722b5-1510428576.ap-shanghai.app.tcloudbase.com/api/cards`
+- 卡面静态资源：`https://cloud1-d5ghcmrajdca722b5-1510428576.tcloudbaseapp.com/assets/cards/`
+- 生产架构：HTTP 网关 → Web 云函数返回结构化目录；静态托管按需分发卡面。
 
 密钥、Token、私钥和本地登录凭证不得提交到仓库。
 

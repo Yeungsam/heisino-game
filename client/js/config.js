@@ -1,3 +1,3 @@
 module.exports = {
-  cardServiceBaseUrl: 'http://192.168.50.116:3000'
+  cardServiceBaseUrl: 'https://cloud1-d5ghcmrajdca722b5-1510428576.ap-shanghai.app.tcloudbase.com'
 }

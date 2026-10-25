@@ -1,0 +1,18 @@
+{
+  "$schema": "https://static.cloudbase.net/cli/cloudbaserc.schema.json",
+  "envId": "cloud1-d5ghcmrajdca722b5",
+  "functionRoot": "functions",
+  "functions": [
+    {
+      "name": "heisino-cards",
+      "runtime": "Nodejs20.19",
+      "handler": "index.main",
+      "timeout": 10,
+      "memorySize": 256,
+      "description": "大劫卡西诺卡牌目录 API",
+      "envVariables": {
+        "CARD_ASSET_ORIGIN": "https://cloud1-d5ghcmrajdca722b5-1510428576.tcloudbaseapp.com"
+      }
+    }
+  ]
+}

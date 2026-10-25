@@ -11,6 +11,7 @@ if (!sourceDirectory) {
 
 const root = path.resolve(__dirname, '..')
 const outputDirectory = path.join(root, 'server', 'public', 'assets', 'cards')
+const cloudFunctionDirectory = path.join(root, 'functions', 'heisino-cards')
 const ocrPath = path.join(root, 'data', 'card-ocr.json')
 const ocrCards = fs.existsSync(ocrPath) ? JSON.parse(fs.readFileSync(ocrPath, 'utf8')) : []
 const ocrByFile = Object.fromEntries(ocrCards.map(card => [card.sourceFile, card]))
@@ -159,6 +160,8 @@ cards.forEach(card => {
 
 const catalog = { schema_version: '0.2.0', generated_at: new Date().toISOString(), cards }
 fs.writeFileSync(path.join(root, 'data', 'cards.json'), `${JSON.stringify(catalog, null, 2)}\n`)
+fs.mkdirSync(cloudFunctionDirectory, { recursive: true })
+fs.writeFileSync(path.join(cloudFunctionDirectory, 'cards.json'), `${JSON.stringify(catalog, null, 2)}\n`)
 
 const projection = cards.map(card => ({
   cardId: card.card_id,
