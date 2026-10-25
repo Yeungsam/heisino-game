@@ -3,9 +3,11 @@ const assert = require('node:assert/strict')
 const {
   SOURCE_SIZE,
   ROOM_MASK_ALPHA,
+  PIN_TRANSITION_MS,
   createMovementLayout,
   roomRect,
-  roomTypeAt
+  roomTypeAt,
+  pinTransitionOpacity
 } = require('../client/js/ui/movement-map')
 
 test('移动地图按设计稿映射为完整5×5房间网格', () => {
@@ -23,6 +25,14 @@ test('移动地图按设计稿映射为完整5×5房间网格', () => {
 
 test('不可移动房间使用50%黑色蒙层', () => {
   assert.equal(ROOM_MASK_ALPHA, 0.5)
+})
+
+test('地图图针先在当前房间渐隐，再在目标房间渐现', () => {
+  assert.deepEqual(pinTransitionOpacity(0), { from: 1, to: 0, done: false })
+  assert.deepEqual(pinTransitionOpacity(PIN_TRANSITION_MS / 4), { from: 0.5, to: 0, done: false })
+  assert.deepEqual(pinTransitionOpacity(PIN_TRANSITION_MS / 2), { from: 0, to: 0, done: false })
+  assert.deepEqual(pinTransitionOpacity(PIN_TRANSITION_MS * 0.75), { from: 0, to: 0.5, done: false })
+  assert.deepEqual(pinTransitionOpacity(PIN_TRANSITION_MS), { from: 0, to: 1, done: true })
 })
 
 test('房间网格不会侵入顶部HUD或右侧房间图例', () => {

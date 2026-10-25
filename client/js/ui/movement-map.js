@@ -1,5 +1,6 @@
 const SOURCE_SIZE = Object.freeze({ width: 1280, height: 722 })
 const ROOM_MASK_ALPHA = 0.5
+const PIN_TRANSITION_MS = 460
 
 const SOURCE_RECTS = Object.freeze({
   grid: Object.freeze({ x: 52, y: 106, width: 1027, height: 590 }),
@@ -69,14 +70,31 @@ function roomTypeAt(x, y) {
   return ROOM_TYPES[y] && ROOM_TYPES[y][x] ? ROOM_TYPES[y][x] : '未知房间'
 }
 
+function pinTransitionOpacity(elapsedMs, durationMs = PIN_TRANSITION_MS) {
+  const duration = Math.max(1, durationMs)
+  const progress = Math.max(0, Math.min(1, elapsedMs / duration))
+
+  if (progress < 0.5) {
+    return { from: 1 - progress * 2, to: 0, done: false }
+  }
+
+  return {
+    from: 0,
+    to: (progress - 0.5) * 2,
+    done: progress >= 1
+  }
+}
+
 module.exports = {
   SOURCE_SIZE,
   ROOM_MASK_ALPHA,
+  PIN_TRANSITION_MS,
   SOURCE_RECTS,
   ROOM_TYPES,
   containedTransform,
   projectRect,
   createMovementLayout,
   roomRect,
-  roomTypeAt
+  roomTypeAt,
+  pinTransitionOpacity
 }

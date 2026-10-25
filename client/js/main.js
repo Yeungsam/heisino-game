@@ -4,7 +4,14 @@ const { GameEngine, positionKey } = require('./core/game-engine')
 const { MatchmakingSession } = require('./core/matchmaking')
 const { LoadoutSession } = require('./core/loadout')
 const { createSeededRng } = require('./core/rng')
-const { ROOM_MASK_ALPHA, createMovementLayout, roomRect, roomTypeAt } = require('./ui/movement-map')
+const {
+  ROOM_MASK_ALPHA,
+  PIN_TRANSITION_MS,
+  createMovementLayout,
+  roomRect,
+  roomTypeAt,
+  pinTransitionOpacity
+} = require('./ui/movement-map')
 
 const canvas = wx.createCanvas()
 const context = canvas.getContext('2d')
@@ -46,6 +53,8 @@ let loadout = new LoadoutSession({ cards })
 let engine = null
 let presentation = 'MAP'
 let selectedMove = null
+let movementPinPosition = null
+let movementPinTransition = null
 let activeBattle = null
 let matchReadyAt = null
 let simulatedJoinStep = 0
@@ -613,6 +622,8 @@ function startGame() {
   })
   engine.start()
   selectedMove = null
+  movementPinPosition = { ...engine.getPlayer('P1').position }
+  movementPinTransition = null
   activeBattle = null
   presentation = 'MAP'
   setScene('GAME')
@@ -805,6 +816,7 @@ function drawMovementRooms(state, layout) {
       const current = local.position.x === x && local.position.y === y
       const reachable = legalKeys.has(key) && !current
       const selected = selectedMove && selectedMove.x === x && selectedMove.y === y
+      const emphasized = current || selected
       const rect = roomRect(layout, x, y, Math.max(1, scale * 1.5))
 
       context.save()
@@ -816,28 +828,99 @@ function drawMovementRooms(state, layout) {
         context.lineWidth = Math.max(1, scale * 1.2)
         context.stroke()
       } else {
-        context.fillStyle = current ? 'rgba(255,177,34,.12)' : 'rgba(36,255,137,.11)'
+        context.fillStyle = emphasized ? 'rgba(36,255,137,.15)' : 'rgba(36,255,137,.07)'
         context.fill()
-        context.shadowColor = current ? '#ffb52b' : '#41ff9a'
-        context.shadowBlur = Math.max(8, 15 * scale)
-        context.strokeStyle = current ? '#ffca45' : '#35f58e'
-        context.lineWidth = Math.max(2, 3.4 * scale)
-        context.stroke()
-      }
-
-      if (selected) {
-        const pulse = 0.72 + Math.sin(Date.now() / 180) * 0.22
-        roundedPath(rect.x + 4 * scale, rect.y + 4 * scale, rect.width - 8 * scale, rect.height - 8 * scale, Math.max(3, scale * 6))
-        context.shadowColor = '#fff4a8'
-        context.shadowBlur = Math.max(12, 22 * scale)
-        context.strokeStyle = `rgba(255,248,186,${pulse})`
-        context.lineWidth = Math.max(2, 4 * scale)
+        context.shadowColor = '#41ff9a'
+        context.shadowBlur = Math.max(8, (emphasized ? 18 : 11) * scale)
+        context.strokeStyle = emphasized ? '#35f58e' : 'rgba(53,245,142,.72)'
+        context.lineWidth = Math.max(2, (emphasized ? 3.4 : 2.4) * scale)
         context.stroke()
       }
       context.restore()
 
       if (selecting && (current || reachable)) ui.hotspots.push({ id: 'map_node', rect, data: { x, y } })
     }
+  }
+}
+
+function drawMapPin(rect, scale, alpha) {
+  if (!rect || alpha <= 0) return
+  const centerX = rect.x + rect.width / 2
+  const centerY = rect.y + rect.height / 2 - Math.max(4, 7 * scale)
+  const radius = Math.max(7, 13 * scale)
+
+  context.save()
+  context.globalAlpha = Math.max(0, Math.min(1, alpha))
+  context.shadowColor = '#31ff91'
+  context.shadowBlur = Math.max(10, 20 * scale)
+  context.beginPath()
+  context.moveTo(centerX - radius * 0.58, centerY + radius * 0.38)
+  context.quadraticCurveTo(centerX - radius * 0.2, centerY + radius * 1.16, centerX, centerY + radius * 1.7)
+  context.quadraticCurveTo(centerX + radius * 0.2, centerY + radius * 1.16, centerX + radius * 0.58, centerY + radius * 0.38)
+  context.closePath()
+  context.fillStyle = '#27d97b'
+  context.fill()
+  context.strokeStyle = '#d8ffe9'
+  context.lineWidth = Math.max(1.5, 2.4 * scale)
+  context.stroke()
+
+  context.beginPath()
+  context.arc(centerX, centerY, radius, 0, Math.PI * 2)
+  context.fillStyle = '#27d97b'
+  context.fill()
+  context.strokeStyle = '#e6fff0'
+  context.lineWidth = Math.max(1.5, 2.4 * scale)
+  context.stroke()
+
+  context.shadowBlur = 0
+  context.beginPath()
+  context.arc(centerX, centerY, radius * 0.35, 0, Math.PI * 2)
+  context.fillStyle = '#fff7d1'
+  context.fill()
+  context.restore()
+}
+
+function drawMovementPin(state, layout) {
+  const local = state.players.find(player => player.id === 'P1')
+  if (!local) return
+  if (!movementPinPosition) movementPinPosition = { ...local.position }
+
+  const scale = layout.transform.scale
+  if (movementPinTransition) {
+    const transition = movementPinTransition
+    const opacity = pinTransitionOpacity(Date.now() - transition.startedAt, transition.duration)
+    drawMapPin(roomRect(layout, transition.from.x, transition.from.y), scale, opacity.from)
+    drawMapPin(roomRect(layout, transition.to.x, transition.to.y), scale, opacity.to)
+    if (opacity.done) {
+      movementPinPosition = { ...transition.to }
+      movementPinTransition = null
+    }
+    return
+  }
+
+  drawMapPin(roomRect(layout, movementPinPosition.x, movementPinPosition.y), scale, 1)
+}
+
+function selectMovementTarget(target) {
+  const local = engine && engine.getPlayer('P1')
+  if (!local) return
+  const destination = { x: target.x, y: target.y }
+  const source = movementPinTransition
+    ? { ...movementPinTransition.to }
+    : { ...(movementPinPosition || local.position) }
+
+  selectedMove = destination
+  if (source.x === destination.x && source.y === destination.y) {
+    movementPinPosition = destination
+    movementPinTransition = null
+    return
+  }
+
+  movementPinTransition = {
+    from: source,
+    to: destination,
+    startedAt: Date.now(),
+    duration: PIN_TRANSITION_MS
   }
 }
 
@@ -907,6 +990,7 @@ function drawMapScene(state) {
   drawContainedBackdrop(image, '#09080b')
   const layout = createMovementLayout(viewWidth, viewHeight, image ? image.width : 1280, image ? image.height : 722)
   drawMovementRooms(state, layout)
+  drawMovementPin(state, layout)
   drawMovementHud(state, layout)
   ui.discardRect = null
 }
@@ -1153,6 +1237,8 @@ function touchPoint(event, changed = true) {
 function nextTurn() {
   const result = engine.finishTurn()
   selectedMove = null
+  movementPinPosition = { ...engine.getPlayer('P1').position }
+  movementPinTransition = null
   activeBattle = null
   presentation = result.gameOver || engine.phase === 'GAME_OVER' ? 'SETTLEMENT' : 'MAP'
 }
@@ -1196,7 +1282,7 @@ function handleAction(action) {
     matchReadyAt = Date.now()
     setScene('MATCH_FOUND')
   }
-  if (action.id === 'map_node') selectedMove = { ...action.data }
+  if (action.id === 'map_node') selectMovementTarget(action.data)
   if (action.id === 'confirm_move') {
     const local = engine.getPlayer('P1')
     const target = selectedMove || { ...local.position }
