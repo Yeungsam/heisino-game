@@ -19,7 +19,7 @@ function projectCard(card) {
 }
 
 function fetchCardCatalog(options = {}) {
-  const baseUrl = options.baseUrl || config.cardServiceBaseUrl
+  const baseUrl = options.baseUrl || config.cardApiBaseUrl
   return new Promise((resolve, reject) => {
     wx.request({
       url: `${baseUrl}/api/cards`,

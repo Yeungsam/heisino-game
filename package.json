@@ -6,6 +6,7 @@
   "scripts": {
     "test": "node --test tests/*.test.js",
     "check": "node --check client/game.js && node --check client/js/main.js && node --check server/index.js && node --check functions/heisino-cards/index.js && node --test tests/*.test.js",
+    "verify:cards:production": "node scripts/verify-production-card-service.js",
     "server": "node server/index.js",
     "cards:build": "node scripts/build-card-catalog.js"
   },

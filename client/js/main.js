@@ -5,7 +5,8 @@ const { MatchmakingSession } = require('./core/matchmaking')
 const { LoadoutSession } = require('./core/loadout')
 const { createSeededRng } = require('./core/rng')
 const { fetchCardCatalog } = require('./api/cards')
-const { cardServiceBaseUrl } = require('./config')
+const { cardAssetBaseUrl } = require('./config')
+const { createCardCatalogIndex, resolveCardAssetUrl } = require('./ui/card-art')
 const {
   ROOM_MASK_ALPHA,
   PIN_TRANSITION_MS,
@@ -57,6 +58,7 @@ let scene = 'LOADING'
 let sceneEnteredAt = Date.now()
 let matchmaking = new MatchmakingSession()
 let cards = bundledCards
+let cardsById = createCardCatalogIndex(cards)
 let loadout = new LoadoutSession({ cards })
 let engine = null
 let presentation = 'MAP'
@@ -119,25 +121,50 @@ function finishBoot() {
   setTimeout(() => setScene('HOME'), 350)
 }
 
-function cardAssetUrl(card) {
-  return card.assetUrl || `${cardServiceBaseUrl}${card.assetPath}`
+function beginCardImageLoad(card, record) {
+  const image = wx.createImage()
+  record.image = image
+  record.status = 'LOADING'
+  record.ready = false
+  record.failed = false
+  record.attempts += 1
+  image.onload = () => {
+    record.status = 'READY'
+    record.ready = true
+    record.failed = false
+  }
+  image.onerror = error => {
+    record.status = 'FAILED'
+    record.ready = false
+    record.failed = true
+    record.error = error
+    record.retryAt = Date.now() + 2000 * record.attempts
+    console.error(`[card-art] failed to load ${card.cardId}: ${record.url}`)
+  }
+  image.src = record.url
 }
 
 function cardImage(card) {
   if (!card) return null
-  if (!cardImages[card.cardId]) {
-    const image = wx.createImage()
-    const record = { image, ready: false, failed: false }
-    image.onload = () => { record.ready = true }
-    image.onerror = () => { record.failed = true }
-    image.src = cardAssetUrl(card)
-    cardImages[card.cardId] = record
+  const url = resolveCardAssetUrl(card, cardAssetBaseUrl)
+  if (!url) return { status: 'FAILED', ready: false, failed: true, url: null }
+  if (!cardImages[url]) {
+    const record = { image: null, status: 'IDLE', ready: false, failed: false, url, attempts: 0, retryAt: 0 }
+    cardImages[url] = record
+    beginCardImageLoad(card, record)
   }
-  return cardImages[card.cardId]
+  const record = cardImages[url]
+  if (record.failed && record.attempts < 3 && Date.now() >= record.retryAt) beginCardImageLoad(card, record)
+  return record
+}
+
+function cardById(cardId) {
+  return cardId ? cardsById[cardId] || null : null
 }
 
 function applyCardCatalog(nextCards, source) {
   cards = nextCards
+  cardsById = createCardCatalogIndex(cards)
   loadout = new LoadoutSession({ cards })
   cardCatalogSource = source
   cardCatalogReady = true
@@ -359,31 +386,70 @@ function cardMeta(card) {
   return `物资卡 · ${card.value !== null ? formatGold(card.value) : '价值待定'}`
 }
 
-function drawLoadoutCard(card, rect, selected, location) {
-  const color = cardColor(card)
+function drawCardArt(card, rect, options = {}) {
+  const color = card ? cardColor(card) : '#776979'
+  const radius = options.radius || 7
+  const inset = options.inset ?? 2
   const art = cardImage(card)
   context.save()
-  roundedPath(rect.x, rect.y, rect.width, rect.height, 7)
+  roundedPath(rect.x, rect.y, rect.width, rect.height, radius)
   context.fillStyle = 'rgba(12,9,14,.98)'
   context.fill()
   if (art && art.ready) {
-    drawImageContainInRect(art.image, { x: rect.x + 2, y: rect.y + 2, width: rect.width - 4, height: rect.height - 4 }, 5)
+    drawImageContainInRect(art.image, {
+      x: rect.x + inset,
+      y: rect.y + inset,
+      width: rect.width - inset * 2,
+      height: rect.height - inset * 2
+    }, Math.max(2, radius - 2))
   } else {
     const gradient = context.createLinearGradient(rect.x, rect.y, rect.x, rect.y + rect.height)
-    gradient.addColorStop(0, `${color}e8`)
-    gradient.addColorStop(0.42, 'rgba(49,30,43,.96)')
-    gradient.addColorStop(1, 'rgba(22,16,25,.98)')
+    gradient.addColorStop(0, 'rgba(70,48,72,.96)')
+    gradient.addColorStop(1, 'rgba(20,14,24,.98)')
     context.fillStyle = gradient
     context.fill()
-    const symbols = { WEAPON: '⚔', ARMOR: '▣', SKILL: '✦', LOOT: '♦' }
-    text(symbols[card.category] || '♦', rect.x + rect.width / 2, rect.y + rect.height * 0.31, Math.max(15, rect.height * 0.24), color, 'center', 'bold')
-    text(card.name, rect.x + rect.width / 2, rect.y + rect.height * 0.62, Math.max(7, Math.min(10, rect.width * 0.14)), '#fff2d8', 'center', 'bold')
+    const failed = !art || art.failed
+    text(failed ? '卡面加载失败' : '卡面加载中', rect.x + rect.width / 2, rect.y + rect.height / 2 - 5, Math.max(7, Math.min(10, rect.width * 0.11)), failed ? '#ff9b9b' : '#ddcfdb', 'center', 'bold')
+    if (failed && card) text(card.name, rect.x + rect.width / 2, rect.y + rect.height / 2 + 11, Math.max(6, Math.min(8, rect.width * 0.09)), '#d2bdca', 'center')
   }
-  roundedPath(rect.x, rect.y, rect.width, rect.height, 7)
-  context.strokeStyle = selected ? PALETTE.paleGold : color
-  context.lineWidth = selected ? 2.5 : 1.2
+  roundedPath(rect.x, rect.y, rect.width, rect.height, radius)
+  context.strokeStyle = options.stroke || color
+  context.lineWidth = options.lineWidth || 1.2
   context.stroke()
+  context.restore()
+  return art
+}
+
+function drawCasinoCardBack(rect) {
+  context.save()
+  roundedPath(rect.x, rect.y, rect.width, rect.height, 10)
+  const gradient = context.createLinearGradient(rect.x, rect.y, rect.x, rect.y + rect.height)
+  gradient.addColorStop(0, '#b32638')
+  gradient.addColorStop(0.5, '#70172c')
+  gradient.addColorStop(1, '#271329')
+  context.fillStyle = gradient
+  context.fill()
+  context.strokeStyle = '#ffd26a'
+  context.lineWidth = 2
+  context.stroke()
+  roundedPath(rect.x + 6, rect.y + 6, rect.width - 12, rect.height - 12, 7)
+  context.strokeStyle = 'rgba(255,220,135,.65)'
+  context.lineWidth = 1
+  context.stroke()
+  text('♠', rect.x + rect.width / 2, rect.y + rect.height * 0.38, Math.max(24, rect.width * 0.34), '#f7c95c', 'center', 'bold')
+  text('HEISINO', rect.x + rect.width / 2, rect.y + rect.height * 0.62, Math.max(7, rect.width * 0.09), '#fff0b0', 'center', 'bold')
+  text('点击搜索', rect.x + rect.width / 2, rect.y + rect.height - 18, Math.max(8, rect.width * 0.09), '#ffe8b2', 'center')
+  context.restore()
+}
+
+function drawLoadoutCard(card, rect, selected, location) {
+  const color = cardColor(card)
+  drawCardArt(card, rect, { stroke: selected ? PALETTE.paleGold : color, lineWidth: selected ? 2.5 : 1.2 })
+  context.save()
   if (selected) {
+    roundedPath(rect.x, rect.y, rect.width, rect.height, 7)
+    context.strokeStyle = PALETTE.paleGold
+    context.lineWidth = 2.5
     context.shadowColor = PALETTE.gold
     context.shadowBlur = 12
     context.stroke()
@@ -512,7 +578,7 @@ function drawWarehouse() {
     ui.hotspots.push({ id: 'warehouse_card', rect, data: card.cardId })
   })
 
-  const selectedCard = warehouseSelection && cards.find(card => card.cardId === warehouseSelection)
+  const selectedCard = cardById(warehouseSelection)
   const detailY = panelRect.y + panelRect.height - detailHeight
   context.fillStyle = 'rgba(255,255,255,.04)'
   context.fillRect(panelRect.x + 1, detailY, panelRect.width - 2, detailHeight - 1)
@@ -582,7 +648,7 @@ function drawLoadout() {
   const cardHeight = (gridHeight - cardGap) / rows
   const visibleWarehouseIds = state.warehouseCardIds.slice(loadoutPage * CARD_PAGE_SIZE, (loadoutPage + 1) * CARD_PAGE_SIZE)
   visibleWarehouseIds.forEach((cardId, index) => {
-    const card = cards.find(candidate => candidate.cardId === cardId)
+    const card = cardById(cardId)
     const column = index % columns
     const row = Math.floor(index / columns)
     const rect = { x: warehouseRect.x + 10 + column * (cardWidth + cardGap), y: gridTop + row * (cardHeight + cardGap), width: cardWidth, height: cardHeight }
@@ -593,7 +659,7 @@ function drawLoadout() {
   })
   if (state.warehouseCardIds.length === 0) text('仓库中暂无可选卡牌', warehouseRect.x + warehouseRect.width / 2, warehouseRect.y + warehouseRect.height / 2, 11, '#8e7e8c', 'center')
 
-  const selectedCard = loadoutSelection && cards.find(card => card.cardId === loadoutSelection.cardId)
+  const selectedCard = loadoutSelection && cardById(loadoutSelection.cardId)
   const detailY = warehouseRect.y + warehouseRect.height - detailHeight
   context.fillStyle = 'rgba(255,255,255,.035)'
   context.fillRect(warehouseRect.x + 1, detailY, warehouseRect.width - 2, detailHeight - 1)
@@ -621,7 +687,7 @@ function drawLoadout() {
     context.stroke()
     const cardId = state.selectedCardIds[index]
     if (cardId) {
-      const card = cards.find(candidate => candidate.cardId === cardId)
+      const card = cardById(cardId)
       const selected = loadoutSelection && loadoutSelection.cardId === cardId && loadoutSelection.source === 'BACKPACK'
       drawLoadoutCard(card, rect, selected, 'BACKPACK')
       ui.loadoutBackpackRects.push({ ...rect, cardId })
@@ -857,10 +923,14 @@ function drawInventory(state, x, y, width, interactive = true) {
   panel(x, y, width, viewHeight - y - 70, { fill: 'rgba(28,17,30,.9)', stroke: 'rgba(247,201,92,.66)', radius: 13 })
   text('装备与背包', x + 14, y + 20, 14, PALETTE.paleGold, 'left', 'bold')
   const weapon = state.items.find(item => item.instanceId === local.equippedWeaponId)
-  const weaponCard = weapon && cards.find(card => card.cardId === weapon.cardId)
+  const weaponCard = weapon && cardById(weapon.cardId)
   panel(x + 10, y + 38, width - 20, 46, { fill: 'rgba(98,30,40,.55)', stroke: '#b57962', radius: 8 })
-  text(weaponCard ? weaponCard.name : '徒手', x + 20, y + 54, 12, '#fff2d5', 'left', 'bold')
-  text(weapon ? `耐久 ${'■'.repeat(weapon.durability)}${'□'.repeat(Math.max(0, 2 - weapon.durability))}` : '攻击倍率 0.3', x + 20, y + 72, 9, '#d7bca9')
+  const equippedArtRect = { x: x + 14, y: y + 42, width: 30, height: 38 }
+  if (weaponCard) drawCardArt(weaponCard, equippedArtRect, { radius: 5, inset: 1, lineWidth: 1 })
+  const weaponTextX = weaponCard ? x + 51 : x + 20
+  text(weaponCard ? weaponCard.name : '徒手', weaponTextX, y + 54, 12, '#fff2d5', 'left', 'bold')
+  const weaponMaxDurability = weaponCard && weaponCard.maxDurability ? weaponCard.maxDurability : 2
+  text(weapon ? `耐久 ${'■'.repeat(weapon.durability)}${'□'.repeat(Math.max(0, weaponMaxDurability - weapon.durability))}` : '攻击倍率 0.3', weaponTextX, y + 72, 9, '#d7bca9')
   text(`背包 ${local.inventory.length}/${C.BACKPACK_SLOTS}`, x + 14, y + 103, 11, '#d8cbd7', 'left', 'bold')
   ui.inventoryRects = []
   const columns = 5
@@ -882,10 +952,8 @@ function drawInventory(state, x, y, width, interactive = true) {
     const instanceId = local.inventory[index]
     if (instanceId) {
       const item = state.items.find(candidate => candidate.instanceId === instanceId)
-      const card = item && cards.find(candidate => candidate.cardId === item.cardId)
-      const art = cardImage(card)
-      if (art && art.ready) drawImageContainInRect(art.image, { x: rect.x + 2, y: rect.y + 2, width: rect.width - 4, height: rect.height - 4 }, 4)
-      else text(card ? card.name.slice(0, 2) : '?', rect.x + rect.width / 2, rect.y + rect.height / 2 - 4, 9, '#fff0cb', 'center', 'bold')
+      const card = item && cardById(item.cardId)
+      drawCardArt(card, rect, { radius: 6, inset: 2, stroke: 'rgba(230,198,125,.55)', lineWidth: 1 })
       if (item && item.state === 'EQUIPPED') {
         context.fillStyle = 'rgba(74,18,25,.84)'
         context.fillRect(rect.x + 2, rect.y + rect.height - 14, rect.width - 4, 12)
@@ -1184,32 +1252,11 @@ function drawSearch(state) {
     const x = roomX + (roomWidth - totalWidth) / 2 + index * (cardWidth + 12)
     const y = viewHeight * 0.39
     const rect = { x, y, width: cardWidth, height: Math.min(142, viewHeight * 0.38) }
-    roundedPath(rect.x, rect.y, rect.width, rect.height, 11)
-    const gradient = context.createLinearGradient(rect.x, rect.y, rect.x, rect.y + rect.height)
     if (item.state === 'HIDDEN') {
-      gradient.addColorStop(0, '#941f32')
-      gradient.addColorStop(1, '#34162d')
+      drawCasinoCardBack(rect)
     } else {
-      gradient.addColorStop(0, '#f2d089')
-      gradient.addColorStop(1, '#8f492a')
-    }
-    context.fillStyle = gradient
-    context.fill()
-    context.strokeStyle = item.state === 'HIDDEN' ? '#ffc45c' : '#fff0ac'
-    context.lineWidth = 2
-    context.stroke()
-    if (item.state === 'HIDDEN') {
-      text('♠', rect.x + rect.width / 2, rect.y + rect.height * 0.43, 34, '#f6c967', 'center', 'bold')
-      text('点击搜索', rect.x + rect.width / 2, rect.y + rect.height - 20, 10, '#ffe8b2', 'center')
-    } else {
-      const card = cards.find(candidate => candidate.cardId === item.cardId)
-      const art = cardImage(card)
-      if (art && art.ready) drawImageContainInRect(art.image, { x: rect.x + 3, y: rect.y + 3, width: rect.width - 6, height: rect.height - 6 }, 8)
-      else {
-        text(card ? card.name : '未知物资', rect.x + rect.width / 2, rect.y + 28, 13, '#351521', 'center', 'bold')
-        text('◆', rect.x + rect.width / 2, rect.y + rect.height * 0.48, 28, '#6d2530', 'center')
-        text(card && card.value ? formatGold(card.value) : '装备物资', rect.x + rect.width / 2, rect.y + rect.height - 33, 10, '#3d1b21', 'center', 'bold')
-      }
+      const card = cardById(item.cardId)
+      drawCardArt(card, rect, { radius: 10, inset: 3, stroke: '#fff0ac', lineWidth: 2 })
       context.fillStyle = 'rgba(18,9,14,.76)'
       context.fillRect(rect.x + 4, rect.y + rect.height - 22, rect.width - 8, 17)
       text(item.state === 'DROPPED' ? '战败掉落 · 点击拾取' : '再次点击拾取', rect.x + rect.width / 2, rect.y + rect.height - 13, 8, '#ffe5b7', 'center', 'bold')
