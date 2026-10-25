@@ -18,7 +18,24 @@ test('微信小游戏卡牌投影与主配置保持一致', () => {
     assert.equal(projected.attackMultiplier, source.attack_multiplier)
     assert.equal(projected.maxDurability, source.durability.max)
     assert.equal(projected.dataStatus, source.data_status)
+    assert.equal(projected.description, source.description)
+    assert.equal(projected.assetPath, source.assets.card_art_path)
     const expectedValue = source.economy.fixed_value ?? source.economy.purchase_price
     assert.equal(projected.value, expectedValue)
+  })
+})
+
+test('完整卡库包含四类52张真实卡牌', () => {
+  const counts = sourceCards.reduce((result, card) => {
+    result[card.category] = (result[card.category] || 0) + 1
+    return result
+  }, {})
+
+  assert.equal(sourceCards.length, 52)
+  assert.deepEqual(counts, { WEAPON: 7, ARMOR: 12, LOOT: 23, SKILL: 10 })
+  sourceCards.forEach(card => {
+    assert.match(card.assets.sha256, /^[a-f0-9]{64}$/)
+    assert.match(card.assets.card_art_path, /^\/assets\/cards\/[a-z0-9_]+\.jpg$/)
+    assert.ok(card.source.ocr_text.length > 0)
   })
 })

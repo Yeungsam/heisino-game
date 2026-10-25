@@ -1,9 +1,11 @@
-const cards = require('../data/cards')
+const bundledCards = require('../data/cards')
 const C = require('./core/constants')
 const { GameEngine, positionKey } = require('./core/game-engine')
 const { MatchmakingSession } = require('./core/matchmaking')
 const { LoadoutSession } = require('./core/loadout')
 const { createSeededRng } = require('./core/rng')
+const { fetchCardCatalog } = require('./api/cards')
+const { cardServiceBaseUrl } = require('./config')
 const {
   ROOM_MASK_ALPHA,
   PIN_TRANSITION_MS,
@@ -44,11 +46,17 @@ const assetSources = {
   loading: 'assets/loading.jpg'
 }
 const assets = {}
+const cardImages = {}
 const PLAYER_ACCOUNT_GOLD = 12000
+const CARD_PAGE_SIZE = 10
 let assetsLoaded = 0
+let baseAssetsReady = false
+let cardCatalogReady = false
+let cardCatalogSource = 'LOADING'
 let scene = 'LOADING'
 let sceneEnteredAt = Date.now()
 let matchmaking = new MatchmakingSession()
+let cards = bundledCards
 let loadout = new LoadoutSession({ cards })
 let engine = null
 let presentation = 'MAP'
@@ -64,7 +72,9 @@ let draggingItemId = null
 let loadoutSelection = null
 let loadoutDragging = null
 let warehouseFilter = 'ALL'
+let warehousePage = 0
 let warehouseSelection = null
+let loadoutPage = 0
 
 const ui = {
   hotspots: [],
@@ -89,15 +99,55 @@ function loadAssets() {
       assets[key] = image
       assetsLoaded += 1
       if (assetsLoaded === Object.keys(assetSources).length) {
-        setTimeout(() => setScene('HOME'), 350)
+        baseAssetsReady = true
+        finishBoot()
       }
     }
     image.onerror = () => {
       assetsLoaded += 1
-      if (assetsLoaded === Object.keys(assetSources).length) setScene('HOME')
+      if (assetsLoaded === Object.keys(assetSources).length) {
+        baseAssetsReady = true
+        finishBoot()
+      }
     }
     image.src = assetSources[key]
   })
+}
+
+function finishBoot() {
+  if (scene !== 'LOADING' || !baseAssetsReady || !cardCatalogReady) return
+  setTimeout(() => setScene('HOME'), 350)
+}
+
+function cardAssetUrl(card) {
+  return card.assetUrl || `${cardServiceBaseUrl}${card.assetPath}`
+}
+
+function cardImage(card) {
+  if (!card) return null
+  if (!cardImages[card.cardId]) {
+    const image = wx.createImage()
+    const record = { image, ready: false, failed: false }
+    image.onload = () => { record.ready = true }
+    image.onerror = () => { record.failed = true }
+    image.src = cardAssetUrl(card)
+    cardImages[card.cardId] = record
+  }
+  return cardImages[card.cardId]
+}
+
+function applyCardCatalog(nextCards, source) {
+  cards = nextCards
+  loadout = new LoadoutSession({ cards })
+  cardCatalogSource = source
+  cardCatalogReady = true
+  finishBoot()
+}
+
+function loadCardCatalog() {
+  fetchCardCatalog()
+    .then(catalog => applyCardCatalog(catalog.cards, 'SERVER'))
+    .catch(() => applyCardCatalog(bundledCards, 'LOCAL_CACHE'))
 }
 
 function roundedPath(x, y, width, height, radius = 12) {
@@ -208,6 +258,18 @@ function drawImageCoverInRect(image, rect, source = null) {
   context.restore()
 }
 
+function drawImageContainInRect(image, rect, radius = 7) {
+  if (!image) return
+  const scale = Math.min(rect.width / image.width, rect.height / image.height)
+  const width = image.width * scale
+  const height = image.height * scale
+  context.save()
+  roundedPath(rect.x, rect.y, rect.width, rect.height, radius)
+  context.clip()
+  context.drawImage(image, rect.x + (rect.width - width) / 2, rect.y + (rect.height - height) / 2, width, height)
+  context.restore()
+}
+
 function darken(alpha = 0.45, color = '0, 0, 0') {
   context.fillStyle = `rgba(${color}, ${alpha})`
   context.fillRect(0, 0, viewWidth, viewHeight)
@@ -268,11 +330,13 @@ function drawHome() {
 function enterLoadout() {
   loadoutSelection = null
   loadoutDragging = null
+  loadoutPage = 0
   setScene('LOADOUT')
 }
 
 function enterWarehouse() {
   warehouseFilter = 'ALL'
+  warehousePage = 0
   warehouseSelection = null
   setScene('WAREHOUSE')
 }
@@ -289,20 +353,33 @@ function cardColor(card) {
 }
 
 function cardMeta(card) {
-  if (card.kind === 'EQUIPMENT') return `武器 · 攻击倍率 ${card.attackMultiplier || 0}`
-  return `物资 · ${card.value ? formatGold(card.value) : '价值待定'}`
+  if (card.category === 'WEAPON') return `武器卡 · 攻击倍率 ${Math.round((card.attackMultiplier || 0) * 100)}% · 耐久 ${card.maxDurability}/${card.maxDurability}`
+  if (card.category === 'ARMOR') return `防具卡 · 耐久 ${card.maxDurability}/${card.maxDurability}`
+  if (card.category === 'SKILL') return `技能卡 · ${card.description}`
+  return `物资卡 · ${card.value !== null ? formatGold(card.value) : '价值待定'}`
 }
 
 function drawLoadoutCard(card, rect, selected, location) {
   const color = cardColor(card)
+  const art = cardImage(card)
   context.save()
   roundedPath(rect.x, rect.y, rect.width, rect.height, 7)
-  const gradient = context.createLinearGradient(rect.x, rect.y, rect.x, rect.y + rect.height)
-  gradient.addColorStop(0, `${color}e8`)
-  gradient.addColorStop(0.42, 'rgba(49,30,43,.96)')
-  gradient.addColorStop(1, 'rgba(22,16,25,.98)')
-  context.fillStyle = gradient
+  context.fillStyle = 'rgba(12,9,14,.98)'
   context.fill()
+  if (art && art.ready) {
+    drawImageContainInRect(art.image, { x: rect.x + 2, y: rect.y + 2, width: rect.width - 4, height: rect.height - 4 }, 5)
+  } else {
+    const gradient = context.createLinearGradient(rect.x, rect.y, rect.x, rect.y + rect.height)
+    gradient.addColorStop(0, `${color}e8`)
+    gradient.addColorStop(0.42, 'rgba(49,30,43,.96)')
+    gradient.addColorStop(1, 'rgba(22,16,25,.98)')
+    context.fillStyle = gradient
+    context.fill()
+    const symbols = { WEAPON: '⚔', ARMOR: '▣', SKILL: '✦', LOOT: '♦' }
+    text(symbols[card.category] || '♦', rect.x + rect.width / 2, rect.y + rect.height * 0.31, Math.max(15, rect.height * 0.24), color, 'center', 'bold')
+    text(card.name, rect.x + rect.width / 2, rect.y + rect.height * 0.62, Math.max(7, Math.min(10, rect.width * 0.14)), '#fff2d8', 'center', 'bold')
+  }
+  roundedPath(rect.x, rect.y, rect.width, rect.height, 7)
   context.strokeStyle = selected ? PALETTE.paleGold : color
   context.lineWidth = selected ? 2.5 : 1.2
   context.stroke()
@@ -311,9 +388,11 @@ function drawLoadoutCard(card, rect, selected, location) {
     context.shadowBlur = 12
     context.stroke()
   }
-  text(card.kind === 'EQUIPMENT' ? '⚔' : '♦', rect.x + rect.width / 2, rect.y + rect.height * 0.31, Math.max(15, rect.height * 0.24), color, 'center', 'bold')
-  text(card.name, rect.x + rect.width / 2, rect.y + rect.height * 0.62, Math.max(7, Math.min(10, rect.width * 0.14)), '#fff2d8', 'center', 'bold')
-  text(location === 'BACKPACK' ? '已携带' : card.rarity, rect.x + rect.width / 2, rect.y + rect.height - 9, 7, location === 'BACKPACK' ? '#86e0b4' : '#c8b6c3', 'center')
+  if (location === 'BACKPACK') {
+    context.fillStyle = 'rgba(13,8,16,.78)'
+    context.fillRect(rect.x + 3, rect.y + rect.height - 16, rect.width - 6, 13)
+    text('已携带', rect.x + rect.width / 2, rect.y + rect.height - 9, 7, '#9ff0c5', 'center', 'bold')
+  }
   context.restore()
 }
 
@@ -342,8 +421,7 @@ function warehouseCards() {
   const ownedCardIds = loadout.snapshot().ownedCardIds
   return cards.filter(card => {
     if (!ownedCardIds.includes(card.cardId)) return false
-    if (warehouseFilter === 'EQUIPMENT') return card.kind === 'EQUIPMENT'
-    if (warehouseFilter === 'LOOT') return card.kind === 'LOOT'
+    if (warehouseFilter !== 'ALL') return card.category === warehouseFilter
     return true
   })
 }
@@ -383,16 +461,36 @@ function drawWarehouse() {
   context.stroke()
   text('玩 家 仓 库', 16, 21, 18, PALETTE.paleGold, 'left', 'bold')
   text('查看当前账号持有的全部卡牌', viewWidth / 2, 21, 10, '#d6c7d8', 'center')
-  text(`拥有 ${loadout.snapshot().ownedCardIds.length}/${cards.length}`, viewWidth - 16, 21, 11, '#9fe5c2', 'right', 'bold')
+  text(`拥有 ${loadout.snapshot().ownedCardIds.length}/${cards.length} · ${cardCatalogSource === 'SERVER' ? '云端卡库' : '本地缓存'}`, viewWidth - 16, 21, 9, cardCatalogSource === 'SERVER' ? '#9fe5c2' : '#ffd47d', 'right', 'bold')
 
   const filterY = panelRect.y + 11
-  const filterWidth = Math.min(92, panelRect.width * 0.15)
-  warehouseFilterButton('warehouse_filter_all', '全部', 'ALL', { x: panelRect.x + 12, y: filterY, width: filterWidth, height: 27 })
-  warehouseFilterButton('warehouse_filter_equipment', '装备卡', 'EQUIPMENT', { x: panelRect.x + 18 + filterWidth, y: filterY, width: filterWidth, height: 27 })
-  warehouseFilterButton('warehouse_filter_loot', '物资卡', 'LOOT', { x: panelRect.x + 24 + filterWidth * 2, y: filterY, width: filterWidth, height: 27 })
-  text('默认按配置顺序展示', panelRect.x + panelRect.width - 14, filterY + 14, 9, '#a99aaa', 'right')
+  const filterGap = 4
+  const pagerWidth = 82
+  const filterWidth = (panelRect.width - 24 - pagerWidth - filterGap * 4) / 5
+  const filters = [
+    ['warehouse_filter_all', '全部', 'ALL'],
+    ['warehouse_filter_weapon', '武器', 'WEAPON'],
+    ['warehouse_filter_armor', '防具', 'ARMOR'],
+    ['warehouse_filter_skill', '技能', 'SKILL'],
+    ['warehouse_filter_loot', '物资', 'LOOT']
+  ]
+  filters.forEach((filter, index) => {
+    warehouseFilterButton(filter[0], filter[1], filter[2], {
+      x: panelRect.x + 12 + index * (filterWidth + filterGap),
+      y: filterY,
+      width: filterWidth,
+      height: 27
+    })
+  })
 
-  const visibleCards = warehouseCards()
+  const filteredCards = warehouseCards()
+  const totalPages = Math.max(1, Math.ceil(filteredCards.length / CARD_PAGE_SIZE))
+  warehousePage = Math.min(warehousePage, totalPages - 1)
+  const visibleCards = filteredCards.slice(warehousePage * CARD_PAGE_SIZE, (warehousePage + 1) * CARD_PAGE_SIZE)
+  const pagerX = panelRect.x + panelRect.width - pagerWidth - 10
+  button('warehouse_page_prev', '‹', { x: pagerX, y: filterY, width: 25, height: 27 }, { top: '#554457', bottom: '#29212e', stroke: '#8f7a92', size: 16, radius: 7 })
+  text(`${warehousePage + 1}/${totalPages}`, pagerX + 41, filterY + 14, 8, '#d4c5d1', 'center', 'bold')
+  button('warehouse_page_next', '›', { x: pagerX + 57, y: filterY, width: 25, height: 27 }, { top: '#554457', bottom: '#29212e', stroke: '#8f7a92', size: 16, radius: 7 })
   const gridTop = panelRect.y + 48
   const detailHeight = 45
   const gridBottom = panelRect.y + panelRect.height - detailHeight - 8
@@ -419,10 +517,10 @@ function drawWarehouse() {
   context.fillStyle = 'rgba(255,255,255,.04)'
   context.fillRect(panelRect.x + 1, detailY, panelRect.width - 2, detailHeight - 1)
   text(selectedCard ? selectedCard.name : '卡牌详情', panelRect.x + 14, detailY + 14, 11, selectedCard ? cardColor(selectedCard) : '#b9a9b7', 'left', 'bold')
-  text(selectedCard ? cardMeta(selectedCard) : '点击任意卡牌查看详情；仓库中的卡牌不会自动带入对局。', panelRect.x + 14, detailY + 31, 9, '#d4c5d1')
+  text(selectedCard ? cardMeta(selectedCard) : '点击真实卡面查看详情；仓库中的卡牌不会自动带入对局。', panelRect.x + 14, detailY + 31, 9, '#d4c5d1')
 
   button('warehouse_home', '返回首页', { x: 14, y: viewHeight - 43, width: 124, height: 31 }, { top: '#554653', bottom: '#2a222c', stroke: '#a692a4', size: 11 })
-  text(`当前筛选显示 ${visibleCards.length} 张卡牌`, viewWidth / 2, viewHeight - 28, 9, '#c6b8c8', 'center')
+  text(`当前分类 ${filteredCards.length} 张 · 第 ${warehousePage + 1}/${totalPages} 页`, viewWidth / 2, viewHeight - 28, 9, '#c6b8c8', 'center')
 }
 
 function drawLoadout() {
@@ -467,7 +565,12 @@ function drawLoadout() {
 
   panel(warehouseRect.x, warehouseRect.y, warehouseRect.width, warehouseRect.height, { fill: 'rgba(31,20,35,.94)', stroke: 'rgba(247,201,92,.74)', radius: 15 })
   text('玩家仓库', warehouseRect.x + 14, warehouseRect.y + 18, 14, PALETTE.paleGold, 'left', 'bold')
-  text(`当前拥有全部 ${state.ownedCardIds.length} 张卡牌`, warehouseRect.x + warehouseRect.width - 14, warehouseRect.y + 18, 9, '#bfaebe', 'right')
+  const loadoutPages = Math.max(1, Math.ceil(state.warehouseCardIds.length / CARD_PAGE_SIZE))
+  loadoutPage = Math.min(loadoutPage, loadoutPages - 1)
+  const loadoutPagerX = warehouseRect.x + warehouseRect.width - 88
+  button('loadout_page_prev', '‹', { x: loadoutPagerX, y: warehouseRect.y + 5, width: 23, height: 24 }, { top: '#554457', bottom: '#29212e', stroke: '#8f7a92', size: 15, radius: 6 })
+  text(`${loadoutPage + 1}/${loadoutPages}`, loadoutPagerX + 44, warehouseRect.y + 17, 8, '#d9cad8', 'center', 'bold')
+  button('loadout_page_next', '›', { x: loadoutPagerX + 65, y: warehouseRect.y + 5, width: 23, height: 24 }, { top: '#554457', bottom: '#29212e', stroke: '#8f7a92', size: 15, radius: 6 })
   ui.loadoutWarehouseDropRect = warehouseRect
   const detailHeight = 36
   const gridTop = warehouseRect.y + 34
@@ -477,7 +580,8 @@ function drawLoadout() {
   const cardGap = 6
   const cardWidth = (warehouseRect.width - 20 - cardGap * (columns - 1)) / columns
   const cardHeight = (gridHeight - cardGap) / rows
-  state.warehouseCardIds.forEach((cardId, index) => {
+  const visibleWarehouseIds = state.warehouseCardIds.slice(loadoutPage * CARD_PAGE_SIZE, (loadoutPage + 1) * CARD_PAGE_SIZE)
+  visibleWarehouseIds.forEach((cardId, index) => {
     const card = cards.find(candidate => candidate.cardId === cardId)
     const column = index % columns
     const row = Math.floor(index / columns)
@@ -779,8 +883,14 @@ function drawInventory(state, x, y, width, interactive = true) {
     if (instanceId) {
       const item = state.items.find(candidate => candidate.instanceId === instanceId)
       const card = item && cards.find(candidate => candidate.cardId === item.cardId)
-      text(card ? card.name.slice(0, 2) : '?', rect.x + rect.width / 2, rect.y + rect.height / 2 - 4, 9, '#fff0cb', 'center', 'bold')
-      text(item && item.state === 'EQUIPPED' ? '装备' : '物资', rect.x + rect.width / 2, rect.y + rect.height - 8, 7, '#c19b63', 'center')
+      const art = cardImage(card)
+      if (art && art.ready) drawImageContainInRect(art.image, { x: rect.x + 2, y: rect.y + 2, width: rect.width - 4, height: rect.height - 4 }, 4)
+      else text(card ? card.name.slice(0, 2) : '?', rect.x + rect.width / 2, rect.y + rect.height / 2 - 4, 9, '#fff0cb', 'center', 'bold')
+      if (item && item.state === 'EQUIPPED') {
+        context.fillStyle = 'rgba(74,18,25,.84)'
+        context.fillRect(rect.x + 2, rect.y + rect.height - 14, rect.width - 4, 12)
+        text('装备', rect.x + rect.width / 2, rect.y + rect.height - 8, 7, '#ffe0a0', 'center', 'bold')
+      }
       if (interactive) ui.inventoryRects.push({ ...rect, instanceId })
     }
   }
@@ -1093,10 +1203,16 @@ function drawSearch(state) {
       text('点击搜索', rect.x + rect.width / 2, rect.y + rect.height - 20, 10, '#ffe8b2', 'center')
     } else {
       const card = cards.find(candidate => candidate.cardId === item.cardId)
-      text(card ? card.name : '未知物资', rect.x + rect.width / 2, rect.y + 28, 13, '#351521', 'center', 'bold')
-      text('◆', rect.x + rect.width / 2, rect.y + rect.height * 0.48, 28, '#6d2530', 'center')
-      text(card && card.value ? formatGold(card.value) : '装备物资', rect.x + rect.width / 2, rect.y + rect.height - 33, 10, '#3d1b21', 'center', 'bold')
-      text(item.state === 'DROPPED' ? '战败掉落 · 点击拾取' : '再次点击拾取', rect.x + rect.width / 2, rect.y + rect.height - 15, 8, '#5c3030', 'center')
+      const art = cardImage(card)
+      if (art && art.ready) drawImageContainInRect(art.image, { x: rect.x + 3, y: rect.y + 3, width: rect.width - 6, height: rect.height - 6 }, 8)
+      else {
+        text(card ? card.name : '未知物资', rect.x + rect.width / 2, rect.y + 28, 13, '#351521', 'center', 'bold')
+        text('◆', rect.x + rect.width / 2, rect.y + rect.height * 0.48, 28, '#6d2530', 'center')
+        text(card && card.value ? formatGold(card.value) : '装备物资', rect.x + rect.width / 2, rect.y + rect.height - 33, 10, '#3d1b21', 'center', 'bold')
+      }
+      context.fillStyle = 'rgba(18,9,14,.76)'
+      context.fillRect(rect.x + 4, rect.y + rect.height - 22, rect.width - 8, 17)
+      text(item.state === 'DROPPED' ? '战败掉落 · 点击拾取' : '再次点击拾取', rect.x + rect.width / 2, rect.y + rect.height - 13, 8, '#ffe5b7', 'center', 'bold')
     }
     ui.hotspots.push({ id: 'search_item', rect, data: item.instanceId })
   })
@@ -1251,19 +1367,36 @@ function handleAction(action) {
   if (action.id === 'warehouse_home') setScene('HOME')
   if (action.id === 'warehouse_filter_all') {
     warehouseFilter = 'ALL'
+    warehousePage = 0
     warehouseSelection = null
   }
-  if (action.id === 'warehouse_filter_equipment') {
-    warehouseFilter = 'EQUIPMENT'
+  if (action.id === 'warehouse_filter_weapon') {
+    warehouseFilter = 'WEAPON'
+    warehousePage = 0
+    warehouseSelection = null
+  }
+  if (action.id === 'warehouse_filter_armor') {
+    warehouseFilter = 'ARMOR'
+    warehousePage = 0
+    warehouseSelection = null
+  }
+  if (action.id === 'warehouse_filter_skill') {
+    warehouseFilter = 'SKILL'
+    warehousePage = 0
     warehouseSelection = null
   }
   if (action.id === 'warehouse_filter_loot') {
     warehouseFilter = 'LOOT'
+    warehousePage = 0
     warehouseSelection = null
   }
+  if (action.id === 'warehouse_page_prev') warehousePage = Math.max(0, warehousePage - 1)
+  if (action.id === 'warehouse_page_next') warehousePage = Math.min(Math.max(0, Math.ceil(warehouseCards().length / CARD_PAGE_SIZE) - 1), warehousePage + 1)
   if (action.id === 'warehouse_card') warehouseSelection = action.data
   if (action.id === 'loadout_home') setScene('HOME')
   if (action.id === 'loadout_match') beginMatchmaking()
+  if (action.id === 'loadout_page_prev') loadoutPage = Math.max(0, loadoutPage - 1)
+  if (action.id === 'loadout_page_next') loadoutPage = Math.min(Math.max(0, Math.ceil(loadout.snapshot().warehouseCardIds.length / CARD_PAGE_SIZE) - 1), loadoutPage + 1)
   if (action.id === 'loadout_warehouse_card') {
     if (loadoutSelection && loadoutSelection.cardId === action.data && loadoutSelection.source === 'WAREHOUSE') addLoadoutCard(action.data)
     else loadoutSelection = { cardId: action.data, source: 'WAREHOUSE' }
@@ -1370,4 +1503,5 @@ function loop() {
 }
 
 loadAssets()
+loadCardCatalog()
 loop()

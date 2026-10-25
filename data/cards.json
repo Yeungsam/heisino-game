@@ -1,13 +1,15 @@
 {
-  "schema_version": "0.1.0",
+  "schema_version": "0.2.0",
+  "generated_at": "2026-10-25T09:47:48.567Z",
   "cards": [
     {
       "card_id": "wp_001",
       "kind": "EQUIPMENT",
       "category": "WEAPON",
       "name": "黄金钢笔",
+      "description": "武器卡，攻击倍率100%，耐久2/2。",
       "rarity": "RED",
-      "attack_multiplier": 1.0,
+      "attack_multiplier": 1,
       "defense_multiplier": null,
       "durability": {
         "mode": "PER_BATTLE",
@@ -28,17 +30,26 @@
       },
       "rules": {
         "requires_equipped": true,
-        "usable_phases": ["NONE"],
+        "usable_phases": [
+          "NONE"
+        ],
         "effects": []
       },
       "assets": {
         "icon_key": "card_wp_001",
-        "card_art_key": null
+        "card_art_key": "card_wp_001",
+        "card_art_path": "/assets/cards/wp_001.jpg",
+        "source_file": "3.12 (7).png",
+        "sha256": "767ac82da0520c1a1ff79797539eb4464fec2f777fc692f4c0c8e09030a505e6"
       },
-      "data_status": "BLOCKED",
+      "data_status": "ACTIVE",
       "source": {
-        "document": "大劫卡西诺游戏卡牌说明和图片资源",
-        "notes": "购买价格待补充；攻击倍率以当前卡牌文档为准。"
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "黄金钢笔",
+          "100%政"
+        ]
       }
     },
     {
@@ -46,6 +57,7 @@
       "kind": "EQUIPMENT",
       "category": "WEAPON",
       "name": "左轮手枪",
+      "description": "武器卡，攻击倍率90%，耐久2/2。",
       "rarity": "PURPLE",
       "attack_multiplier": 0.9,
       "defense_multiplier": null,
@@ -68,24 +80,34 @@
       },
       "rules": {
         "requires_equipped": true,
-        "usable_phases": ["NONE"],
+        "usable_phases": [
+          "NONE"
+        ],
         "effects": []
       },
       "assets": {
         "icon_key": "card_wp_002",
-        "card_art_key": null
+        "card_art_key": "card_wp_002",
+        "card_art_path": "/assets/cards/wp_002.jpg",
+        "source_file": "3.12 (6).png",
+        "sha256": "7bc05bd0e31a31d7457e874b3ace00f8e010580f71541760ba603be100e949a2"
       },
-      "data_status": "BLOCKED",
+      "data_status": "ACTIVE",
       "source": {
-        "document": "大劫卡西诺游戏卡牌说明和图片资源",
-        "notes": "购买价格待补充；攻击倍率以当前卡牌文档为准。"
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "左轮手枪",
+          "/90%攻"
+        ]
       }
     },
     {
       "card_id": "wp_003",
       "kind": "EQUIPMENT",
       "category": "WEAPON",
-      "name": "zippo打火机",
+      "name": "打火机",
+      "description": "武器卡，攻击倍率90%，耐久2/2。",
       "rarity": "PURPLE",
       "attack_multiplier": 0.9,
       "defense_multiplier": null,
@@ -108,17 +130,26 @@
       },
       "rules": {
         "requires_equipped": true,
-        "usable_phases": ["NONE"],
+        "usable_phases": [
+          "NONE"
+        ],
         "effects": []
       },
       "assets": {
         "icon_key": "card_wp_003",
-        "card_art_key": null
+        "card_art_key": "card_wp_003",
+        "card_art_path": "/assets/cards/wp_003.jpg",
+        "source_file": "3.12 (5).png",
+        "sha256": "1e196adc19b7adf8786451bea9bc99b592f32ffbd99b9c9c8630a05f1d3179e2"
       },
-      "data_status": "BLOCKED",
+      "data_status": "ACTIVE",
       "source": {
-        "document": "大劫卡西诺游戏卡牌说明和图片资源",
-        "notes": "购买价格待补充；攻击倍率以当前卡牌文档为准。"
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "打火机",
+          "90%玫"
+        ]
       }
     },
     {
@@ -126,6 +157,7 @@
       "kind": "EQUIPMENT",
       "category": "WEAPON",
       "name": "手提包",
+      "description": "武器卡，攻击倍率80%，耐久2/2。",
       "rarity": "BLUE",
       "attack_multiplier": 0.8,
       "defense_multiplier": null,
@@ -148,17 +180,26 @@
       },
       "rules": {
         "requires_equipped": true,
-        "usable_phases": ["NONE"],
+        "usable_phases": [
+          "NONE"
+        ],
         "effects": []
       },
       "assets": {
         "icon_key": "card_wp_004",
-        "card_art_key": null
+        "card_art_key": "card_wp_004",
+        "card_art_path": "/assets/cards/wp_004.jpg",
+        "source_file": "export_副本.png",
+        "sha256": "941c0f54507f227b5431573989c4cd5065e005591a13f39a0513be51740c019c"
       },
-      "data_status": "BLOCKED",
+      "data_status": "ACTIVE",
       "source": {
-        "document": "大劫卡西诺游戏卡牌说明和图片资源",
-        "notes": "购买价格待补充；攻击倍率以当前卡牌文档为准。"
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "手提包",
+          "80%玫"
+        ]
       }
     },
     {
@@ -166,6 +207,7 @@
       "kind": "EQUIPMENT",
       "category": "WEAPON",
       "name": "拳套",
+      "description": "武器卡，攻击倍率80%，耐久2/2。",
       "rarity": "BLUE",
       "attack_multiplier": 0.8,
       "defense_multiplier": null,
@@ -188,17 +230,26 @@
       },
       "rules": {
         "requires_equipped": true,
-        "usable_phases": ["NONE"],
+        "usable_phases": [
+          "NONE"
+        ],
         "effects": []
       },
       "assets": {
         "icon_key": "card_wp_005",
-        "card_art_key": null
+        "card_art_key": "card_wp_005",
+        "card_art_path": "/assets/cards/wp_005.jpg",
+        "source_file": "export (1).png",
+        "sha256": "e33005fde5100eda73efdb645b5fd414a6065bd8d99c821faff5ec006edf93a2"
       },
-      "data_status": "BLOCKED",
+      "data_status": "ACTIVE",
       "source": {
-        "document": "大劫卡西诺游戏卡牌说明和图片资源",
-        "notes": "购买价格待补充；攻击倍率以当前卡牌文档为准。"
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "拳套",
+          "80%玫"
+        ]
       }
     },
     {
@@ -206,6 +257,7 @@
       "kind": "EQUIPMENT",
       "category": "WEAPON",
       "name": "礼宾伞",
+      "description": "武器卡，攻击倍率60%，耐久2/2。",
       "rarity": "GREEN",
       "attack_multiplier": 0.6,
       "defense_multiplier": null,
@@ -228,17 +280,26 @@
       },
       "rules": {
         "requires_equipped": true,
-        "usable_phases": ["NONE"],
+        "usable_phases": [
+          "NONE"
+        ],
         "effects": []
       },
       "assets": {
         "icon_key": "card_wp_006",
-        "card_art_key": null
+        "card_art_key": "card_wp_006",
+        "card_art_path": "/assets/cards/wp_006.jpg",
+        "source_file": "export (2).png",
+        "sha256": "6bbc136f393104861322fac52e931651eb71a6942646ec8cd5c85a120b2d9381"
       },
-      "data_status": "BLOCKED",
+      "data_status": "ACTIVE",
       "source": {
-        "document": "大劫卡西诺游戏卡牌说明和图片资源",
-        "notes": "购买价格待补充；攻击倍率以当前卡牌文档为准。"
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "礼宾伞",
+          "60%攻"
+        ]
       }
     },
     {
@@ -246,6 +307,7 @@
       "kind": "EQUIPMENT",
       "category": "WEAPON",
       "name": "旅行箱",
+      "description": "武器卡，攻击倍率60%，耐久2/2。",
       "rarity": "GREEN",
       "attack_multiplier": 0.6,
       "defense_multiplier": null,
@@ -268,17 +330,627 @@
       },
       "rules": {
         "requires_equipped": true,
-        "usable_phases": ["NONE"],
+        "usable_phases": [
+          "NONE"
+        ],
         "effects": []
       },
       "assets": {
         "icon_key": "card_wp_007",
-        "card_art_key": null
+        "card_art_key": "card_wp_007",
+        "card_art_path": "/assets/cards/wp_007.jpg",
+        "source_file": "export (3).png",
+        "sha256": "3fe1a7d79c13e70194df55ec9a29100c59d494e41308cb5fc6c4f2e100c50895"
       },
-      "data_status": "BLOCKED",
+      "data_status": "ACTIVE",
       "source": {
-        "document": "大劫卡西诺游戏卡牌说明和图片资源",
-        "notes": "购买价格待补充；攻击倍率以当前卡牌文档为准。"
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "旅行箱",
+          "60%攻"
+        ]
+      }
+    },
+    {
+      "card_id": "ar_001",
+      "kind": "EQUIPMENT",
+      "category": "ARMOR",
+      "name": "急救腰包",
+      "description": "防具卡，卡面耐久2/2；防御倍率等待玩法数值确认。",
+      "rarity": "RED",
+      "attack_multiplier": null,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "PER_BATTLE",
+        "max": 2,
+        "loss_per_battle": 1
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "PURCHASE_PRICE",
+        "purchase_price": null,
+        "fixed_value": null
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": true,
+        "usable_phases": [
+          "NONE"
+        ],
+        "effects": []
+      },
+      "assets": {
+        "icon_key": "card_ar_001",
+        "card_art_key": "card_ar_001",
+        "card_art_path": "/assets/cards/ar_001.jpg",
+        "source_file": "3.12 (3).png",
+        "sha256": "307c9134b73c6c9b1d2290f7e4e9d2cfa179ede1bd8d73b839c47a04e442e01a"
+      },
+      "data_status": "DRAFT",
+      "source": {
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "急救腰包",
+          "2/2"
+        ]
+      }
+    },
+    {
+      "card_id": "ar_002",
+      "kind": "EQUIPMENT",
+      "category": "ARMOR",
+      "name": "安全帽",
+      "description": "防具卡，卡面耐久2/2；防御倍率等待玩法数值确认。",
+      "rarity": "GREEN",
+      "attack_multiplier": null,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "PER_BATTLE",
+        "max": 2,
+        "loss_per_battle": 1
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "PURCHASE_PRICE",
+        "purchase_price": null,
+        "fixed_value": null
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": true,
+        "usable_phases": [
+          "NONE"
+        ],
+        "effects": []
+      },
+      "assets": {
+        "icon_key": "card_ar_002",
+        "card_art_key": "card_ar_002",
+        "card_art_path": "/assets/cards/ar_002.jpg",
+        "source_file": "3.12 (4).png",
+        "sha256": "a9197e4d5bbbb8fea7904a08a38f13e69d7437567ab62243a50ff692690d7374"
+      },
+      "data_status": "DRAFT",
+      "source": {
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "安全帽",
+          "⑦",
+          "2/2"
+        ]
+      }
+    },
+    {
+      "card_id": "ar_003",
+      "kind": "EQUIPMENT",
+      "category": "ARMOR",
+      "name": "泡泡防护罩",
+      "description": "防具卡，卡面耐久2/2；防御倍率等待玩法数值确认。",
+      "rarity": "RED",
+      "attack_multiplier": null,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "PER_BATTLE",
+        "max": 2,
+        "loss_per_battle": 1
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "PURCHASE_PRICE",
+        "purchase_price": null,
+        "fixed_value": null
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": true,
+        "usable_phases": [
+          "NONE"
+        ],
+        "effects": []
+      },
+      "assets": {
+        "icon_key": "card_ar_003",
+        "card_art_key": "card_ar_003",
+        "card_art_path": "/assets/cards/ar_003.jpg",
+        "source_file": "export (4).png",
+        "sha256": "28ad750895e114094e37ea740dac721fdec4155f111042008950fa6b79774c78"
+      },
+      "data_status": "DRAFT",
+      "source": {
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "泡泡防护罩",
+          "2/2"
+        ]
+      }
+    },
+    {
+      "card_id": "ar_004",
+      "kind": "EQUIPMENT",
+      "category": "ARMOR",
+      "name": "堆叠抱枕",
+      "description": "防具卡，卡面耐久2/2；防御倍率等待玩法数值确认。",
+      "rarity": "RED",
+      "attack_multiplier": null,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "PER_BATTLE",
+        "max": 2,
+        "loss_per_battle": 1
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "PURCHASE_PRICE",
+        "purchase_price": null,
+        "fixed_value": null
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": true,
+        "usable_phases": [
+          "NONE"
+        ],
+        "effects": []
+      },
+      "assets": {
+        "icon_key": "card_ar_004",
+        "card_art_key": "card_ar_004",
+        "card_art_path": "/assets/cards/ar_004.jpg",
+        "source_file": "export (5).png",
+        "sha256": "94c7eb05b1b61aa6df558e5df3e1256bbc8050580ce92d08a8308d6403ada17d"
+      },
+      "data_status": "DRAFT",
+      "source": {
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "堆叠抱枕",
+          "2/2"
+        ]
+      }
+    },
+    {
+      "card_id": "ar_005",
+      "kind": "EQUIPMENT",
+      "category": "ARMOR",
+      "name": "赌场圆盾",
+      "description": "防具卡，卡面耐久2/2；防御倍率等待玩法数值确认。",
+      "rarity": "GREEN",
+      "attack_multiplier": null,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "PER_BATTLE",
+        "max": 2,
+        "loss_per_battle": 1
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "PURCHASE_PRICE",
+        "purchase_price": null,
+        "fixed_value": null
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": true,
+        "usable_phases": [
+          "NONE"
+        ],
+        "effects": []
+      },
+      "assets": {
+        "icon_key": "card_ar_005",
+        "card_art_key": "card_ar_005",
+        "card_art_path": "/assets/cards/ar_005.jpg",
+        "source_file": "export (7).png",
+        "sha256": "f9b396334854dcf79e88239bf5a3ca81ed96ad0fb5720f792665b49cd04dec30"
+      },
+      "data_status": "DRAFT",
+      "source": {
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "堵报圆盾",
+          "2/2"
+        ]
+      }
+    },
+    {
+      "card_id": "ar_006",
+      "kind": "EQUIPMENT",
+      "category": "ARMOR",
+      "name": "废筹码垫板",
+      "description": "防具卡，卡面耐久2/2；防御倍率等待玩法数值确认。",
+      "rarity": "GREEN",
+      "attack_multiplier": null,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "PER_BATTLE",
+        "max": 2,
+        "loss_per_battle": 1
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "PURCHASE_PRICE",
+        "purchase_price": null,
+        "fixed_value": null
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": true,
+        "usable_phases": [
+          "NONE"
+        ],
+        "effects": []
+      },
+      "assets": {
+        "icon_key": "card_ar_006",
+        "card_art_key": "card_ar_006",
+        "card_art_path": "/assets/cards/ar_006.jpg",
+        "source_file": "export (8).png",
+        "sha256": "27b88b2465d2882284fc66009ff14c10096fa02e764d1ef712f1690e9993245b"
+      },
+      "data_status": "DRAFT",
+      "source": {
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "废筹码垫板",
+          "2/2"
+        ]
+      }
+    },
+    {
+      "card_id": "ar_007",
+      "kind": "EQUIPMENT",
+      "category": "ARMOR",
+      "name": "地毯披风",
+      "description": "防具卡，卡面耐久2/2；防御倍率等待玩法数值确认。",
+      "rarity": "GREEN",
+      "attack_multiplier": null,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "PER_BATTLE",
+        "max": 2,
+        "loss_per_battle": 1
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "PURCHASE_PRICE",
+        "purchase_price": null,
+        "fixed_value": null
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": true,
+        "usable_phases": [
+          "NONE"
+        ],
+        "effects": []
+      },
+      "assets": {
+        "icon_key": "card_ar_007",
+        "card_art_key": "card_ar_007",
+        "card_art_path": "/assets/cards/ar_007.jpg",
+        "source_file": "export (9).png",
+        "sha256": "a97737553272f81b54ccaf1ef4b39c88254719f6905966ee04f9f66c39f2ee75"
+      },
+      "data_status": "DRAFT",
+      "source": {
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "地毯披风",
+          "2/2"
+        ]
+      }
+    },
+    {
+      "card_id": "ar_008",
+      "kind": "EQUIPMENT",
+      "category": "ARMOR",
+      "name": "旧扑克护片",
+      "description": "防具卡，卡面耐久2/2；防御倍率等待玩法数值确认。",
+      "rarity": "GREEN",
+      "attack_multiplier": null,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "PER_BATTLE",
+        "max": 2,
+        "loss_per_battle": 1
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "PURCHASE_PRICE",
+        "purchase_price": null,
+        "fixed_value": null
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": true,
+        "usable_phases": [
+          "NONE"
+        ],
+        "effects": []
+      },
+      "assets": {
+        "icon_key": "card_ar_008",
+        "card_art_key": "card_ar_008",
+        "card_art_path": "/assets/cards/ar_008.jpg",
+        "source_file": "export (10).png",
+        "sha256": "effc974027168aa842ffaeb2b2988bd140e82e806c7433fac51a018cc5fafa9d"
+      },
+      "data_status": "DRAFT",
+      "source": {
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "旧扑克护片",
+          "2/2"
+        ]
+      }
+    },
+    {
+      "card_id": "ar_009",
+      "kind": "EQUIPMENT",
+      "category": "ARMOR",
+      "name": "蒙面眼罩",
+      "description": "防具卡，卡面耐久2/2；防御倍率等待玩法数值确认。",
+      "rarity": "GREEN",
+      "attack_multiplier": null,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "PER_BATTLE",
+        "max": 2,
+        "loss_per_battle": 1
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "PURCHASE_PRICE",
+        "purchase_price": null,
+        "fixed_value": null
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": true,
+        "usable_phases": [
+          "NONE"
+        ],
+        "effects": []
+      },
+      "assets": {
+        "icon_key": "card_ar_009",
+        "card_art_key": "card_ar_009",
+        "card_art_path": "/assets/cards/ar_009.jpg",
+        "source_file": "export (11).png",
+        "sha256": "95ef653767604e28de7482934ddb8dfd61d1a2b215fb773c269ebab365ccde77"
+      },
+      "data_status": "DRAFT",
+      "source": {
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "蒙面眼罩",
+          "2/2"
+        ]
+      }
+    },
+    {
+      "card_id": "ar_010",
+      "kind": "EQUIPMENT",
+      "category": "ARMOR",
+      "name": "纸杯头盔",
+      "description": "防具卡，卡面耐久2/2；防御倍率等待玩法数值确认。",
+      "rarity": "GREEN",
+      "attack_multiplier": null,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "PER_BATTLE",
+        "max": 2,
+        "loss_per_battle": 1
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "PURCHASE_PRICE",
+        "purchase_price": null,
+        "fixed_value": null
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": true,
+        "usable_phases": [
+          "NONE"
+        ],
+        "effects": []
+      },
+      "assets": {
+        "icon_key": "card_ar_010",
+        "card_art_key": "card_ar_010",
+        "card_art_path": "/assets/cards/ar_010.jpg",
+        "source_file": "export (12).png",
+        "sha256": "6114be5c321cde392f0edad50e082098ec2c06d0439b507dd32e12cfcc8d0457"
+      },
+      "data_status": "DRAFT",
+      "source": {
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "纸杯头盔",
+          "2/2"
+        ]
+      }
+    },
+    {
+      "card_id": "ar_011",
+      "kind": "EQUIPMENT",
+      "category": "ARMOR",
+      "name": "纸箱护甲",
+      "description": "防具卡，卡面耐久2/2；防御倍率等待玩法数值确认。",
+      "rarity": "GREEN",
+      "attack_multiplier": null,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "PER_BATTLE",
+        "max": 2,
+        "loss_per_battle": 1
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "PURCHASE_PRICE",
+        "purchase_price": null,
+        "fixed_value": null
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": true,
+        "usable_phases": [
+          "NONE"
+        ],
+        "effects": []
+      },
+      "assets": {
+        "icon_key": "card_ar_011",
+        "card_art_key": "card_ar_011",
+        "card_art_path": "/assets/cards/ar_011.jpg",
+        "source_file": "export (13).png",
+        "sha256": "ae97507d7e151d91490cd4d766df0c1cdb19b2e1344cc517bdd4852016f10840"
+      },
+      "data_status": "DRAFT",
+      "source": {
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "纸箱护甲",
+          "2/2"
+        ]
+      }
+    },
+    {
+      "card_id": "ar_012",
+      "kind": "EQUIPMENT",
+      "category": "ARMOR",
+      "name": "雨伞护罩",
+      "description": "防具卡，卡面耐久2/2；防御倍率等待玩法数值确认。",
+      "rarity": "RED",
+      "attack_multiplier": null,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "PER_BATTLE",
+        "max": 2,
+        "loss_per_battle": 1
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "PURCHASE_PRICE",
+        "purchase_price": null,
+        "fixed_value": null
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": true,
+        "usable_phases": [
+          "NONE"
+        ],
+        "effects": []
+      },
+      "assets": {
+        "icon_key": "card_ar_012",
+        "card_art_key": "card_ar_012",
+        "card_art_path": "/assets/cards/ar_012.jpg",
+        "source_file": "export (14).png",
+        "sha256": "de7e8236dc7f2101ef7ed098c15c0eaed71121c28842acf90b360f91ae6e2b68"
+      },
+      "data_status": "DRAFT",
+      "source": {
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "雨伞护罩",
+          "2/2"
+        ]
       }
     },
     {
@@ -286,7 +958,8 @@
       "kind": "LOOT",
       "category": "LOOT",
       "name": "高级西装",
-      "rarity": "SPECIAL",
+      "description": "物资卡，撤离结算价值25000 Gold。",
+      "rarity": "RED",
       "attack_multiplier": null,
       "defense_multiplier": null,
       "durability": {
@@ -308,17 +981,26 @@
       },
       "rules": {
         "requires_equipped": false,
-        "usable_phases": ["NONE"],
+        "usable_phases": [
+          "NONE"
+        ],
         "effects": []
       },
       "assets": {
         "icon_key": "card_loot_001",
-        "card_art_key": null
+        "card_art_key": "card_loot_001",
+        "card_art_path": "/assets/cards/loot_001.jpg",
+        "source_file": "3.12 (2).png",
+        "sha256": "eac8725d2521ac310cc569da65a51c394304a5c2d09a93aad2534a96fe9d41c5"
       },
       "data_status": "ACTIVE",
       "source": {
-        "document": "大劫卡西诺游戏卡牌说明和图片资源",
-        "notes": "固定物资价值。"
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "高级西装",
+          "25000"
+        ]
       }
     },
     {
@@ -326,7 +1008,8 @@
       "kind": "LOOT",
       "category": "LOOT",
       "name": "纯金扑克",
-      "rarity": "SPECIAL",
+      "description": "物资卡，撤离结算价值20000 Gold。",
+      "rarity": "RED",
       "attack_multiplier": null,
       "defense_multiplier": null,
       "durability": {
@@ -338,7 +1021,7 @@
         "currency": "GOLD",
         "value_source": "FIXED_LOOT_VALUE",
         "purchase_price": null,
-        "fixed_value": 30000
+        "fixed_value": 20000
       },
       "inventory": {
         "slot_cost": 1,
@@ -348,17 +1031,27 @@
       },
       "rules": {
         "requires_equipped": false,
-        "usable_phases": ["NONE"],
+        "usable_phases": [
+          "NONE"
+        ],
         "effects": []
       },
       "assets": {
         "icon_key": "card_loot_002",
-        "card_art_key": null
+        "card_art_key": "card_loot_002",
+        "card_art_path": "/assets/cards/loot_002.jpg",
+        "source_file": "export (15).png",
+        "sha256": "4a9cc0988c82004ce06cf7b1757d95d8441f011773616ef912489a9ba221aaea"
       },
       "data_status": "ACTIVE",
       "source": {
-        "document": "大劫卡西诺游戏卡牌说明和图片资源",
-        "notes": "固定物资价值。"
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "纯金扑克",
+          "AO",
+          "20000"
+        ]
       }
     },
     {
@@ -366,7 +1059,8 @@
       "kind": "LOOT",
       "category": "LOOT",
       "name": "赌徒之眼",
-      "rarity": "SPECIAL",
+      "description": "物资卡，撤离结算价值50000 Gold。",
+      "rarity": "RED",
       "attack_multiplier": null,
       "defense_multiplier": null,
       "durability": {
@@ -388,17 +1082,1667 @@
       },
       "rules": {
         "requires_equipped": false,
-        "usable_phases": ["NONE"],
+        "usable_phases": [
+          "NONE"
+        ],
         "effects": []
       },
       "assets": {
         "icon_key": "card_loot_003",
-        "card_art_key": null
+        "card_art_key": "card_loot_003",
+        "card_art_path": "/assets/cards/loot_003.jpg",
+        "source_file": "export (16).png",
+        "sha256": "a32ff54898a00add2fedf55d113d099f0f218e1fcbd175b22c212adb1a84a966"
       },
       "data_status": "ACTIVE",
       "source": {
-        "document": "大劫卡西诺游戏卡牌说明和图片资源",
-        "notes": "固定物资价值。"
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "赌徒之眼",
+          "50000"
+        ]
+      }
+    },
+    {
+      "card_id": "loot_004",
+      "kind": "LOOT",
+      "category": "LOOT",
+      "name": "老虎机芯片",
+      "description": "物资卡，撤离结算价值50000 Gold。",
+      "rarity": "RED",
+      "attack_multiplier": null,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "NONE",
+        "max": 0,
+        "loss_per_battle": 0
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "FIXED_LOOT_VALUE",
+        "purchase_price": null,
+        "fixed_value": 50000
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": false,
+        "usable_phases": [
+          "NONE"
+        ],
+        "effects": []
+      },
+      "assets": {
+        "icon_key": "card_loot_004",
+        "card_art_key": "card_loot_004",
+        "card_art_path": "/assets/cards/loot_004.jpg",
+        "source_file": "export (17).png",
+        "sha256": "e2e58c35695f8e82e4a99da9bc206c38d0926f7d63fbe953bddef42e06870767"
+      },
+      "data_status": "ACTIVE",
+      "source": {
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "老虎机芯片",
+          "⑦⑦⑦",
+          "50000"
+        ]
+      }
+    },
+    {
+      "card_id": "loot_005",
+      "kind": "LOOT",
+      "category": "LOOT",
+      "name": "庄家房卡",
+      "description": "物资卡，撤离结算价值60000 Gold。",
+      "rarity": "RED",
+      "attack_multiplier": null,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "NONE",
+        "max": 0,
+        "loss_per_battle": 0
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "FIXED_LOOT_VALUE",
+        "purchase_price": null,
+        "fixed_value": 60000
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": false,
+        "usable_phases": [
+          "NONE"
+        ],
+        "effects": []
+      },
+      "assets": {
+        "icon_key": "card_loot_005",
+        "card_art_key": "card_loot_005",
+        "card_art_path": "/assets/cards/loot_005.jpg",
+        "source_file": "export (18).png",
+        "sha256": "39cebcdc22db4ed4dbba10938ce1b29350fcb21864e79f4f7eb9e69886dc5b84"
+      },
+      "data_status": "ACTIVE",
+      "source": {
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "00009"
+        ]
+      }
+    },
+    {
+      "card_id": "loot_006",
+      "kind": "LOOT",
+      "category": "LOOT",
+      "name": "劳力士手表",
+      "description": "物资卡，撤离结算价值90000 Gold。",
+      "rarity": "RED",
+      "attack_multiplier": null,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "NONE",
+        "max": 0,
+        "loss_per_battle": 0
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "FIXED_LOOT_VALUE",
+        "purchase_price": null,
+        "fixed_value": 90000
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": false,
+        "usable_phases": [
+          "NONE"
+        ],
+        "effects": []
+      },
+      "assets": {
+        "icon_key": "card_loot_006",
+        "card_art_key": "card_loot_006",
+        "card_art_path": "/assets/cards/loot_006.jpg",
+        "source_file": "export (19).png",
+        "sha256": "c6934c07dc524e5a5e365e0a00577dc6600e5cdf5fd47be4fe7c16b9e761a14c"
+      },
+      "data_status": "ACTIVE",
+      "source": {
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "劳力士手表",
+          "20",
+          "30",
+          "90000"
+        ]
+      }
+    },
+    {
+      "card_id": "loot_007",
+      "kind": "LOOT",
+      "category": "LOOT",
+      "name": "十万筹码",
+      "description": "物资卡，撤离结算价值100000 Gold。",
+      "rarity": "RED",
+      "attack_multiplier": null,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "NONE",
+        "max": 0,
+        "loss_per_battle": 0
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "FIXED_LOOT_VALUE",
+        "purchase_price": null,
+        "fixed_value": 100000
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": false,
+        "usable_phases": [
+          "NONE"
+        ],
+        "effects": []
+      },
+      "assets": {
+        "icon_key": "card_loot_007",
+        "card_art_key": "card_loot_007",
+        "card_art_path": "/assets/cards/loot_007.jpg",
+        "source_file": "export (20).png",
+        "sha256": "6526ca92f7cab921708940d15ba6fa258ad106624bf467e2bf4149407e36e676"
+      },
+      "data_status": "ACTIVE",
+      "source": {
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "十万筹码",
+          "100000",
+          "100000"
+        ]
+      }
+    },
+    {
+      "card_id": "loot_008",
+      "kind": "LOOT",
+      "category": "LOOT",
+      "name": "丢失银行卡",
+      "description": "物资卡，撤离结算价值100000 Gold。",
+      "rarity": "RED",
+      "attack_multiplier": null,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "NONE",
+        "max": 0,
+        "loss_per_battle": 0
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "FIXED_LOOT_VALUE",
+        "purchase_price": null,
+        "fixed_value": 100000
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": false,
+        "usable_phases": [
+          "NONE"
+        ],
+        "effects": []
+      },
+      "assets": {
+        "icon_key": "card_loot_008",
+        "card_art_key": "card_loot_008",
+        "card_art_path": "/assets/cards/loot_008.jpg",
+        "source_file": "export (21).png",
+        "sha256": "55fbd04436f45b7df360e0d8f074ee0808f5a7ea070cfbe710fbd01e92ebc2bc"
+      },
+      "data_status": "ACTIVE",
+      "source": {
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "丢失银行卡",
+          "？",
+          "1234 5678 9012 3456",
+          "100000"
+        ]
+      }
+    },
+    {
+      "card_id": "loot_009",
+      "kind": "LOOT",
+      "category": "LOOT",
+      "name": "爱马仕包",
+      "description": "物资卡，撤离结算价值200000 Gold。",
+      "rarity": "RED",
+      "attack_multiplier": null,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "NONE",
+        "max": 0,
+        "loss_per_battle": 0
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "FIXED_LOOT_VALUE",
+        "purchase_price": null,
+        "fixed_value": 200000
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": false,
+        "usable_phases": [
+          "NONE"
+        ],
+        "effects": []
+      },
+      "assets": {
+        "icon_key": "card_loot_009",
+        "card_art_key": "card_loot_009",
+        "card_art_path": "/assets/cards/loot_009.jpg",
+        "source_file": "export (22).png",
+        "sha256": "2dba035e6969ea2d9edcf9c9414ffb25b1cc70a2facdf7fbcd821e31dce76dda"
+      },
+      "data_status": "ACTIVE",
+      "source": {
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "爱马仕包",
+          "200000"
+        ]
+      }
+    },
+    {
+      "card_id": "loot_010",
+      "kind": "LOOT",
+      "category": "LOOT",
+      "name": "黑色丝袜",
+      "description": "物资卡，撤离结算价值10 Gold。",
+      "rarity": "GREEN",
+      "attack_multiplier": null,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "NONE",
+        "max": 0,
+        "loss_per_battle": 0
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "FIXED_LOOT_VALUE",
+        "purchase_price": null,
+        "fixed_value": 10
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": false,
+        "usable_phases": [
+          "NONE"
+        ],
+        "effects": []
+      },
+      "assets": {
+        "icon_key": "card_loot_010",
+        "card_art_key": "card_loot_010",
+        "card_art_path": "/assets/cards/loot_010.jpg",
+        "source_file": "export (23).png",
+        "sha256": "2f720449e5d2ac491afdc9958ffc8ba58861eb47a538d436d4bf1a7e15e53a02"
+      },
+      "data_status": "ACTIVE",
+      "source": {
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "黑色丝袜",
+          "10"
+        ]
+      }
+    },
+    {
+      "card_id": "loot_011",
+      "kind": "LOOT",
+      "category": "LOOT",
+      "name": "荷官手套",
+      "description": "物资卡，撤离结算价值300 Gold。",
+      "rarity": "GREEN",
+      "attack_multiplier": null,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "NONE",
+        "max": 0,
+        "loss_per_battle": 0
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "FIXED_LOOT_VALUE",
+        "purchase_price": null,
+        "fixed_value": 300
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": false,
+        "usable_phases": [
+          "NONE"
+        ],
+        "effects": []
+      },
+      "assets": {
+        "icon_key": "card_loot_011",
+        "card_art_key": "card_loot_011",
+        "card_art_path": "/assets/cards/loot_011.jpg",
+        "source_file": "export (24).png",
+        "sha256": "97f6fe6ab07c55f708bbc4177f8e4aa9768e15820867f8ee4fcb739b9d8b5422"
+      },
+      "data_status": "ACTIVE",
+      "source": {
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "荷官手套",
+          "300"
+        ]
+      }
+    },
+    {
+      "card_id": "loot_012",
+      "kind": "LOOT",
+      "category": "LOOT",
+      "name": "眼镜",
+      "description": "物资卡，撤离结算价值2000 Gold。",
+      "rarity": "GREEN",
+      "attack_multiplier": null,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "NONE",
+        "max": 0,
+        "loss_per_battle": 0
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "FIXED_LOOT_VALUE",
+        "purchase_price": null,
+        "fixed_value": 2000
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": false,
+        "usable_phases": [
+          "NONE"
+        ],
+        "effects": []
+      },
+      "assets": {
+        "icon_key": "card_loot_012",
+        "card_art_key": "card_loot_012",
+        "card_art_path": "/assets/cards/loot_012.jpg",
+        "source_file": "export (25).png",
+        "sha256": "a7c23530ff4825d27e035ecf838d6a1743da2583a785ce4e74a26d2edad70708"
+      },
+      "data_status": "ACTIVE",
+      "source": {
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "眼镜",
+          "A",
+          "2000"
+        ]
+      }
+    },
+    {
+      "card_id": "loot_013",
+      "kind": "LOOT",
+      "category": "LOOT",
+      "name": "双肩包",
+      "description": "物资卡，撤离结算价值2500 Gold。",
+      "rarity": "GREEN",
+      "attack_multiplier": null,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "NONE",
+        "max": 0,
+        "loss_per_battle": 0
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "FIXED_LOOT_VALUE",
+        "purchase_price": null,
+        "fixed_value": 2500
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": false,
+        "usable_phases": [
+          "NONE"
+        ],
+        "effects": []
+      },
+      "assets": {
+        "icon_key": "card_loot_013",
+        "card_art_key": "card_loot_013",
+        "card_art_path": "/assets/cards/loot_013.jpg",
+        "source_file": "export (26).png",
+        "sha256": "cf677e6a59a0a5f67276ac9bb98a76e7f59fea761681572148d19632775c2876"
+      },
+      "data_status": "ACTIVE",
+      "source": {
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "双肩包",
+          "2500"
+        ]
+      }
+    },
+    {
+      "card_id": "loot_014",
+      "kind": "LOOT",
+      "category": "LOOT",
+      "name": "皮带",
+      "description": "物资卡，撤离结算价值3000 Gold。",
+      "rarity": "GREEN",
+      "attack_multiplier": null,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "NONE",
+        "max": 0,
+        "loss_per_battle": 0
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "FIXED_LOOT_VALUE",
+        "purchase_price": null,
+        "fixed_value": 3000
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": false,
+        "usable_phases": [
+          "NONE"
+        ],
+        "effects": []
+      },
+      "assets": {
+        "icon_key": "card_loot_014",
+        "card_art_key": "card_loot_014",
+        "card_art_path": "/assets/cards/loot_014.jpg",
+        "source_file": "export (27).png",
+        "sha256": "93530d45869d3d6f1b0ae77da5c8f1ed6fa5fd88181f75ea87cc0b3cf1599c71"
+      },
+      "data_status": "ACTIVE",
+      "source": {
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "皮带",
+          "3000"
+        ]
+      }
+    },
+    {
+      "card_id": "loot_015",
+      "kind": "LOOT",
+      "category": "LOOT",
+      "name": "赌徒扑克",
+      "description": "物资卡，撤离结算价值3000 Gold。",
+      "rarity": "GREEN",
+      "attack_multiplier": null,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "NONE",
+        "max": 0,
+        "loss_per_battle": 0
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "FIXED_LOOT_VALUE",
+        "purchase_price": null,
+        "fixed_value": 3000
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": false,
+        "usable_phases": [
+          "NONE"
+        ],
+        "effects": []
+      },
+      "assets": {
+        "icon_key": "card_loot_015",
+        "card_art_key": "card_loot_015",
+        "card_art_path": "/assets/cards/loot_015.jpg",
+        "source_file": "export (28).png",
+        "sha256": "516f471b7c6ffe3476218d48e322b116b0081112d7f675669591ec41ea925b78"
+      },
+      "data_status": "ACTIVE",
+      "source": {
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "赌徒扑克",
+          "3000"
+        ]
+      }
+    },
+    {
+      "card_id": "loot_016",
+      "kind": "LOOT",
+      "category": "LOOT",
+      "name": "花呗欠账单",
+      "description": "物资卡，撤离结算价值5000 Gold。",
+      "rarity": "GREEN",
+      "attack_multiplier": null,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "NONE",
+        "max": 0,
+        "loss_per_battle": 0
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "FIXED_LOOT_VALUE",
+        "purchase_price": null,
+        "fixed_value": 5000
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": false,
+        "usable_phases": [
+          "NONE"
+        ],
+        "effects": []
+      },
+      "assets": {
+        "icon_key": "card_loot_016",
+        "card_art_key": "card_loot_016",
+        "card_art_path": "/assets/cards/loot_016.jpg",
+        "source_file": "export (29).png",
+        "sha256": "5a9dad6aee5eaf3df3137253401de247f9654d1aeb2d2cfd05b48a848ace89a7"
+      },
+      "data_status": "ACTIVE",
+      "source": {
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "花呗欠帐单",
+          "花呗",
+          "已逾期",
+          "账单明细",
+          "消费本金",
+          "滞纳金",
+          "利息费用",
+          "¥4287.00",
+          "¥712.00",
+          "¥1.00",
+          "当前欠款",
+          "¥5000.00",
+          "① 请尽快还款",
+          "5000"
+        ]
+      }
+    },
+    {
+      "card_id": "loot_017",
+      "kind": "LOOT",
+      "category": "LOOT",
+      "name": "指南针",
+      "description": "物资卡，撤离结算价值5000 Gold。",
+      "rarity": "GREEN",
+      "attack_multiplier": null,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "NONE",
+        "max": 0,
+        "loss_per_battle": 0
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "FIXED_LOOT_VALUE",
+        "purchase_price": null,
+        "fixed_value": 5000
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": false,
+        "usable_phases": [
+          "NONE"
+        ],
+        "effects": []
+      },
+      "assets": {
+        "icon_key": "card_loot_017",
+        "card_art_key": "card_loot_017",
+        "card_art_path": "/assets/cards/loot_017.jpg",
+        "source_file": "export (30).png",
+        "sha256": "2c08bf8ab9bf1a7f72b40084774a7e5165641ca85ceec8e08d290f4bf2872bd4"
+      },
+      "data_status": "ACTIVE",
+      "source": {
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "指南针",
+          "N",
+          "W",
+          "E",
+          "S",
+          "5000"
+        ]
+      }
+    },
+    {
+      "card_id": "loot_018",
+      "kind": "LOOT",
+      "category": "LOOT",
+      "name": "灭火器",
+      "description": "物资卡，撤离结算价值7000 Gold。",
+      "rarity": "GREEN",
+      "attack_multiplier": null,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "NONE",
+        "max": 0,
+        "loss_per_battle": 0
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "FIXED_LOOT_VALUE",
+        "purchase_price": null,
+        "fixed_value": 7000
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": false,
+        "usable_phases": [
+          "NONE"
+        ],
+        "effects": []
+      },
+      "assets": {
+        "icon_key": "card_loot_018",
+        "card_art_key": "card_loot_018",
+        "card_art_path": "/assets/cards/loot_018.jpg",
+        "source_file": "export (31).png",
+        "sha256": "3ce288f96de3c543ad546d6689b09b3faf87a29548f96f6995fa04d5d7318fc7"
+      },
+      "data_status": "ACTIVE",
+      "source": {
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "灭火器",
+          "7000"
+        ]
+      }
+    },
+    {
+      "card_id": "loot_019",
+      "kind": "LOOT",
+      "category": "LOOT",
+      "name": "保安服",
+      "description": "物资卡，撤离结算价值10000 Gold。",
+      "rarity": "BLUE",
+      "attack_multiplier": null,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "NONE",
+        "max": 0,
+        "loss_per_battle": 0
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "FIXED_LOOT_VALUE",
+        "purchase_price": null,
+        "fixed_value": 10000
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": false,
+        "usable_phases": [
+          "NONE"
+        ],
+        "effects": []
+      },
+      "assets": {
+        "icon_key": "card_loot_019",
+        "card_art_key": "card_loot_019",
+        "card_art_path": "/assets/cards/loot_019.jpg",
+        "source_file": "export (32).png",
+        "sha256": "69f321739a903c40c135818330014f9d3746a2b33ad591aeb379efa0326ed3b0"
+      },
+      "data_status": "ACTIVE",
+      "source": {
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "保安服",
+          "10000"
+        ]
+      }
+    },
+    {
+      "card_id": "loot_020",
+      "kind": "LOOT",
+      "category": "LOOT",
+      "name": "赌徒手指",
+      "description": "物资卡，撤离结算价值10000 Gold。",
+      "rarity": "BLUE",
+      "attack_multiplier": null,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "NONE",
+        "max": 0,
+        "loss_per_battle": 0
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "FIXED_LOOT_VALUE",
+        "purchase_price": null,
+        "fixed_value": 10000
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": false,
+        "usable_phases": [
+          "NONE"
+        ],
+        "effects": []
+      },
+      "assets": {
+        "icon_key": "card_loot_020",
+        "card_art_key": "card_loot_020",
+        "card_art_path": "/assets/cards/loot_020.jpg",
+        "source_file": "export (33).png",
+        "sha256": "b61761a30f6c78e38c5ae38894be161b91dc22b91ebff7f243205f5181fa736e"
+      },
+      "data_status": "ACTIVE",
+      "source": {
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "赌徒手指",
+          "10000"
+        ]
+      }
+    },
+    {
+      "card_id": "loot_021",
+      "kind": "LOOT",
+      "category": "LOOT",
+      "name": "未归还充电宝",
+      "description": "物资卡，撤离结算价值10000 Gold。",
+      "rarity": "BLUE",
+      "attack_multiplier": null,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "NONE",
+        "max": 0,
+        "loss_per_battle": 0
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "FIXED_LOOT_VALUE",
+        "purchase_price": null,
+        "fixed_value": 10000
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": false,
+        "usable_phases": [
+          "NONE"
+        ],
+        "effects": []
+      },
+      "assets": {
+        "icon_key": "card_loot_021",
+        "card_art_key": "card_loot_021",
+        "card_art_path": "/assets/cards/loot_021.jpg",
+        "source_file": "export (34).png",
+        "sha256": "b4f94f16fe439b8030893deb4632929c7dc71ab1dbfa967d5908efe2840829fc"
+      },
+      "data_status": "ACTIVE",
+      "source": {
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "未归还充电宝",
+          "⑦",
+          "10000"
+        ]
+      }
+    },
+    {
+      "card_id": "loot_022",
+      "kind": "LOOT",
+      "category": "LOOT",
+      "name": "急救包",
+      "description": "物资卡，撤离结算价值15000 Gold。",
+      "rarity": "PURPLE",
+      "attack_multiplier": null,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "NONE",
+        "max": 0,
+        "loss_per_battle": 0
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "FIXED_LOOT_VALUE",
+        "purchase_price": null,
+        "fixed_value": 15000
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": false,
+        "usable_phases": [
+          "NONE"
+        ],
+        "effects": []
+      },
+      "assets": {
+        "icon_key": "card_loot_022",
+        "card_art_key": "card_loot_022",
+        "card_art_path": "/assets/cards/loot_022.jpg",
+        "source_file": "export (35).png",
+        "sha256": "c306a788efb03ce7196997f32e8c77228ea24d3d894983bc2b5b662969cbc14c"
+      },
+      "data_status": "ACTIVE",
+      "source": {
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "急救包",
+          "15000"
+        ]
+      }
+    },
+    {
+      "card_id": "loot_023",
+      "kind": "LOOT",
+      "category": "LOOT",
+      "name": "遗落钱包",
+      "description": "物资卡，撤离结算价值20000 Gold。",
+      "rarity": "PURPLE",
+      "attack_multiplier": null,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "NONE",
+        "max": 0,
+        "loss_per_battle": 0
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "FIXED_LOOT_VALUE",
+        "purchase_price": null,
+        "fixed_value": 20000
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": false,
+        "usable_phases": [
+          "NONE"
+        ],
+        "effects": []
+      },
+      "assets": {
+        "icon_key": "card_loot_023",
+        "card_art_key": "card_loot_023",
+        "card_art_path": "/assets/cards/loot_023.jpg",
+        "source_file": "export (36).png",
+        "sha256": "00f2224d280fd8b254c8a281e59705dff26928c4f8d45f96fb55d7dc511c6dd5"
+      },
+      "data_status": "ACTIVE",
+      "source": {
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "遗落钱包",
+          "20000"
+        ]
+      }
+    },
+    {
+      "card_id": "sk_001",
+      "kind": "SKILL",
+      "category": "SKILL",
+      "name": "对子加倍",
+      "description": "如对方摇到两个点数相同的骰子，最终伤害×2。",
+      "rarity": "PURPLE",
+      "attack_multiplier": null,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "NONE",
+        "max": 0,
+        "loss_per_battle": 0
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "NONE",
+        "purchase_price": null,
+        "fixed_value": null
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": false,
+        "usable_phases": [
+          "RESOLUTION"
+        ],
+        "effects": [
+          {
+            "effect_id": "sk_001_effect",
+            "effect_type": "DOUBLE_DAMAGE_ON_MATCHING_DICE",
+            "duration": "SUB_ROUND",
+            "parameters": {}
+          }
+        ]
+      },
+      "assets": {
+        "icon_key": "card_sk_001",
+        "card_art_key": "card_sk_001",
+        "card_art_path": "/assets/cards/sk_001.jpg",
+        "source_file": "3.1 (1).png",
+        "sha256": "e986dbac08d1d58b10b009e67671dc6c4236ab8b7a7329e6d53ad8c6ecfcf2ea"
+      },
+      "data_status": "DRAFT",
+      "source": {
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "如对方摇到的",
+          "两个点数相同的",
+          "骰子，最终伤害",
+          "*2",
+          "田田"
+        ]
+      }
+    },
+    {
+      "card_id": "sk_002",
+      "kind": "SKILL",
+      "category": "SKILL",
+      "name": "四个六",
+      "description": "增加一枚骰子；如摇到4个6点则直接获胜。",
+      "rarity": "PURPLE",
+      "attack_multiplier": null,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "NONE",
+        "max": 0,
+        "loss_per_battle": 0
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "NONE",
+        "purchase_price": null,
+        "fixed_value": null
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": false,
+        "usable_phases": [
+          "BEFORE_ROLL"
+        ],
+        "effects": [
+          {
+            "effect_id": "sk_002_effect",
+            "effect_type": "ADD_DIE",
+            "duration": "BATTLE",
+            "parameters": {
+              "count": 1,
+              "instant_win_faces": [
+                6,
+                6,
+                6,
+                6
+              ]
+            }
+          }
+        ]
+      },
+      "assets": {
+        "icon_key": "card_sk_002",
+        "card_art_key": "card_sk_002",
+        "card_art_path": "/assets/cards/sk_002.jpg",
+        "source_file": "3.1 (2).png",
+        "sha256": "e1ffeca6fafcfe22731aa44813dd38e6f5a65510e3efb64f438a8bdeac9c9cb1"
+      },
+      "data_status": "DRAFT",
+      "source": {
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "使用此卡可增加",
+          "一枚骰子，如摇到",
+          "4个6点则直接获胜",
+          "2+1"
+        ]
+      }
+    },
+    {
+      "card_id": "sk_003",
+      "kind": "SKILL",
+      "category": "SKILL",
+      "name": "额外骰子",
+      "description": "增加一枚骰子。",
+      "rarity": "PURPLE",
+      "attack_multiplier": null,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "NONE",
+        "max": 0,
+        "loss_per_battle": 0
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "NONE",
+        "purchase_price": null,
+        "fixed_value": null
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": false,
+        "usable_phases": [
+          "BEFORE_ROLL"
+        ],
+        "effects": [
+          {
+            "effect_id": "sk_003_effect",
+            "effect_type": "ADD_DIE",
+            "duration": "BATTLE",
+            "parameters": {
+              "count": 1
+            }
+          }
+        ]
+      },
+      "assets": {
+        "icon_key": "card_sk_003",
+        "card_art_key": "card_sk_003",
+        "card_art_path": "/assets/cards/sk_003.jpg",
+        "source_file": "3.1 (3).png",
+        "sha256": "9306e4df708581aebf553bafaf7f377041c9583207533d33a33c6fefb38c5053"
+      },
+      "data_status": "DRAFT",
+      "source": {
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "使用此卡可增加",
+          "一枚骰子",
+          "2+1e"
+        ]
+      }
+    },
+    {
+      "card_id": "sk_004",
+      "kind": "SKILL",
+      "category": "SKILL",
+      "name": "减骰",
+      "description": "使对方减少一枚骰子。",
+      "rarity": "PURPLE",
+      "attack_multiplier": null,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "NONE",
+        "max": 0,
+        "loss_per_battle": 0
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "NONE",
+        "purchase_price": null,
+        "fixed_value": null
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": false,
+        "usable_phases": [
+          "BEFORE_ROLL"
+        ],
+        "effects": [
+          {
+            "effect_id": "sk_004_effect",
+            "effect_type": "REMOVE_OPPONENT_DIE",
+            "duration": "BATTLE",
+            "parameters": {
+              "count": 1
+            }
+          }
+        ]
+      },
+      "assets": {
+        "icon_key": "card_sk_004",
+        "card_art_key": "card_sk_004",
+        "card_art_path": "/assets/cards/sk_004.jpg",
+        "source_file": "3.1 (4).png",
+        "sha256": "b45a39e4d092334dc4b7944fb77e19f169da32ad0dfb92fb0588be077639083e"
+      },
+      "data_status": "DRAFT",
+      "source": {
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "使用此卡可使油方",
+          "减少 枚骰子",
+          "S-1公"
+        ]
+      }
+    },
+    {
+      "card_id": "sk_005",
+      "kind": "SKILL",
+      "category": "SKILL",
+      "name": "迷雾手牌",
+      "description": "使对方的手牌附上迷雾。",
+      "rarity": "PURPLE",
+      "attack_multiplier": null,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "NONE",
+        "max": 0,
+        "loss_per_battle": 0
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "NONE",
+        "purchase_price": null,
+        "fixed_value": null
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": false,
+        "usable_phases": [
+          "BEFORE_ROLL"
+        ],
+        "effects": [
+          {
+            "effect_id": "sk_005_effect",
+            "effect_type": "MASK_OPPONENT_HAND",
+            "duration": "BATTLE",
+            "parameters": {}
+          }
+        ]
+      },
+      "assets": {
+        "icon_key": "card_sk_005",
+        "card_art_key": "card_sk_005",
+        "card_art_path": "/assets/cards/sk_005.jpg",
+        "source_file": "3.1 (5).png",
+        "sha256": "2bec69c111da06baae214ce2d0f897c2d777af7190a31367374b6262fb530269"
+      },
+      "data_status": "DRAFT",
+      "source": {
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "使用此卡可使讨方",
+          "的手牌附上迷雾"
+        ]
+      }
+    },
+    {
+      "card_id": "sk_006",
+      "kind": "SKILL",
+      "category": "SKILL",
+      "name": "命运轮盘",
+      "description": "摇到1–9时己方扣除等同点数的生命；摇到10–18时己方恢复等同点数的生命。",
+      "rarity": "PURPLE",
+      "attack_multiplier": null,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "NONE",
+        "max": 0,
+        "loss_per_battle": 0
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "NONE",
+        "purchase_price": null,
+        "fixed_value": null
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": false,
+        "usable_phases": [
+          "RESOLUTION"
+        ],
+        "effects": [
+          {
+            "effect_id": "sk_006_effect",
+            "effect_type": "RISK_REWARD_HP",
+            "duration": "SUB_ROUND",
+            "parameters": {
+              "lose_range": [
+                1,
+                9
+              ],
+              "gain_range": [
+                10,
+                18
+              ]
+            }
+          }
+        ]
+      },
+      "assets": {
+        "icon_key": "card_sk_006",
+        "card_art_key": "card_sk_006",
+        "card_art_path": "/assets/cards/sk_006.jpg",
+        "source_file": "3.1 (6).png",
+        "sha256": "d2c2001cdde8f0ed836658ab68a3050b92342986b9c06257547230d2bde287f5"
+      },
+      "data_status": "DRAFT",
+      "source": {
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "使用此卡如摇到1-9，",
+          "則已方扣除摇到点数的血量。",
+          "如摇到10-18，",
+          "则己方增加摇到点数的血量"
+        ]
+      }
+    },
+    {
+      "card_id": "sk_007",
+      "kind": "SKILL",
+      "category": "SKILL",
+      "name": "压低点数",
+      "description": "使对方最终点数−5。",
+      "rarity": "PURPLE",
+      "attack_multiplier": null,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "NONE",
+        "max": 0,
+        "loss_per_battle": 0
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "NONE",
+        "purchase_price": null,
+        "fixed_value": null
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": false,
+        "usable_phases": [
+          "RESOLUTION"
+        ],
+        "effects": [
+          {
+            "effect_id": "sk_007_effect",
+            "effect_type": "MODIFY_FINAL_SCORE",
+            "duration": "SUB_ROUND",
+            "parameters": {
+              "target": "OPPONENT",
+              "amount": -5
+            }
+          }
+        ]
+      },
+      "assets": {
+        "icon_key": "card_sk_007",
+        "card_art_key": "card_sk_007",
+        "card_art_path": "/assets/cards/sk_007.jpg",
+        "source_file": "3.1 (7).png",
+        "sha256": "5fd17a73602ff8c99415845186ed58e242e97d8c201b949293e2e5814823c978"
+      },
+      "data_status": "DRAFT",
+      "source": {
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "使用此卡能使对方",
+          "最终点数一5",
+          "-5"
+        ]
+      }
+    },
+    {
+      "card_id": "sk_008",
+      "kind": "SKILL",
+      "category": "SKILL",
+      "name": "提高点数",
+      "description": "使己方最终点数+5。",
+      "rarity": "PURPLE",
+      "attack_multiplier": null,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "NONE",
+        "max": 0,
+        "loss_per_battle": 0
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "NONE",
+        "purchase_price": null,
+        "fixed_value": null
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": false,
+        "usable_phases": [
+          "RESOLUTION"
+        ],
+        "effects": [
+          {
+            "effect_id": "sk_008_effect",
+            "effect_type": "MODIFY_FINAL_SCORE",
+            "duration": "SUB_ROUND",
+            "parameters": {
+              "target": "SELF",
+              "amount": 5
+            }
+          }
+        ]
+      },
+      "assets": {
+        "icon_key": "card_sk_008",
+        "card_art_key": "card_sk_008",
+        "card_art_path": "/assets/cards/sk_008.jpg",
+        "source_file": "3.1 (8).png",
+        "sha256": "52d9649f93de32dfd853f01448f7f68f6a33c04d9c43dcb184c79f1b08c7f404"
+      },
+      "data_status": "DRAFT",
+      "source": {
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "使用此卡能使已方",
+          "最终点数+5",
+          "+5"
+        ]
+      }
+    },
+    {
+      "card_id": "sk_009",
+      "kind": "SKILL",
+      "category": "SKILL",
+      "name": "己方重摇",
+      "description": "使己方骰子重摇。",
+      "rarity": "PURPLE",
+      "attack_multiplier": null,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "NONE",
+        "max": 0,
+        "loss_per_battle": 0
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "NONE",
+        "purchase_price": null,
+        "fixed_value": null
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": false,
+        "usable_phases": [
+          "DICE_ALLOCATION"
+        ],
+        "effects": [
+          {
+            "effect_id": "sk_009_effect",
+            "effect_type": "REROLL_DICE",
+            "duration": "BATTLE",
+            "parameters": {
+              "target": "SELF"
+            }
+          }
+        ]
+      },
+      "assets": {
+        "icon_key": "card_sk_009",
+        "card_art_key": "card_sk_009",
+        "card_art_path": "/assets/cards/sk_009.jpg",
+        "source_file": "3.1 (9).png",
+        "sha256": "b5b0cc225e41adabc8bf8fb9d41c55dd80792a989a53b08e5b874b820995bea1"
+      },
+      "data_status": "DRAFT",
+      "source": {
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "使用此卡可使已方",
+          "骰"
+        ]
+      }
+    },
+    {
+      "card_id": "sk_010",
+      "kind": "SKILL",
+      "category": "SKILL",
+      "name": "极值交换",
+      "description": "将对方最小点数骰子与对方最大点数骰子交换。",
+      "rarity": "PURPLE",
+      "attack_multiplier": null,
+      "defense_multiplier": null,
+      "durability": {
+        "mode": "NONE",
+        "max": 0,
+        "loss_per_battle": 0
+      },
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "NONE",
+        "purchase_price": null,
+        "fixed_value": null
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": false,
+        "usable_phases": [
+          "DICE_ALLOCATION"
+        ],
+        "effects": [
+          {
+            "effect_id": "sk_010_effect",
+            "effect_type": "SWAP_DICE",
+            "duration": "BATTLE",
+            "parameters": {
+              "target": "OPPONENT",
+              "selectors": [
+                "MIN",
+                "MAX"
+              ]
+            }
+          }
+        ]
+      },
+      "assets": {
+        "icon_key": "card_sk_010",
+        "card_art_key": "card_sk_010",
+        "card_art_path": "/assets/cards/sk_010.jpg",
+        "source_file": "3.1.png",
+        "sha256": "6176eab43861b4b338e6b876641368013cdc2e7703fda16c417149df7fddc0b5"
+      },
+      "data_status": "DRAFT",
+      "source": {
+        "document": "卡牌！美术设计文件夹",
+        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "ocr_text": [
+          "使用此卡可用",
+          "对方最小点数骰子",
+          "与对方最大的骰子",
+          "交换"
+        ]
       }
     }
   ]

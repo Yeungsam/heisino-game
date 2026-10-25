@@ -4,11 +4,15 @@
   "title": "大劫卡西诺卡牌配置",
   "description": "静态卡牌定义。运行时的拾取、丢弃、装备和掠夺状态由 item-instance.schema.json 表示。",
   "type": "object",
-  "required": ["schema_version", "cards"],
+  "required": ["schema_version", "generated_at", "cards"],
   "properties": {
     "schema_version": {
       "type": "string",
-      "const": "0.1.0"
+      "const": "0.2.0"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
     },
     "cards": {
       "type": "array",
@@ -27,6 +31,7 @@
         "kind",
         "category",
         "name",
+        "description",
         "rarity",
         "attack_multiplier",
         "defense_multiplier",
@@ -45,7 +50,7 @@
         },
         "kind": {
           "type": "string",
-          "enum": ["EQUIPMENT", "LOOT"]
+          "enum": ["EQUIPMENT", "LOOT", "SKILL"]
         },
         "category": {
           "type": "string",
@@ -55,6 +60,11 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 32
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
         },
         "rarity": {
           "type": "string",
@@ -158,13 +168,25 @@
         },
         "assets": {
           "type": "object",
-          "required": ["icon_key", "card_art_key"],
+          "required": ["icon_key", "card_art_key", "card_art_path", "source_file", "sha256"],
           "properties": {
             "icon_key": {
               "type": ["string", "null"]
             },
             "card_art_key": {
               "type": ["string", "null"]
+            },
+            "card_art_path": {
+              "type": "string",
+              "pattern": "^/assets/cards/[a-z0-9_]+\\.jpg$"
+            },
+            "source_file": {
+              "type": "string",
+              "minLength": 1
+            },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
             }
           },
           "additionalProperties": false
@@ -175,7 +197,7 @@
         },
         "source": {
           "type": "object",
-          "required": ["document", "notes"],
+          "required": ["document", "notes", "ocr_text"],
           "properties": {
             "document": {
               "type": "string",
@@ -183,6 +205,10 @@
             },
             "notes": {
               "type": "string"
+            },
+            "ocr_text": {
+              "type": "array",
+              "items": { "type": "string" }
             }
           },
           "additionalProperties": false
@@ -209,6 +235,13 @@
             "LOCK_DICE_MINIMUM",
             "DISABLE_EQUIPMENT_EFFECT",
             "MODIFY_LOOT"
+            ,"DOUBLE_DAMAGE_ON_MATCHING_DICE"
+            ,"ADD_DIE"
+            ,"REMOVE_OPPONENT_DIE"
+            ,"MASK_OPPONENT_HAND"
+            ,"RISK_REWARD_HP"
+            ,"MODIFY_FINAL_SCORE"
+            ,"SWAP_DICE"
           ]
         },
         "duration": {
