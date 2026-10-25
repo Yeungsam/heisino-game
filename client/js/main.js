@@ -28,6 +28,7 @@ const PALETTE = {
 }
 
 const assetSources = {
+  homeMenu: 'assets/home-menu.png',
   home: 'assets/home.jpg',
   map: 'assets/map.jpg',
   characters: 'assets/characters.jpg',
@@ -50,6 +51,8 @@ let toastUntil = 0
 let draggingItemId = null
 let loadoutSelection = null
 let loadoutDragging = null
+let warehouseFilter = 'ALL'
+let warehouseSelection = null
 
 const ui = {
   hotspots: [],
@@ -150,6 +153,27 @@ function drawCover(image) {
   context.drawImage(image, (viewWidth - width) / 2, (viewHeight - height) / 2, width, height)
 }
 
+function drawContained(image) {
+  if (!image) return
+  const scale = Math.min(viewWidth / image.width, viewHeight / image.height)
+  const width = image.width * scale
+  const height = image.height * scale
+  context.drawImage(image, (viewWidth - width) / 2, (viewHeight - height) / 2, width, height)
+}
+
+function containedSourceRect(image, sourceRect) {
+  if (!image) return sourceRect
+  const scale = Math.min(viewWidth / image.width, viewHeight / image.height)
+  const offsetX = (viewWidth - image.width * scale) / 2
+  const offsetY = (viewHeight - image.height * scale) / 2
+  return {
+    x: offsetX + sourceRect.x * scale,
+    y: offsetY + sourceRect.y * scale,
+    width: sourceRect.width * scale,
+    height: sourceRect.height * scale
+  }
+}
+
 function drawImageCoverInRect(image, rect, source = null) {
   if (!image) return
   const sx = source ? source.x : 0
@@ -190,8 +214,9 @@ function addToast(message, duration = 1800) {
 function drawToast() {
   if (!toast || Date.now() > toastUntil) return
   const width = Math.min(viewWidth * 0.56, 420)
-  panel((viewWidth - width) / 2, viewHeight - 54, width, 36, { fill: 'rgba(20,12,18,.94)', stroke: PALETTE.gold, radius: 18 })
-  text(toast, viewWidth / 2, viewHeight - 36, 12, PALETTE.paleGold, 'center', 'bold')
+  const centerY = scene === 'HOME' ? viewHeight * 0.73 : viewHeight - 36
+  panel((viewWidth - width) / 2, centerY - 18, width, 36, { fill: 'rgba(20,12,18,.94)', stroke: PALETTE.gold, radius: 18 })
+  text(toast, viewWidth / 2, centerY, 12, PALETTE.paleGold, 'center', 'bold')
 }
 
 function drawLoading() {
@@ -213,27 +238,26 @@ function drawLoading() {
 }
 
 function drawHome() {
-  drawCover(assets.home)
-  const pulse = 0.55 + Math.sin(Date.now() / 280) * 0.18
-  const startRect = { x: viewWidth * 0.625, y: viewHeight * 0.465, width: viewWidth * 0.225, height: viewHeight * 0.11 }
-  context.save()
-  roundedPath(startRect.x, startRect.y, startRect.width, startRect.height, 12)
-  context.strokeStyle = `rgba(255, 239, 142, ${pulse})`
-  context.lineWidth = 3
-  context.stroke()
-  context.restore()
+  drawCover(assets.homeMenu)
+  drawContained(assets.homeMenu)
+  const shopRect = containedSourceRect(assets.homeMenu, { x: 382, y: 590, width: 246, height: 112 })
+  const warehouseRect = containedSourceRect(assets.homeMenu, { x: 630, y: 590, width: 266, height: 112 })
+  const startRect = containedSourceRect(assets.homeMenu, { x: 900, y: 580, width: 356, height: 126 })
+  ui.hotspots.push({ id: 'home_shop', rect: shopRect })
+  ui.hotspots.push({ id: 'home_warehouse', rect: warehouseRect })
   ui.hotspots.push({ id: 'home_start', rect: startRect })
-  ui.hotspots.push({ id: 'home_equipment', rect: { x: viewWidth * 0.625, y: viewHeight * 0.59, width: viewWidth * 0.225, height: viewHeight * 0.11 } })
-  ui.hotspots.push({ id: 'home_map', rect: { x: viewWidth * 0.625, y: viewHeight * 0.715, width: viewWidth * 0.225, height: viewHeight * 0.11 } })
-  panel(14, 12, 126, 32, { fill: 'rgba(33,17,23,.68)', stroke: 'rgba(255,231,162,.65)', radius: 16 })
-  text('♠  离岸码头 · 01', 77, 28, 11, '#fff0be', 'center', 'bold')
-  text('MVP TEST BUILD 0.3', viewWidth - 14, viewHeight - 12, 9, 'rgba(255,255,255,.72)', 'right')
 }
 
 function enterLoadout() {
   loadoutSelection = null
   loadoutDragging = null
   setScene('LOADOUT')
+}
+
+function enterWarehouse() {
+  warehouseFilter = 'ALL'
+  warehouseSelection = null
+  setScene('WAREHOUSE')
 }
 
 function cardColor(card) {
@@ -295,6 +319,93 @@ function removeLoadoutCard(cardId) {
     return true
   }
   return false
+}
+
+function warehouseCards() {
+  const ownedCardIds = loadout.snapshot().ownedCardIds
+  return cards.filter(card => {
+    if (!ownedCardIds.includes(card.cardId)) return false
+    if (warehouseFilter === 'EQUIPMENT') return card.kind === 'EQUIPMENT'
+    if (warehouseFilter === 'LOOT') return card.kind === 'LOOT'
+    return true
+  })
+}
+
+function warehouseFilterButton(id, label, filter, rect) {
+  const active = warehouseFilter === filter
+  button(id, label, rect, {
+    top: active ? '#c3872d' : '#554457',
+    bottom: active ? '#7a351f' : '#29212e',
+    stroke: active ? '#ffe08d' : '#8f7a92',
+    color: active ? '#fff4ca' : '#c9bacb',
+    size: 9,
+    radius: 8
+  })
+}
+
+function drawWarehouse() {
+  drawCover(assets.homeMenu)
+  darken(0.72, '13, 7, 24')
+
+  const margin = Math.max(12, viewWidth * 0.055)
+  const top = 50
+  const bottom = 54
+  const panelRect = { x: margin, y: top, width: viewWidth - margin * 2, height: viewHeight - top - bottom }
+  panel(panelRect.x, panelRect.y, panelRect.width, panelRect.height, { fill: 'rgba(27,18,34,.96)', stroke: '#d8a84b', lineWidth: 2, radius: 17 })
+
+  const headerGradient = context.createLinearGradient(0, 0, viewWidth, 0)
+  headerGradient.addColorStop(0, 'rgba(92,22,43,.98)')
+  headerGradient.addColorStop(0.55, 'rgba(43,23,52,.98)')
+  headerGradient.addColorStop(1, 'rgba(25,25,55,.98)')
+  context.fillStyle = headerGradient
+  context.fillRect(0, 0, viewWidth, 42)
+  context.strokeStyle = 'rgba(247,201,92,.72)'
+  context.beginPath()
+  context.moveTo(0, 41)
+  context.lineTo(viewWidth, 41)
+  context.stroke()
+  text('玩 家 仓 库', 16, 21, 18, PALETTE.paleGold, 'left', 'bold')
+  text('查看当前账号持有的全部卡牌', viewWidth / 2, 21, 10, '#d6c7d8', 'center')
+  text(`拥有 ${loadout.snapshot().ownedCardIds.length}/${cards.length}`, viewWidth - 16, 21, 11, '#9fe5c2', 'right', 'bold')
+
+  const filterY = panelRect.y + 11
+  const filterWidth = Math.min(92, panelRect.width * 0.15)
+  warehouseFilterButton('warehouse_filter_all', '全部', 'ALL', { x: panelRect.x + 12, y: filterY, width: filterWidth, height: 27 })
+  warehouseFilterButton('warehouse_filter_equipment', '装备卡', 'EQUIPMENT', { x: panelRect.x + 18 + filterWidth, y: filterY, width: filterWidth, height: 27 })
+  warehouseFilterButton('warehouse_filter_loot', '物资卡', 'LOOT', { x: panelRect.x + 24 + filterWidth * 2, y: filterY, width: filterWidth, height: 27 })
+  text('默认按配置顺序展示', panelRect.x + panelRect.width - 14, filterY + 14, 9, '#a99aaa', 'right')
+
+  const visibleCards = warehouseCards()
+  const gridTop = panelRect.y + 48
+  const detailHeight = 45
+  const gridBottom = panelRect.y + panelRect.height - detailHeight - 8
+  const columns = 5
+  const rows = 2
+  const gap = 8
+  const cardWidth = (panelRect.width - 24 - gap * (columns - 1)) / columns
+  const cardHeight = Math.max(56, (gridBottom - gridTop - gap) / rows)
+  visibleCards.forEach((card, index) => {
+    const column = index % columns
+    const row = Math.floor(index / columns)
+    const rect = {
+      x: panelRect.x + 12 + column * (cardWidth + gap),
+      y: gridTop + row * (cardHeight + gap),
+      width: cardWidth,
+      height: cardHeight
+    }
+    drawLoadoutCard(card, rect, warehouseSelection === card.cardId, 'WAREHOUSE')
+    ui.hotspots.push({ id: 'warehouse_card', rect, data: card.cardId })
+  })
+
+  const selectedCard = warehouseSelection && cards.find(card => card.cardId === warehouseSelection)
+  const detailY = panelRect.y + panelRect.height - detailHeight
+  context.fillStyle = 'rgba(255,255,255,.04)'
+  context.fillRect(panelRect.x + 1, detailY, panelRect.width - 2, detailHeight - 1)
+  text(selectedCard ? selectedCard.name : '卡牌详情', panelRect.x + 14, detailY + 14, 11, selectedCard ? cardColor(selectedCard) : '#b9a9b7', 'left', 'bold')
+  text(selectedCard ? cardMeta(selectedCard) : '点击任意卡牌查看详情；仓库中的卡牌不会自动带入对局。', panelRect.x + 14, detailY + 31, 9, '#d4c5d1')
+
+  button('warehouse_home', '返回首页', { x: 14, y: viewHeight - 43, width: 124, height: 31 }, { top: '#554653', bottom: '#2a222c', stroke: '#a692a4', size: 11 })
+  text(`当前筛选显示 ${visibleCards.length} 张卡牌`, viewWidth / 2, viewHeight - 28, 9, '#c6b8c8', 'center')
 }
 
 function drawLoadout() {
@@ -905,6 +1016,7 @@ function draw() {
   ui.discardRect = null
   if (scene === 'LOADING') drawLoading()
   if (scene === 'HOME') drawHome()
+  if (scene === 'WAREHOUSE') drawWarehouse()
   if (scene === 'LOADOUT') drawLoadout()
   if (scene === 'MATCHING') drawMatchmaking(false)
   if (scene === 'MATCH_FOUND') drawMatchmaking(true)
@@ -932,8 +1044,22 @@ function nextTurn() {
 function handleAction(action) {
   if (!action) return
   if (action.id === 'home_start') enterLoadout()
-  if (action.id === 'home_equipment') addToast('装备商店将在后续内容闭环开放。')
-  if (action.id === 'home_map') addToast('当前测试地图：卡西诺主岛。')
+  if (action.id === 'home_shop') addToast('商店暂未开放。')
+  if (action.id === 'home_warehouse') enterWarehouse()
+  if (action.id === 'warehouse_home') setScene('HOME')
+  if (action.id === 'warehouse_filter_all') {
+    warehouseFilter = 'ALL'
+    warehouseSelection = null
+  }
+  if (action.id === 'warehouse_filter_equipment') {
+    warehouseFilter = 'EQUIPMENT'
+    warehouseSelection = null
+  }
+  if (action.id === 'warehouse_filter_loot') {
+    warehouseFilter = 'LOOT'
+    warehouseSelection = null
+  }
+  if (action.id === 'warehouse_card') warehouseSelection = action.data
   if (action.id === 'loadout_home') setScene('HOME')
   if (action.id === 'loadout_match') beginMatchmaking()
   if (action.id === 'loadout_warehouse_card') {
