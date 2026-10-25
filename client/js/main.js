@@ -851,31 +851,31 @@ function drawMapPin(rect, scale, alpha) {
 
   context.save()
   context.globalAlpha = Math.max(0, Math.min(1, alpha))
-  context.shadowColor = '#31ff91'
+  context.shadowColor = '#ff493f'
   context.shadowBlur = Math.max(10, 20 * scale)
   context.beginPath()
   context.moveTo(centerX - radius * 0.58, centerY + radius * 0.38)
   context.quadraticCurveTo(centerX - radius * 0.2, centerY + radius * 1.16, centerX, centerY + radius * 1.7)
   context.quadraticCurveTo(centerX + radius * 0.2, centerY + radius * 1.16, centerX + radius * 0.58, centerY + radius * 0.38)
   context.closePath()
-  context.fillStyle = '#27d97b'
+  context.fillStyle = '#b51f2f'
   context.fill()
-  context.strokeStyle = '#d8ffe9'
+  context.strokeStyle = '#ffd36a'
   context.lineWidth = Math.max(1.5, 2.4 * scale)
   context.stroke()
 
   context.beginPath()
   context.arc(centerX, centerY, radius, 0, Math.PI * 2)
-  context.fillStyle = '#27d97b'
+  context.fillStyle = '#d52b37'
   context.fill()
-  context.strokeStyle = '#e6fff0'
+  context.strokeStyle = '#ffe090'
   context.lineWidth = Math.max(1.5, 2.4 * scale)
   context.stroke()
 
   context.shadowBlur = 0
   context.beginPath()
   context.arc(centerX, centerY, radius * 0.35, 0, Math.PI * 2)
-  context.fillStyle = '#fff7d1'
+  context.fillStyle = '#fff1c3'
   context.fill()
   context.restore()
 }
