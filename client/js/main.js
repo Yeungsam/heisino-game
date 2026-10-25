@@ -29,9 +29,9 @@ const PALETTE = {
 }
 
 const assetSources = {
-  homeMenu: 'assets/home-menu.png',
+  homeMenu: 'assets/home-menu.jpg',
   home: 'assets/home.jpg',
-  movementMap: 'assets/movement-map.png',
+  movementMap: 'assets/movement-map.jpg',
   map: 'assets/map.jpg',
   characters: 'assets/characters.jpg',
   loading: 'assets/loading.jpg'
