@@ -17,7 +17,9 @@
     {
       "name": "heisino-game",
       "runtime": "Nodejs20.19",
-      "handler": "index.main",
+      "type": "HTTP",
+      "gatewayPath": "/api/search",
+      "installDependency": true,
       "timeout": 10,
       "memorySize": 256,
       "description": "大劫卡西诺权威搜索回合 API",

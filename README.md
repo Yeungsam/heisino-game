@@ -121,6 +121,12 @@ npm run check
 npm run verify:cards:production
 ```
 
+生产搜索服务全链路联调检查：
+
+```bash
+npm run verify:search:production
+```
+
 重新导入美术并生成卡牌目录：
 
 ```bash
@@ -134,12 +140,15 @@ npm run cards:build -- "/absolute/path/to/卡牌！"
 - 微信小游戏 AppID：`wxac0dd152fc261ffd`
 - 当前用途：微信体验版测试环境
 - 卡牌云函数：`heisino-cards`（已部署）
-- 搜索云函数：`heisino-game`（代码与事务适配已建立，发布前需配置 HTTP 网关、`heisino_search_games` 集合和 Web 云函数数据库访问凭证）
+- 搜索云函数：`heisino-game`（已部署，使用 `heisino_search_games` 集合和服务端事务）
 - 正式 API：`https://cloud1-d5ghcmrajdca722b5-1510428576.ap-shanghai.app.tcloudbase.com/api/cards`
+- 搜索 API：`https://cloud1-d5ghcmrajdca722b5-1510428576.ap-shanghai.app.tcloudbase.com/api/search`
 - 卡面静态资源：`https://cloud1-d5ghcmrajdca722b5-1510428576.tcloudbaseapp.com/assets/cards/`
 - 生产架构：HTTP 网关 → Web 云函数返回结构化目录；静态托管按需分发卡面。
 
-`heisino-game` 是 Web 云函数。按 CloudBase 的运行时约束，Web 云函数不会自动注入数据库访问凭证；部署时须在函数环境变量中配置 `CLOUDBASE_APIKEY`，代码会把它作为 `@cloudbase/node-sdk` 的 `accessKey` 使用。API Key 只能保存在 CloudBase 环境变量或密钥系统中，不得写入 `cloudbaserc.json`、源码、日志或提交记录。
+`heisino-game` 是 Web 云函数。按 CloudBase 的运行时约束，Web 云函数不会自动注入数据库访问凭证；函数环境变量已配置环境级 `CLOUDBASE_APIKEY`，代码会把它作为 `@cloudbase/node-sdk` 的 `accessKey` 使用。搜索集合由服务端幂等确认，新环境首次建局时可自动创建。API Key 只能保存在 CloudBase 环境变量或密钥系统中，不得写入 `cloudbaserc.json`、源码、日志或提交记录。
+
+`/api/search` 已完成生产冒烟验证，覆盖健康检查、建局、25 房间与 4/10/0 物资数量、进入房间、2 秒曝光、拾取入包和离开房间。每次搜索服务部署后必须运行 `npm run verify:search:production`，不能只以健康检查通过作为发布结论。
 
 密钥、Token、私钥和本地登录凭证不得提交到仓库。
 

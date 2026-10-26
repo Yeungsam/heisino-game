@@ -41,7 +41,7 @@ function requestId(request, body) {
 function matchRoute(pathname) {
   const parts = pathname.split('/').filter(Boolean)
   const apiIndex = parts.findIndex(part => part === 'search')
-  if (apiIndex < 0) return null
+  if (apiIndex < 0) return ['health', 'games'].includes(parts[0]) ? parts : null
   return parts.slice(apiIndex + 1)
 }
 
