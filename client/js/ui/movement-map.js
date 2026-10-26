@@ -1,6 +1,16 @@
 const SOURCE_SIZE = Object.freeze({ width: 1280, height: 722 })
 const ROOM_MASK_ALPHA = 0.5
 const PIN_TRANSITION_MS = 460
+const ROOM_HIGHLIGHTS = Object.freeze({
+  CURRENT: Object.freeze({ fillAlpha: 0.24, strokeAlpha: 1, lineWidth: 4, glow: 24 }),
+  SELECTED: Object.freeze({ fillAlpha: 0.12, strokeAlpha: 0.9, lineWidth: 3, glow: 13 }),
+  REACHABLE: Object.freeze({ fillAlpha: 0.065, strokeAlpha: 0.62, lineWidth: 2.2, glow: 7 })
+})
+
+const LANDMARK_ROOMS = Object.freeze({
+  VAULT: Object.freeze({ x: 2, y: 2 }),
+  EXIT: Object.freeze({ x: 4, y: 4 })
+})
 
 const SOURCE_RECTS = Object.freeze({
   grid: Object.freeze({ x: 52, y: 106, width: 1027, height: 590 }),
@@ -70,6 +80,22 @@ function roomTypeAt(x, y) {
   return ROOM_TYPES[y] && ROOM_TYPES[y][x] ? ROOM_TYPES[y][x] : '未知房间'
 }
 
+function roomHighlightStyle(state) {
+  return ROOM_HIGHLIGHTS[state] || null
+}
+
+function landmarkIconRect(layout, x, y) {
+  const room = roomRect(layout, x, y)
+  const size = Math.min(room.width, room.height) * 0.32
+  const inset = Math.max(3, size * 0.16)
+  return {
+    x: room.x + room.width - size - inset,
+    y: room.y + inset,
+    width: size,
+    height: size
+  }
+}
+
 function pinTransitionOpacity(elapsedMs, durationMs = PIN_TRANSITION_MS) {
   const duration = Math.max(1, durationMs)
   const progress = Math.max(0, Math.min(1, elapsedMs / duration))
@@ -89,6 +115,8 @@ module.exports = {
   SOURCE_SIZE,
   ROOM_MASK_ALPHA,
   PIN_TRANSITION_MS,
+  ROOM_HIGHLIGHTS,
+  LANDMARK_ROOMS,
   SOURCE_RECTS,
   ROOM_TYPES,
   containedTransform,
@@ -96,5 +124,7 @@ module.exports = {
   createMovementLayout,
   roomRect,
   roomTypeAt,
+  roomHighlightStyle,
+  landmarkIconRect,
   pinTransitionOpacity
 }

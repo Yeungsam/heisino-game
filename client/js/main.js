@@ -10,8 +10,11 @@ const { createCardCatalogIndex, resolveCardAssetUrl } = require('./ui/card-art')
 const {
   ROOM_MASK_ALPHA,
   PIN_TRANSITION_MS,
+  LANDMARK_ROOMS,
   createMovementLayout,
+  landmarkIconRect,
   roomRect,
+  roomHighlightStyle,
   roomTypeAt,
   pinTransitionOpacity
 } = require('./ui/movement-map')
@@ -994,31 +997,103 @@ function drawMovementRooms(state, layout) {
       const current = local.position.x === x && local.position.y === y
       const reachable = legalKeys.has(key) && !current
       const selected = selectedMove && selectedMove.x === x && selectedMove.y === y
-      const emphasized = current || selected
+      const highlightState = current ? 'CURRENT' : selected ? 'SELECTED' : reachable ? 'REACHABLE' : null
+      const highlight = roomHighlightStyle(highlightState)
       const rect = roomRect(layout, x, y, Math.max(1, scale * 1.5))
 
       context.save()
       roundedPath(rect.x, rect.y, rect.width, rect.height, Math.max(3, scale * 7))
-      if (!current && !reachable) {
+      if (!highlight) {
         context.fillStyle = `rgba(0,0,0,${ROOM_MASK_ALPHA})`
         context.fill()
         context.strokeStyle = 'rgba(196,205,210,.34)'
         context.lineWidth = Math.max(1, scale * 1.2)
         context.stroke()
       } else {
-        context.fillStyle = emphasized ? 'rgba(36,255,137,.15)' : 'rgba(36,255,137,.07)'
+        context.fillStyle = `rgba(36,255,137,${highlight.fillAlpha})`
         context.fill()
         context.shadowColor = '#41ff9a'
-        context.shadowBlur = Math.max(8, (emphasized ? 18 : 11) * scale)
-        context.strokeStyle = emphasized ? '#35f58e' : 'rgba(53,245,142,.72)'
-        context.lineWidth = Math.max(2, (emphasized ? 3.4 : 2.4) * scale)
+        context.shadowBlur = Math.max(4, highlight.glow * scale)
+        context.strokeStyle = `rgba(75,255,159,${highlight.strokeAlpha})`
+        context.lineWidth = Math.max(1.5, highlight.lineWidth * scale)
         context.stroke()
+
+        if (current) {
+          roundedPath(rect.x + 4 * scale, rect.y + 4 * scale, rect.width - 8 * scale, rect.height - 8 * scale, Math.max(2, scale * 5))
+          context.strokeStyle = 'rgba(214,255,232,.9)'
+          context.lineWidth = Math.max(1, 1.7 * scale)
+          context.stroke()
+        }
       }
       context.restore()
 
       if (selecting && (current || reachable)) ui.hotspots.push({ id: 'map_node', rect, data: { x, y } })
     }
   }
+}
+
+function drawLandmarkBadge(rect, colors) {
+  context.save()
+  context.shadowColor = colors.glow
+  context.shadowBlur = Math.max(7, rect.width * 0.36)
+  context.beginPath()
+  context.arc(rect.x + rect.width / 2, rect.y + rect.height / 2, rect.width * 0.48, 0, Math.PI * 2)
+  context.fillStyle = colors.fill
+  context.fill()
+  context.strokeStyle = colors.stroke
+  context.lineWidth = Math.max(1.4, rect.width * 0.07)
+  context.stroke()
+  context.shadowBlur = 0
+  return () => context.restore()
+}
+
+function drawVaultChestIcon(rect) {
+  const restore = drawLandmarkBadge(rect, { fill: 'rgba(92,31,25,.96)', stroke: '#ffd971', glow: '#ffb13c' })
+  const x = rect.x + rect.width * 0.2
+  const y = rect.y + rect.height * 0.29
+  const width = rect.width * 0.6
+  const height = rect.height * 0.48
+  context.beginPath()
+  context.moveTo(x, y + height * 0.32)
+  context.quadraticCurveTo(x, y, x + width * 0.22, y)
+  context.lineTo(x + width * 0.78, y)
+  context.quadraticCurveTo(x + width, y, x + width, y + height * 0.32)
+  context.lineTo(x, y + height * 0.32)
+  context.fillStyle = '#d7862f'
+  context.fill()
+  context.strokeStyle = '#fff0a3'
+  context.lineWidth = Math.max(1, rect.width * 0.055)
+  context.stroke()
+  context.fillStyle = '#a94526'
+  context.fillRect(x, y + height * 0.32, width, height * 0.68)
+  context.strokeRect(x, y + height * 0.32, width, height * 0.68)
+  context.fillStyle = '#ffe37f'
+  context.fillRect(rect.x + rect.width * 0.46, rect.y + rect.height * 0.48, rect.width * 0.08, rect.height * 0.2)
+  restore()
+}
+
+function drawExitIcon(rect) {
+  const restore = drawLandmarkBadge(rect, { fill: 'rgba(20,74,57,.96)', stroke: '#b9ffd8', glow: '#4dffae' })
+  const left = rect.x + rect.width * 0.23
+  const top = rect.y + rect.height * 0.22
+  const doorWidth = rect.width * 0.32
+  const doorHeight = rect.height * 0.58
+  context.strokeStyle = '#e9fff2'
+  context.lineWidth = Math.max(1.2, rect.width * 0.065)
+  context.strokeRect(left, top, doorWidth, doorHeight)
+  context.beginPath()
+  context.moveTo(rect.x + rect.width * 0.43, rect.y + rect.height * 0.51)
+  context.lineTo(rect.x + rect.width * 0.77, rect.y + rect.height * 0.51)
+  context.moveTo(rect.x + rect.width * 0.64, rect.y + rect.height * 0.37)
+  context.lineTo(rect.x + rect.width * 0.78, rect.y + rect.height * 0.51)
+  context.lineTo(rect.x + rect.width * 0.64, rect.y + rect.height * 0.65)
+  context.stroke()
+  restore()
+}
+
+function drawMovementLandmarks(layout) {
+  drawVaultChestIcon(landmarkIconRect(layout, LANDMARK_ROOMS.VAULT.x, LANDMARK_ROOMS.VAULT.y))
+  drawExitIcon(landmarkIconRect(layout, LANDMARK_ROOMS.EXIT.x, LANDMARK_ROOMS.EXIT.y))
 }
 
 function drawMapPin(rect, scale, alpha) {
@@ -1169,6 +1244,7 @@ function drawMapScene(state) {
   const layout = createMovementLayout(viewWidth, viewHeight, image ? image.width : 1280, image ? image.height : 722)
   drawMovementRooms(state, layout)
   drawMovementPin(state, layout)
+  drawMovementLandmarks(layout)
   drawMovementHud(state, layout)
   ui.discardRect = null
 }
