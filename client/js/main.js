@@ -5,8 +5,19 @@ const { MatchmakingSession } = require('./core/matchmaking')
 const { LoadoutSession } = require('./core/loadout')
 const { createSeededRng } = require('./core/rng')
 const { fetchCardCatalog } = require('./api/cards')
+const {
+  createSearchGame,
+  startSearchVisit,
+  getSearchVisit,
+  observeSearch,
+  pickupSearchItem,
+  dropSearchItem,
+  finishSearchObservation,
+  leaveSearchRoom
+} = require('./api/search')
 const { cardAssetBaseUrl } = require('./config')
 const { createCardCatalogIndex, resolveCardAssetUrl } = require('./ui/card-art')
+const { searchTimerState, createSearchLayout } = require('./ui/search-room')
 const {
   ROOM_MASK_ALPHA,
   PIN_TRANSITION_MS,
@@ -80,11 +91,25 @@ let warehouseFilter = 'ALL'
 let warehousePage = 0
 let warehouseSelection = null
 let loadoutPage = 0
+let searchGameId = null
+let searchAuthority = 'LOCAL'
+let searchGameReadyPromise = null
+let searchVisitState = null
+let searchRequestPending = false
+let searchLastRefreshAt = 0
+let searchFinishedVisitId = null
+let searchInventoryIdMap = {}
+let searchDragging = null
+let searchDragPoint = null
 
 const ui = {
   hotspots: [],
   inventoryRects: [],
   discardRect: null,
+  searchItemRects: [],
+  searchInventoryRects: [],
+  searchBackpackRect: null,
+  searchRoomRect: null,
   loadoutWarehouseRects: [],
   loadoutBackpackRects: [],
   loadoutWarehouseDropRect: null,
@@ -798,8 +823,222 @@ function startGame() {
   movementPinPosition = { ...engine.getPlayer('P1').position }
   movementPinTransition = null
   activeBattle = null
+  searchGameId = `game-${Date.now()}-${Math.floor(Math.random() * 100000)}`
+  searchAuthority = 'CONNECTING'
+  searchVisitState = null
+  searchFinishedVisitId = null
+  searchInventoryIdMap = {}
+  const selectedCardIds = loadout.snapshot().selectedCardIds
+  searchGameReadyPromise = createSearchGame({ gameId: searchGameId, playerId: 'P1', loadoutCardIds: selectedCardIds, seed: searchGameId })
+    .then(game => {
+      searchAuthority = 'REMOTE'
+      bindRemoteInventory(game.player.inventory)
+      return game
+    })
+    .catch(() => {
+      searchAuthority = 'LOCAL'
+      addToast('搜索服务暂不可用，已切换本地安全降级。', 2600)
+      return null
+    })
   presentation = 'MAP'
   setScene('GAME')
+}
+
+function bindRemoteInventory(remoteInventory) {
+  const player = engine.getPlayer('P1')
+  const claimed = new Set()
+  remoteInventory.forEach(remoteItem => {
+    const localId = player.inventory.find(instanceId => {
+      if (claimed.has(instanceId)) return false
+      const item = engine.items.find(candidate => candidate.instanceId === instanceId)
+      return item && item.cardId === remoteItem.cardId
+    })
+    if (localId) {
+      searchInventoryIdMap[remoteItem.instanceId] = localId
+      claimed.add(localId)
+    }
+  })
+}
+
+function syncAuthoritativeInventory(snapshot) {
+  if (!snapshot || !Array.isArray(snapshot.inventory)) return
+  const player = engine.getPlayer('P1')
+  const previousIds = new Set(player.inventory)
+  const nextIds = snapshot.inventory.map(remoteItem => {
+    let localId = searchInventoryIdMap[remoteItem.instanceId]
+    let localItem = localId && engine.items.find(item => item.instanceId === localId)
+    if (!localItem) {
+      localId = remoteItem.instanceId
+      localItem = engine.items.find(item => item.instanceId === localId)
+      if (!localItem) {
+        const card = cardById(remoteItem.cardId)
+        localItem = {
+          instanceId: localId,
+          cardId: remoteItem.cardId,
+          state: 'IN_INVENTORY',
+          nodeId: null,
+          ownerId: 'P1',
+          durability: (card && card.maxDurability) || 0,
+          revealedBy: 'P1',
+          createdTurn: engine.turn
+        }
+        engine.items.push(localItem)
+      }
+      searchInventoryIdMap[remoteItem.instanceId] = localId
+    }
+    localItem.state = localItem.state === 'EQUIPPED' ? 'EQUIPPED' : 'IN_INVENTORY'
+    localItem.nodeId = null
+    localItem.ownerId = 'P1'
+    previousIds.delete(localId)
+    return localId
+  })
+  previousIds.forEach(localId => {
+    const item = engine.items.find(candidate => candidate.instanceId === localId)
+    if (!item) return
+    item.state = 'DROPPED'
+    item.ownerId = null
+    item.nodeId = searchVisitState ? searchVisitState.room.nodeId : positionKey(player.position)
+  })
+  player.inventory = nextIds
+  if (player.equippedWeaponId && !nextIds.includes(player.equippedWeaponId)) player.equippedWeaponId = null
+}
+
+function localSearchItems() {
+  return engine.searchItemsFor('P1').filter(item => ['HIDDEN', 'REVEALED', 'DROPPED'].includes(item.state))
+}
+
+function localVisitSnapshot() {
+  const player = engine.getPlayer('P1')
+  const items = localSearchItems()
+  const observation = searchVisitState && searchVisitState.visit.observation
+  const visibleIds = observation && observation.active ? observation.visibleItemIds : []
+  return {
+    gameId: searchGameId,
+    version: 0,
+    visit: searchVisitState.visit,
+    room: {
+      nodeId: searchVisitState.room.nodeId,
+      unpickedCount: items.length,
+      unsearchedCount: items.filter(item => item.state === 'HIDDEN').length,
+      canObserve: searchVisitState.visit.status === 'ACTIVE' && items.length > 0,
+      visibleItems: visibleIds.map(id => items.find(item => item.instanceId === id)).filter(Boolean).map(item => ({
+        instanceId: item.instanceId,
+        cardId: item.cardId,
+        state: item.state,
+        nodeId: item.nodeId,
+        ownerId: item.ownerId
+      }))
+    },
+    inventory: player.inventory.map(id => engine.items.find(item => item.instanceId === id)).filter(Boolean).map(item => ({
+      instanceId: item.instanceId,
+      cardId: item.cardId,
+      state: item.state,
+      nodeId: item.nodeId,
+      ownerId: item.ownerId
+    })),
+    serverTime: Date.now()
+  }
+}
+
+function startLocalVisit() {
+  const now = Date.now()
+  searchVisitState = {
+    gameId: searchGameId,
+    visit: {
+      visitId: `local-visit-${engine.turn}-${now}`,
+      playerId: 'P1',
+      roomNodeId: positionKey(engine.getPlayer('P1').position),
+      turn: engine.turn,
+      status: 'ACTIVE',
+      startedAt: now,
+      deadlineAt: now + C.SEARCH_DURATION_MS,
+      observation: null,
+      finishReason: null
+    },
+    room: { nodeId: positionKey(engine.getPlayer('P1').position) },
+    inventory: []
+  }
+  searchVisitState = localVisitSnapshot()
+  return searchVisitState
+}
+
+function refreshLocalVisit() {
+  if (!searchVisitState || searchVisitState.visit.status !== 'ACTIVE') return searchVisitState
+  const now = Date.now()
+  if (now >= searchVisitState.visit.deadlineAt) {
+    searchVisitState.visit.status = 'TIMED_OUT'
+    searchVisitState.visit.finishReason = 'TIMEOUT'
+    if (searchVisitState.visit.observation) searchVisitState.visit.observation.active = false
+    searchVisitState = localVisitSnapshot()
+    return searchVisitState
+  }
+  const observation = searchVisitState.visit.observation
+  if (observation && observation.active) {
+    const target = Math.min(C.SEARCH_VISIBLE_LIMIT, Math.floor((now - observation.startedAt) / C.SEARCH_REVEAL_INTERVAL_MS))
+    while (observation.visibleItemIds.length < target) {
+      const hidden = localSearchItems().find(item => item.state === 'HIDDEN')
+      if (!hidden) break
+      hidden.state = 'REVEALED'
+      hidden.revealedBy = 'P1'
+      observation.visibleItemIds.push(hidden.instanceId)
+    }
+  }
+  searchVisitState = localVisitSnapshot()
+  return searchVisitState
+}
+
+function applySearchSnapshot(snapshot) {
+  searchVisitState = snapshot
+  if (searchAuthority === 'REMOTE') syncAuthoritativeInventory(snapshot)
+  if (snapshot && snapshot.visit) engine.turnDeadlineAt = snapshot.visit.deadlineAt
+  if (snapshot && snapshot.visit.status === 'TIMED_OUT') completeTimedOutSearch(snapshot.visit.visitId)
+}
+
+function completeTimedOutSearch(visitId) {
+  if (searchFinishedVisitId === visitId) return
+  searchFinishedVisitId = visitId
+  addToast('搜索时间结束，已返回地图。')
+  nextTurn()
+}
+
+async function beginRoomVisit() {
+  presentation = 'ROOM'
+  searchVisitState = null
+  searchFinishedVisitId = null
+  searchRequestPending = true
+  if (searchGameReadyPromise) await searchGameReadyPromise
+  if (searchAuthority === 'REMOTE') {
+    try {
+      const local = engine.getPlayer('P1')
+      const snapshot = await startSearchVisit({
+        gameId: searchGameId,
+        playerId: 'P1',
+        roomNodeId: positionKey(local.position),
+        turn: engine.turn
+      })
+      applySearchSnapshot(snapshot)
+      searchRequestPending = false
+      return
+    } catch (requestError) {
+      searchAuthority = 'LOCAL'
+      addToast('服务端搜索连接中断，已切换本地降级。', 2400)
+    }
+  }
+  applySearchSnapshot(startLocalVisit())
+  searchRequestPending = false
+}
+
+async function refreshRemoteVisit() {
+  if (searchAuthority !== 'REMOTE' || !searchVisitState || searchRequestPending) return
+  searchRequestPending = true
+  try {
+    const snapshot = await getSearchVisit({ gameId: searchGameId, visitId: searchVisitState.visit.visitId, playerId: 'P1' })
+    applySearchSnapshot(snapshot)
+  } catch (requestError) {
+    addToast('搜索状态同步失败，正在重试。', 1200)
+  } finally {
+    searchRequestPending = false
+  }
 }
 
 function currentState() {
@@ -1262,11 +1501,7 @@ function decidePostMove() {
     presentation = 'SETTLEMENT'
     return
   }
-  if (engine.searchItemsFor('P1').some(item => ['HIDDEN', 'REVEALED', 'DROPPED'].includes(item.state))) {
-    presentation = 'SEARCH'
-  } else {
-    presentation = 'ROUND_RESULT'
-  }
+  beginRoomVisit()
 }
 
 function drawBattle(state) {
@@ -1305,50 +1540,163 @@ function drawBattle(state) {
   button('battle_continue', won ? '查看战利品' : '进入结算', { x: viewWidth / 2 - 70, y: viewHeight - 39, width: 140, height: 30 }, { size: 10, top: won ? '#cc8b2f' : '#8b3546', bottom: won ? '#87421f' : '#4d2335' })
 }
 
+function searchSecondsRemaining() {
+  if (!searchVisitState || !searchVisitState.visit) return 50
+  return searchTimerState(searchVisitState.visit.deadlineAt).seconds
+}
+
+function drawSearchTimer() {
+  const seconds = searchSecondsRemaining()
+  const progress = searchVisitState ? searchTimerState(searchVisitState.visit.deadlineAt).progress : 1
+  const timer = createSearchLayout(viewWidth, viewHeight).timer
+  const { x, y, width } = timer
+  roundedPath(x, y, width, timer.height, 9)
+  context.fillStyle = 'rgba(10,7,14,.9)'
+  context.fill()
+  context.strokeStyle = 'rgba(255,224,132,.72)'
+  context.stroke()
+  roundedPath(x + 3, y + 3, Math.max(4, (width - 6) * progress), 12, 6)
+  const gradient = context.createLinearGradient(x, y, x + width, y)
+  gradient.addColorStop(0, seconds <= 10 ? '#f04f55' : '#f3b844')
+  gradient.addColorStop(1, seconds <= 10 ? '#9f1f32' : '#bf6d26')
+  context.fillStyle = gradient
+  context.fill()
+  text(`搜索轮 ${String(seconds).padStart(2, '0')}s`, viewWidth / 2, y + 9, 10, '#fff5d0', 'center', 'bold')
+}
+
+function drawAuthorityBadge(x, y) {
+  const remote = searchAuthority === 'REMOTE'
+  const label = remote ? '服务端权威结算' : searchAuthority === 'CONNECTING' ? '连接搜索服务' : '本地安全降级'
+  panel(x, y, 106, 22, { fill: remote ? 'rgba(24,89,67,.88)' : 'rgba(88,48,38,.88)', stroke: remote ? '#8effc7' : '#ffd28c', radius: 11 })
+  text(label, x + 53, y + 11, 8, remote ? '#d9ffea' : '#fff0cb', 'center', 'bold')
+}
+
+function drawRoom(state) {
+  drawCover(assets.map)
+  darken(0.28, '12, 5, 24')
+  drawTopHud(state)
+  drawSearchTimer()
+  const frame = { x: 22, y: 78, width: viewWidth - 44, height: viewHeight - 96 }
+  panel(frame.x, frame.y, frame.width, frame.height, { fill: 'rgba(35,18,24,.55)', stroke: '#d7a64e', lineWidth: 2, radius: 18 })
+  const node = searchVisitState ? searchVisitState.room.nodeId : positionKey(engine.getPlayer('P1').position)
+  const parts = node.split('_')
+  const roomName = roomTypeAt(Number(parts[1]), Number(parts[2]))
+  text(roomName, frame.x + 22, frame.y + 28, 20, PALETTE.paleGold, 'left', 'bold')
+  drawAuthorityBadge(frame.x + frame.width - 128, frame.y + 15)
+  if (!searchVisitState) {
+    text('正在同步房间物资…', viewWidth / 2, frame.y + frame.height * 0.54, 16, '#ffe7b0', 'center', 'bold')
+  } else {
+    const room = searchVisitState.room
+    panel(frame.x + 22, frame.y + 48, Math.min(290, frame.width * 0.38), 72, { fill: 'rgba(18,10,18,.78)', stroke: 'rgba(255,219,128,.5)', radius: 12 })
+    text(`房间剩余物资  ${room.unpickedCount} 件`, frame.x + 38, frame.y + 72, 13, '#fff0cf', 'left', 'bold')
+    text(`尚未曝光  ${room.unsearchedCount} 件`, frame.x + 38, frame.y + 96, 10, '#d4c2c8', 'left')
+    if (room.unpickedCount === 0) text('这个房间已经被搜空了', viewWidth / 2, frame.y + frame.height * 0.58, 17, '#e1ced2', 'center', 'bold')
+  }
+  const observeRect = { x: frame.x + frame.width - 282, y: frame.y + frame.height - 54, width: 126, height: 38 }
+  const leaveRect = { x: frame.x + frame.width - 142, y: frame.y + frame.height - 54, width: 126, height: 38 }
+  const canObserve = searchVisitState && searchVisitState.room.canObserve && !searchRequestPending
+  button(canObserve ? 'room_observe' : 'room_observe_disabled', '观察', observeRect, {
+    top: canObserve ? '#c99235' : '#554c50', bottom: canObserve ? '#7b321e' : '#2d292d', stroke: canObserve ? '#ffe095' : '#7a7076', size: 12
+  })
+  button(searchVisitState && !searchRequestPending ? 'room_leave' : 'room_leave_disabled', '离开房间', leaveRect, {
+    top: '#8e3040', bottom: '#451b2b', stroke: '#f4b0a0', size: 12
+  })
+}
+
+function drawMagnifier(centerX, centerY) {
+  const pulse = 1 + Math.sin(Date.now() / 240) * 0.08
+  context.save()
+  context.translate(centerX, centerY)
+  context.scale(pulse, pulse)
+  context.beginPath()
+  context.arc(-5, -5, 18, 0, Math.PI * 2)
+  context.strokeStyle = '#ffe08a'
+  context.lineWidth = 5
+  context.shadowColor = '#ff9f43'
+  context.shadowBlur = 12
+  context.stroke()
+  context.beginPath()
+  context.moveTo(8, 8)
+  context.lineTo(25, 25)
+  context.stroke()
+  context.restore()
+}
+
+function drawSearchInventoryPanel(rect) {
+  panel(rect.x, rect.y, rect.width, rect.height, { fill: 'rgba(27,15,29,.94)', stroke: '#c9914b', lineWidth: 2, radius: 14 })
+  text(`玩家背包  ${searchVisitState ? searchVisitState.inventory.length : 0}/${C.BACKPACK_SLOTS}`, rect.x + 16, rect.y + 23, 14, PALETTE.paleGold, 'left', 'bold')
+  ui.searchInventoryRects = []
+  const gap = 7
+  const columns = 5
+  const slotWidth = (rect.width - 28 - gap * 4) / columns
+  const slotHeight = Math.min(slotWidth * 1.2, (rect.height - 58 - gap) / 2)
+  const gridY = rect.y + 42
+  ui.searchBackpackRect = { x: rect.x + 10, y: gridY - 4, width: rect.width - 20, height: slotHeight * 2 + gap + 8 }
+  for (let index = 0; index < C.BACKPACK_SLOTS; index += 1) {
+    const column = index % columns
+    const row = Math.floor(index / columns)
+    const slot = { x: rect.x + 14 + column * (slotWidth + gap), y: gridY + row * (slotHeight + gap), width: slotWidth, height: slotHeight }
+    roundedPath(slot.x, slot.y, slot.width, slot.height, 7)
+    context.fillStyle = 'rgba(255,255,255,.045)'
+    context.fill()
+    context.strokeStyle = 'rgba(236,201,126,.32)'
+    context.stroke()
+    const item = searchVisitState && searchVisitState.inventory[index]
+    if (item) {
+      drawCardArt(cardById(item.cardId), slot, { radius: 7, inset: 2, stroke: 'rgba(255,226,157,.72)', lineWidth: 1 })
+      ui.searchInventoryRects.push({ ...slot, instanceId: item.instanceId, cardId: item.cardId })
+    } else {
+      text(`${index + 1}`, slot.x + slot.width / 2, slot.y + slot.height / 2, 8, '#665966', 'center')
+    }
+  }
+  text('可将背包物品拖回右侧，物品会留在当前房间', rect.x + rect.width / 2, rect.y + rect.height - 13, 8, '#bca8b4', 'center')
+}
+
+function drawSearchRoomPanel(rect) {
+  panel(rect.x, rect.y, rect.width, rect.height, { fill: 'rgba(39,17,26,.95)', stroke: '#cc704d', lineWidth: 2, radius: 14 })
+  text('搜索物品', rect.x + 16, rect.y + 23, 14, PALETTE.paleGold, 'left', 'bold')
+  text('每 2 秒曝光 1 件 · 同时最多 2 件', rect.x + rect.width - 16, rect.y + 23, 8, '#cdb8bd', 'right')
+  ui.searchRoomRect = { x: rect.x + 10, y: rect.y + 36, width: rect.width - 20, height: rect.height - 48 }
+  ui.searchItemRects = []
+  const visible = searchVisitState ? searchVisitState.room.visibleItems : []
+  if (visible.length === 0) {
+    drawMagnifier(rect.x + rect.width / 2, rect.y + rect.height / 2 - 7)
+    text('正在搜索房间…', rect.x + rect.width / 2, rect.y + rect.height / 2 + 34, 10, '#e2c7b2', 'center', 'bold')
+  }
+  const gap = 14
+  const cardWidth = Math.min(132, (rect.width - 48 - gap) / 2)
+  const cardHeight = Math.min(rect.height - 72, cardWidth * 1.38)
+  visible.forEach((item, index) => {
+    const totalWidth = visible.length * cardWidth + Math.max(0, visible.length - 1) * gap
+    const cardRect = { x: rect.x + (rect.width - totalWidth) / 2 + index * (cardWidth + gap), y: rect.y + 45 + (rect.height - 58 - cardHeight) / 2, width: cardWidth, height: cardHeight }
+    drawCardArt(cardById(item.cardId), cardRect, { radius: 10, inset: 3, stroke: '#ffe09a', lineWidth: 2 })
+    ui.searchItemRects.push({ ...cardRect, instanceId: item.instanceId, cardId: item.cardId })
+  })
+}
+
+function drawSearchDrag() {
+  if (!searchDragging || !searchDragPoint) return
+  const width = Math.min(90, viewWidth * 0.11)
+  const rect = { x: searchDragPoint.x - width / 2, y: searchDragPoint.y - width * 0.68, width, height: width * 1.36 }
+  context.save()
+  context.globalAlpha = 0.92
+  context.shadowColor = '#ffd266'
+  context.shadowBlur = 18
+  drawCardArt(cardById(searchDragging.cardId), rect, { radius: 10, inset: 2, stroke: '#fff1a8', lineWidth: 2 })
+  context.restore()
+}
+
 function drawSearch(state) {
   drawCover(assets.map)
-  darken(0.62, '12, 5, 24')
+  darken(0.67, '12, 5, 24')
   drawTopHud(state)
-  const layout = gameLayout()
-  const roomX = 24
-  const roomWidth = viewWidth - layout.sideWidth - 66
-  panel(roomX, 61, roomWidth, viewHeight - 78, { fill: 'rgba(46,22,25,.9)', stroke: '#d9a443', lineWidth: 2, radius: 17 })
-  const glow = context.createRadialGradient(roomX + roomWidth / 2, viewHeight * 0.52, 10, roomX + roomWidth / 2, viewHeight * 0.52, roomWidth * 0.45)
-  glow.addColorStop(0, 'rgba(255,202,89,.28)')
-  glow.addColorStop(1, 'rgba(79,22,36,0)')
-  context.fillStyle = glow
-  context.fillRect(roomX, 61, roomWidth, viewHeight - 78)
-  text('房 间 搜 索', roomX + 18, 83, 18, PALETTE.paleGold, 'left', 'bold')
-  text('点击显示物资 · 再次点击拾取', roomX + 18, 106, 10, '#d6bdaf')
-
-  const available = engine.searchItemsFor('P1').filter(item => ['HIDDEN', 'REVEALED', 'DROPPED'].includes(item.state))
-  const cardWidth = Math.min(112, (roomWidth - 64) / Math.max(3, Math.min(available.length, 4)))
-  available.slice(0, 4).forEach((item, index) => {
-    const totalWidth = Math.min(4, available.length) * cardWidth + (Math.min(4, available.length) - 1) * 12
-    const x = roomX + (roomWidth - totalWidth) / 2 + index * (cardWidth + 12)
-    const y = viewHeight * 0.39
-    const rect = { x, y, width: cardWidth, height: Math.min(142, viewHeight * 0.38) }
-    if (item.state === 'HIDDEN') {
-      drawCasinoCardBack(rect)
-    } else {
-      const card = cardById(item.cardId)
-      drawCardArt(card, rect, { radius: 10, inset: 3, stroke: '#fff0ac', lineWidth: 2 })
-      context.fillStyle = 'rgba(18,9,14,.76)'
-      context.fillRect(rect.x + 4, rect.y + rect.height - 22, rect.width - 8, 17)
-      text(item.state === 'DROPPED' ? '战败掉落 · 点击拾取' : '再次点击拾取', rect.x + rect.width / 2, rect.y + rect.height - 13, 8, '#ffe5b7', 'center', 'bold')
-    }
-    ui.hotspots.push({ id: 'search_item', rect, data: item.instanceId })
-  })
-  if (available.length === 0) text('房间已搜索完毕', roomX + roomWidth / 2, viewHeight * 0.55, 16, '#cbb9b8', 'center', 'bold')
-  drawInventory(state, layout.sideX, 61, layout.sideWidth)
-  button('search_end', '结束搜索', { x: roomX + roomWidth - 128, y: viewHeight - 52, width: 110, height: 32 }, { size: 11 })
-  ui.discardRect = { x: layout.sideX + 10, y: viewHeight - 57, width: layout.sideWidth - 20, height: 34 }
-  roundedPath(ui.discardRect.x, ui.discardRect.y, ui.discardRect.width, ui.discardRect.height, 8)
-  context.fillStyle = draggingItemId ? 'rgba(168,47,52,.92)' : 'rgba(55,31,42,.9)'
-  context.fill()
-  context.strokeStyle = '#9b5b61'
-  context.stroke()
-  text('拖到此处丢弃', ui.discardRect.x + ui.discardRect.width / 2, ui.discardRect.y + 17, 9, '#ead2d0', 'center')
+  drawSearchTimer()
+  const layout = createSearchLayout(viewWidth, viewHeight)
+  drawSearchInventoryPanel(layout.inventory)
+  drawSearchRoomPanel(layout.search)
+  drawAuthorityBadge(20, 51)
+  button('search_finish', '完成搜索', layout.finish, { top: '#ce9136', bottom: '#7f321d', stroke: '#ffe39a', size: 11 })
+  drawSearchDrag()
 }
 
 function drawRoundResult(state) {
@@ -1410,6 +1758,7 @@ function drawGame() {
   if (state.phase === 'GAME_OVER') presentation = 'SETTLEMENT'
   if (presentation === 'MAP') drawMapScene(state)
   if (presentation === 'BATTLE') drawBattle(state)
+  if (presentation === 'ROOM') drawRoom(state)
   if (presentation === 'SEARCH') drawSearch(state)
   if (presentation === 'ROUND_RESULT') drawRoundResult(state)
   if (presentation === 'SETTLEMENT') drawSettlement(state)
@@ -1437,7 +1786,16 @@ function update() {
     }
   }
   if (scene === 'MATCH_FOUND' && Date.now() - matchReadyAt > 2550) startGame()
-  if (scene === 'GAME' && engine && presentation !== 'SETTLEMENT') {
+  if (scene === 'GAME' && engine && ['ROOM', 'SEARCH'].includes(presentation)) {
+    if (searchAuthority === 'LOCAL' && searchVisitState) {
+      const snapshot = refreshLocalVisit()
+      if (snapshot && snapshot.visit.status === 'TIMED_OUT') completeTimedOutSearch(snapshot.visit.visitId)
+    }
+    if (searchAuthority === 'REMOTE' && searchVisitState && Date.now() - searchLastRefreshAt >= 500) {
+      searchLastRefreshAt = Date.now()
+      refreshRemoteVisit()
+    }
+  } else if (scene === 'GAME' && engine && presentation !== 'SETTLEMENT') {
     const before = engine.phase
     const result = engine.tick(Date.now())
     if (result && before === 'MOVE_SELECTION') decidePostMove()
@@ -1448,6 +1806,10 @@ function update() {
 function draw() {
   ui.hotspots = []
   ui.inventoryRects = []
+  ui.searchItemRects = []
+  ui.searchInventoryRects = []
+  ui.searchBackpackRect = null
+  ui.searchRoomRect = null
   ui.loadoutWarehouseRects = []
   ui.loadoutBackpackRects = []
   ui.loadoutWarehouseDropRect = null
@@ -1479,7 +1841,107 @@ function nextTurn() {
   movementPinPosition = { ...engine.getPlayer('P1').position }
   movementPinTransition = null
   activeBattle = null
+  searchVisitState = null
+  searchRequestPending = false
+  searchDragging = null
+  searchDragPoint = null
   presentation = result.gameOver || engine.phase === 'GAME_OVER' ? 'SETTLEMENT' : 'MAP'
+}
+
+async function openSearchObservation() {
+  if (!searchVisitState || searchRequestPending || !searchVisitState.room.canObserve) return
+  searchRequestPending = true
+  try {
+    if (searchAuthority === 'REMOTE') {
+      applySearchSnapshot(await observeSearch({ gameId: searchGameId, visitId: searchVisitState.visit.visitId, playerId: 'P1' }))
+    } else {
+      const visibleItemIds = localSearchItems().filter(item => ['REVEALED', 'DROPPED'].includes(item.state)).slice(0, C.SEARCH_VISIBLE_LIMIT).map(item => item.instanceId)
+      searchVisitState.visit.observation = { startedAt: Date.now(), visibleItemIds, active: true }
+      searchVisitState = localVisitSnapshot()
+    }
+    presentation = 'SEARCH'
+  } catch (requestError) {
+    addToast(requestError.code === 'SEARCH_TIMEOUT' ? '搜索时间已经结束。' : '暂时无法观察房间。')
+  } finally {
+    searchRequestPending = false
+  }
+}
+
+async function finishSearchOverlay() {
+  if (!searchVisitState || searchRequestPending) return
+  searchRequestPending = true
+  try {
+    if (searchAuthority === 'REMOTE') {
+      applySearchSnapshot(await finishSearchObservation({ gameId: searchGameId, visitId: searchVisitState.visit.visitId, playerId: 'P1' }))
+    } else {
+      if (searchVisitState.visit.observation) searchVisitState.visit.observation.active = false
+      searchVisitState = localVisitSnapshot()
+    }
+    presentation = 'ROOM'
+  } catch (requestError) {
+    addToast('完成搜索失败，请重试。')
+  } finally {
+    searchRequestPending = false
+  }
+}
+
+async function leaveCurrentRoom() {
+  if (!searchVisitState || searchRequestPending) return
+  searchRequestPending = true
+  try {
+    if (searchAuthority === 'REMOTE') {
+      applySearchSnapshot(await leaveSearchRoom({ gameId: searchGameId, visitId: searchVisitState.visit.visitId, playerId: 'P1' }))
+    } else {
+      searchVisitState.visit.status = 'LEFT'
+      searchVisitState.visit.finishReason = 'PLAYER_LEFT'
+      if (searchVisitState.visit.observation) searchVisitState.visit.observation.active = false
+    }
+    nextTurn()
+  } catch (requestError) {
+    addToast('离开房间失败，请重试。')
+    searchRequestPending = false
+  }
+}
+
+async function pickupDraggedSearchItem(instanceId) {
+  if (!searchVisitState || searchRequestPending) return
+  searchRequestPending = true
+  try {
+    if (searchAuthority === 'REMOTE') {
+      applySearchSnapshot(await pickupSearchItem({ gameId: searchGameId, visitId: searchVisitState.visit.visitId, playerId: 'P1', instanceId }))
+    } else {
+      const result = engine.interactWithItem('P1', instanceId)
+      if (!result.ok) throw Object.assign(new Error(result.reason), { code: result.reason })
+      if (searchVisitState.visit.observation) searchVisitState.visit.observation.visibleItemIds = searchVisitState.visit.observation.visibleItemIds.filter(id => id !== instanceId)
+      searchVisitState = localVisitSnapshot()
+    }
+    addToast('物资已收入背包。')
+  } catch (requestError) {
+    addToast(requestError.code === 'BACKPACK_FULL' ? '背包已满，物资仍留在房间。' : '物资拾取失败。')
+  } finally {
+    searchRequestPending = false
+  }
+}
+
+async function dropDraggedInventoryItem(instanceId) {
+  if (!searchVisitState || searchRequestPending) return
+  searchRequestPending = true
+  try {
+    if (searchAuthority === 'REMOTE') {
+      applySearchSnapshot(await dropSearchItem({ gameId: searchGameId, visitId: searchVisitState.visit.visitId, playerId: 'P1', instanceId }))
+    } else {
+      const result = engine.dropItem('P1', instanceId)
+      if (!result.ok) throw Object.assign(new Error(result.reason), { code: result.reason })
+      const dropped = engine.items.find(item => item.instanceId === instanceId)
+      engine.grantSearch('P1', [dropped])
+      searchVisitState = localVisitSnapshot()
+    }
+    addToast('物品已留在当前房间。')
+  } catch (requestError) {
+    addToast('无法丢弃该物品。')
+  } finally {
+    searchRequestPending = false
+  }
 }
 
 function handleAction(action) {
@@ -1554,15 +2016,11 @@ function handleAction(action) {
   if (action.id === 'battle_continue') {
     const local = engine.getPlayer('P1')
     if (local.status !== 'ACTIVE') presentation = 'SETTLEMENT'
-    else if (engine.searchItemsFor('P1').some(item => ['HIDDEN', 'REVEALED', 'DROPPED'].includes(item.state))) presentation = 'SEARCH'
-    else presentation = 'ROUND_RESULT'
+    else beginRoomVisit()
   }
-  if (action.id === 'search_item') {
-    const result = engine.interactWithItem('P1', action.data)
-    if (result.ok) addToast(result.action === 'REVEALED' ? '物资已显示，再点击一次拾取。' : '物资已收入背包。')
-    else addToast(result.reason === 'BACKPACK_FULL' ? '背包已满，物资保留在房间。' : '当前无法拾取。')
-  }
-  if (action.id === 'search_end') presentation = 'ROUND_RESULT'
+  if (action.id === 'room_observe') openSearchObservation()
+  if (action.id === 'room_leave') leaveCurrentRoom()
+  if (action.id === 'search_finish') finishSearchOverlay()
   if (action.id === 'next_turn') nextTurn()
   if (action.id === 'request_extraction') {
     const result = engine.requestExtraction('P1')
@@ -1589,8 +2047,21 @@ wx.onTouchStart(event => {
     else if (backpackCard) loadoutDragging = { cardId: backpackCard.cardId, source: 'BACKPACK' }
     return
   }
+  if (scene === 'GAME' && presentation === 'SEARCH') {
+    const roomItem = ui.searchItemRects.find(rect => pointInRect(point, rect))
+    const inventoryItem = ui.searchInventoryRects.find(rect => pointInRect(point, rect))
+    if (roomItem) searchDragging = { instanceId: roomItem.instanceId, cardId: roomItem.cardId, source: 'ROOM' }
+    else if (inventoryItem) searchDragging = { instanceId: inventoryItem.instanceId, cardId: inventoryItem.cardId, source: 'INVENTORY' }
+    searchDragPoint = searchDragging ? point : null
+    return
+  }
   const inventory = ui.inventoryRects.find(rect => pointInRect(point, rect))
   draggingItemId = inventory ? inventory.instanceId : null
+})
+
+wx.onTouchMove(event => {
+  if (!searchDragging) return
+  searchDragPoint = touchPoint(event, false)
 })
 
 wx.onTouchEnd(event => {
@@ -1607,6 +2078,19 @@ wx.onTouchEnd(event => {
     }
     loadoutDragging = null
     if (handled) return
+  }
+  if (searchDragging) {
+    const dragged = searchDragging
+    searchDragging = null
+    searchDragPoint = null
+    if (dragged.source === 'ROOM' && pointInRect(point, ui.searchBackpackRect)) {
+      pickupDraggedSearchItem(dragged.instanceId)
+      return
+    }
+    if (dragged.source === 'INVENTORY' && pointInRect(point, ui.searchRoomRect)) {
+      dropDraggedInventoryItem(dragged.instanceId)
+      return
+    }
   }
   if (draggingItemId && ui.discardRect && pointInRect(point, ui.discardRect) && engine) {
     const result = engine.dropItem('P1', draggingItemId)

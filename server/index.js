@@ -1,11 +1,16 @@
 const fs = require('node:fs')
 const http = require('node:http')
 const path = require('node:path')
+const searchCards = require('../functions/heisino-game/catalog')
+const { SearchGameService, MemorySearchStore } = require('../functions/heisino-game/search-domain')
+const { createSearchHttpHandler } = require('../functions/heisino-game/http-handler')
 
 const root = path.resolve(__dirname, '..')
 const publicRoot = path.join(__dirname, 'public')
 const catalogPath = path.join(root, 'data', 'cards.json')
 const port = Number(process.env.PORT || 3000)
+const searchService = new SearchGameService({ cards: searchCards, store: new MemorySearchStore() })
+const handleSearchRequest = createSearchHttpHandler(searchService)
 
 function readCatalog() {
   return JSON.parse(fs.readFileSync(catalogPath, 'utf8'))
@@ -52,13 +57,17 @@ function serveAsset(response, pathname) {
   fs.createReadStream(filePath).pipe(response)
 }
 
-const server = http.createServer((request, response) => {
+const server = http.createServer(async (request, response) => {
   const url = new URL(request.url, originFor(request))
+  if (url.pathname.includes('/api/search/')) {
+    await handleSearchRequest(request, response, url)
+    return
+  }
   if (request.method === 'OPTIONS') {
     response.writeHead(204, {
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'GET, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type'
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, X-Request-Id'
     })
     response.end()
     return
@@ -109,4 +118,4 @@ if (require.main === module) {
   })
 }
 
-module.exports = { server, apiCard }
+module.exports = { server, apiCard, searchService }

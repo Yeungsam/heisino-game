@@ -92,9 +92,10 @@ class GameEngine {
     for (let y = 0; y < C.BOARD_SIZE; y += 1) {
       for (let x = 0; x < C.BOARD_SIZE; x += 1) {
         if (nodeId(x, y) === C.EXTRACTION_NODE_ID) continue
-        const count = x === 2 && y === 2 ? 3 : 1
+        const roomNodeId = nodeId(x, y)
+        const count = roomNodeId === C.EXTRACTION_NODE_ID ? 0 : x === 2 && y === 2 ? 10 : 4
         for (let index = 0; index < count; index += 1) {
-          this.createItem(lootIds[(x + y + index) % lootIds.length], nodeId(x, y))
+          this.createItem(lootIds[Math.floor(this.rng() * lootIds.length)], roomNodeId)
         }
       }
     }
