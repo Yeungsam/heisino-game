@@ -8,6 +8,9 @@ const {
   createRoomLayout,
   fitAspectRect,
   createHudSafeLayout,
+  createSearchPanelContentLayout,
+  createNineSliceGeometry,
+  SEARCH_PANEL_NINE_SLICE,
   nextSearchMagnifierIndex,
   magnifierOrbitState,
   MAGNIFIER_ORBIT_PERIOD_MS
@@ -69,7 +72,28 @@ test('搜索卡面保持真实比例并完整收入卡槽可见边界', () => {
 test('顶部物资文字会避让微信系统胶囊', () => {
   const layout = createHudSafeLayout(2622, { left: 2310, right: 2580, top: 8, bottom: 42 })
   assert.ok(layout.resourceRight < 2310)
-  assert.equal(createHudSafeLayout(1280, null).resourceRight, 1262)
+  assert.equal(createHudSafeLayout(1280, null).resourceRight, 1024)
+})
+
+test('搜索面板标题和卡牌网格位于边框安全区内', () => {
+  const rect = { x: 56, y: 247, width: 924, height: 690 }
+  const layout = createSearchPanelContentLayout(rect, 1)
+  assert.ok(layout.iconTop > rect.y + 30)
+  assert.ok(layout.headerBaselineY > layout.iconTop)
+  assert.ok(layout.headerBaselineY < layout.gridTop)
+  assert.ok(layout.gridBottom < rect.y + rect.height)
+  assert.ok(layout.gridBottom > layout.gridTop)
+})
+
+test('搜索面板九宫格缩放保持四角比例不变', () => {
+  const scale = 1206 / 1080
+  const segments = createNineSliceGeometry(900, 553, { x: 100, y: 200, width: 924 * scale, height: 690 * scale }, SEARCH_PANEL_NINE_SLICE, scale)
+  const corners = [segments[0], segments[2], segments[6], segments[8]]
+  corners.forEach(segment => {
+    assert.ok(Math.abs(segment.destination.width / segment.source.width - scale) < 1e-9)
+    assert.ok(Math.abs(segment.destination.height / segment.source.height - scale) < 1e-9)
+  })
+  assert.ok(segments[4].destination.height > segments[4].source.height * scale)
 })
 
 test('放大镜按下一张未揭示卡牌的卡槽逐格移动', () => {

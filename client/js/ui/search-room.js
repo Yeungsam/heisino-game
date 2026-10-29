@@ -2,6 +2,7 @@ const SEARCH_DURATION_MS = 50000
 const MAGNIFIER_ORBIT_PERIOD_MS = 1600
 const SEARCH_DESIGN_WIDTH = 1920
 const SEARCH_DESIGN_HEIGHT = 1080
+const SEARCH_PANEL_NINE_SLICE = Object.freeze({ left: 80, right: 80, top: 110, bottom: 78 })
 const SEARCH_ASSET_CROPS = Object.freeze({
   slot: Object.freeze({ x: 58, y: 64, width: 240, height: 290 }),
   slotPattern: Object.freeze({ x: 85, y: 31, width: 249, height: 354 }),
@@ -90,12 +91,58 @@ function fitAspectRect(rect, aspectRatio, horizontalInsetRatio = 0.055, vertical
 }
 
 function createHudSafeLayout(viewWidth, menuButtonRect) {
-  const defaultRight = viewWidth - 18
+  const defaultRight = Math.min(viewWidth - 18, viewWidth * 0.8)
   const menuLeft = menuButtonRect && Number(menuButtonRect.left)
   const resourceRight = Number.isFinite(menuLeft) && menuLeft > viewWidth * 0.5
     ? Math.min(defaultRight, menuLeft - 16)
     : defaultRight
   return { resourceRight }
+}
+
+function createSearchPanelContentLayout(rect, scale) {
+  return {
+    headerBaselineY: rect.y + 66 * scale,
+    iconTop: rect.y + 42 * scale,
+    gridTop: rect.y + 118 * scale,
+    gridBottom: rect.y + rect.height - 74 * scale
+  }
+}
+
+function createNineSliceGeometry(sourceWidth, sourceHeight, rect, slices, destinationScale = 1) {
+  const sourceLeft = Math.min(slices.left, sourceWidth / 2)
+  const sourceRight = Math.min(slices.right, sourceWidth - sourceLeft)
+  const sourceTop = Math.min(slices.top, sourceHeight / 2)
+  const sourceBottom = Math.min(slices.bottom, sourceHeight - sourceTop)
+  const destinationLeft = Math.min(sourceLeft * destinationScale, rect.width / 2)
+  const destinationRight = Math.min(sourceRight * destinationScale, rect.width - destinationLeft)
+  const destinationTop = Math.min(sourceTop * destinationScale, rect.height / 2)
+  const destinationBottom = Math.min(sourceBottom * destinationScale, rect.height - destinationTop)
+  const sourceXs = [0, sourceLeft, sourceWidth - sourceRight, sourceWidth]
+  const sourceYs = [0, sourceTop, sourceHeight - sourceBottom, sourceHeight]
+  const destinationXs = [rect.x, rect.x + destinationLeft, rect.x + rect.width - destinationRight, rect.x + rect.width]
+  const destinationYs = [rect.y, rect.y + destinationTop, rect.y + rect.height - destinationBottom, rect.y + rect.height]
+  const segments = []
+  for (let row = 0; row < 3; row += 1) {
+    for (let column = 0; column < 3; column += 1) {
+      segments.push({
+        row,
+        column,
+        source: {
+          x: sourceXs[column],
+          y: sourceYs[row],
+          width: sourceXs[column + 1] - sourceXs[column],
+          height: sourceYs[row + 1] - sourceYs[row]
+        },
+        destination: {
+          x: destinationXs[column],
+          y: destinationYs[row],
+          width: destinationXs[column + 1] - destinationXs[column],
+          height: destinationYs[row + 1] - destinationYs[row]
+        }
+      })
+    }
+  }
+  return segments
 }
 
 function nextSearchMagnifierIndex(visibleCount, itemCount, elapsedMs, revealIntervalMs = 2000) {
@@ -132,6 +179,7 @@ module.exports = {
   MAGNIFIER_ORBIT_PERIOD_MS,
   SEARCH_DESIGN_WIDTH,
   SEARCH_DESIGN_HEIGHT,
+  SEARCH_PANEL_NINE_SLICE,
   SEARCH_ASSET_CROPS,
   ROOM_AREA_TEMPLATE,
   searchTimerState,
@@ -139,6 +187,8 @@ module.exports = {
   createRoomLayout,
   fitAspectRect,
   createHudSafeLayout,
+  createSearchPanelContentLayout,
+  createNineSliceGeometry,
   nextSearchMagnifierIndex,
   magnifierOrbitState
 }

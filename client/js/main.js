@@ -20,11 +20,14 @@ const { createCardCatalogIndex, resolveCardAssetUrl } = require('./ui/card-art')
 const { createHomeLayout, centeredTextBaseline } = require('./ui/home-screen')
 const {
   SEARCH_ASSET_CROPS,
+  SEARCH_PANEL_NINE_SLICE,
   searchTimerState,
   createSearchLayout,
   createRoomLayout,
   fitAspectRect,
   createHudSafeLayout,
+  createSearchPanelContentLayout,
+  createNineSliceGeometry,
   nextSearchMagnifierIndex,
   magnifierOrbitState
 } = require('./ui/search-room')
@@ -426,6 +429,16 @@ function drawImageContainInRect(image, rect, radius = 7) {
 function drawImageSourceInRect(image, source, rect) {
   if (!image || !source) return
   context.drawImage(image, source.x, source.y, source.width, source.height, rect.x, rect.y, rect.width, rect.height)
+}
+
+function drawNineSliceImage(image, rect, slices, destinationScale = 1) {
+  if (!image) return
+  createNineSliceGeometry(image.width, image.height, rect, slices, destinationScale).forEach(segment => {
+    const source = segment.source
+    const destination = segment.destination
+    if (source.width <= 0 || source.height <= 0 || destination.width <= 0 || destination.height <= 0) return
+    context.drawImage(image, source.x, source.y, source.width, source.height, destination.x, destination.y, destination.width, destination.height)
+  })
 }
 
 function darken(alpha = 0.45, color = '0, 0, 0') {
@@ -1945,13 +1958,14 @@ function drawSearchMagnifierOrbit(slot, startedAt) {
 }
 
 function drawSearchInventoryPanel(rect) {
-  if (assets.searchPanel) context.drawImage(assets.searchPanel, rect.x, rect.y, rect.width, rect.height)
-  else panel(rect.x, rect.y, rect.width, rect.height, { fill: 'rgba(27,15,29,.94)', stroke: '#c9914b', lineWidth: 2, radius: 14 })
   const scale = createSearchLayout(viewWidth, viewHeight).scale
-  if (assets.searchBagIcon) drawImageSourceInRect(assets.searchBagIcon, SEARCH_ASSET_CROPS.bagIcon, { x: rect.x + 52 * scale, y: rect.y + 25 * scale, width: 34 * scale, height: 37 * scale })
-  text(`玩家背包  ${searchVisitState ? searchVisitState.inventory.length : 0}/${C.BACKPACK_SLOTS}`, rect.x + 102 * scale, rect.y + 47 * scale, Math.max(10, 28 * scale), PALETTE.paleGold, 'left', 'bold')
+  const contentLayout = createSearchPanelContentLayout(rect, scale)
+  if (assets.searchPanel) drawNineSliceImage(assets.searchPanel, rect, SEARCH_PANEL_NINE_SLICE, scale)
+  else panel(rect.x, rect.y, rect.width, rect.height, { fill: 'rgba(27,15,29,.94)', stroke: '#c9914b', lineWidth: 2, radius: 14 })
+  if (assets.searchBagIcon) drawImageSourceInRect(assets.searchBagIcon, SEARCH_ASSET_CROPS.bagIcon, { x: rect.x + 52 * scale, y: contentLayout.iconTop, width: 32 * scale, height: 35 * scale })
+  text(`玩家背包  ${searchVisitState ? searchVisitState.inventory.length : 0}/${C.BACKPACK_SLOTS}`, rect.x + 100 * scale, contentLayout.headerBaselineY, Math.max(10, 26 * scale), PALETTE.paleGold, 'left', 'bold')
   ui.searchInventoryRects = []
-  const gridViewport = { x: rect.x + 54 * scale, y: rect.y + 101 * scale, width: rect.width - 108 * scale, height: rect.height - 174 * scale }
+  const gridViewport = { x: rect.x + 54 * scale, y: contentLayout.gridTop, width: rect.width - 108 * scale, height: contentLayout.gridBottom - contentLayout.gridTop }
   const grid = createContainedCardGrid({ viewport: gridViewport, count: C.BACKPACK_SLOTS, columns: 5, gap: 10 * scale, padding: 2 * scale })
   ui.searchBackpackRect = gridViewport
   grid.rects.forEach((slot, index) => {
@@ -1968,21 +1982,22 @@ function drawSearchInventoryPanel(rect) {
 }
 
 function drawSearchRoomPanel(rect) {
-  if (assets.searchPanel) context.drawImage(assets.searchPanel, rect.x, rect.y, rect.width, rect.height)
-  else panel(rect.x, rect.y, rect.width, rect.height, { fill: 'rgba(39,17,26,.95)', stroke: '#cc704d', lineWidth: 2, radius: 14 })
   const scale = createSearchLayout(viewWidth, viewHeight).scale
+  const contentLayout = createSearchPanelContentLayout(rect, scale)
+  if (assets.searchPanel) drawNineSliceImage(assets.searchPanel, rect, SEARCH_PANEL_NINE_SLICE, scale)
+  else panel(rect.x, rect.y, rect.width, rect.height, { fill: 'rgba(39,17,26,.95)', stroke: '#cc704d', lineWidth: 2, radius: 14 })
   const activeArea = searchVisitState && searchVisitState.room.activeArea
   const visible = activeArea ? activeArea.visibleItems : []
   const itemCount = activeArea ? activeArea.itemCount : 0
-  if (assets.searchBriefcaseIcon) drawImageSourceInRect(assets.searchBriefcaseIcon, SEARCH_ASSET_CROPS.briefcaseIcon, { x: rect.x + 58 * scale, y: rect.y + 29 * scale, width: 40 * scale, height: 32 * scale })
-  text(`搜索物品  ${visible.length}/${itemCount}`, rect.x + 112 * scale, rect.y + 47 * scale, Math.max(10, 28 * scale), PALETTE.paleGold, 'left', 'bold')
-  text('每 2 秒揭示 1 件', rect.x + rect.width - 54 * scale, rect.y + 47 * scale, Math.max(7, 17 * scale), '#d8c1b6', 'right')
+  if (assets.searchBriefcaseIcon) drawImageSourceInRect(assets.searchBriefcaseIcon, SEARCH_ASSET_CROPS.briefcaseIcon, { x: rect.x + 58 * scale, y: contentLayout.iconTop + 3 * scale, width: 38 * scale, height: 30 * scale })
+  text(`搜索物品  ${visible.length}/${itemCount}`, rect.x + 110 * scale, contentLayout.headerBaselineY, Math.max(10, 26 * scale), PALETTE.paleGold, 'left', 'bold')
+  text('每 2 秒揭示 1 件', rect.x + rect.width - 58 * scale, contentLayout.headerBaselineY, Math.max(7, 16 * scale), '#d8c1b6', 'right')
   const gridWidth = rect.width - 104 * scale
   const slotGap = 10 * scale
   const slotPadding = 2 * scale
   const slotWidth = (gridWidth - slotPadding * 2 - slotGap * 4) / 5
   const twoRowHeight = slotPadding * 2 + (slotWidth / CARD_ASPECT_RATIO) * 2 + slotGap
-  const gridViewport = { x: rect.x + 52 * scale, y: rect.y + 94 * scale, width: gridWidth, height: twoRowHeight }
+  const gridViewport = { x: rect.x + 52 * scale, y: contentLayout.gridTop, width: gridWidth, height: Math.min(twoRowHeight, contentLayout.gridBottom - contentLayout.gridTop) }
   ui.searchRoomRect = gridViewport
   ui.searchRoomScrollRect = gridViewport
   ui.searchItemRects = []
