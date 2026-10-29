@@ -5,6 +5,7 @@ const {
   CARD_ART_HEIGHT,
   CARD_ASPECT_RATIO,
   clamp,
+  createContainedCardGrid,
   createVerticalCardGrid,
   classifyCardGesture
 } = require('../client/js/ui/card-scroll')
@@ -30,4 +31,17 @@ test('战备手势可区分纵向滚动与横向拖动', () => {
   assert.equal(classifyCardGesture(start, { x: 103, y: 103 }), 'PENDING')
   assert.equal(classifyCardGesture(start, { x: 102, y: 130 }), 'SCROLL')
   assert.equal(classifyCardGesture(start, { x: 140, y: 106 }), 'DRAG')
+})
+
+test('行动背包10个卡槽保持真实卡面比例且不超出容器', () => {
+  const viewport = { x: 700, y: 80, width: 240, height: 420 }
+  const grid = createContainedCardGrid({ viewport, count: 10, columns: 3, gap: 5, padding: 3 })
+  assert.equal(grid.rects.length, 10)
+  assert.equal(grid.rows, 4)
+  grid.rects.forEach(rect => {
+    assert.ok(Math.abs(rect.width / rect.height - CARD_ASPECT_RATIO) < 0.000001)
+    assert.ok(rect.x >= viewport.x && rect.y >= viewport.y)
+    assert.ok(rect.x + rect.width <= viewport.x + viewport.width)
+    assert.ok(rect.y + rect.height <= viewport.y + viewport.height)
+  })
 })

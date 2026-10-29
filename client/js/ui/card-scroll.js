@@ -34,6 +34,36 @@ function createVerticalCardGrid(options) {
   return { cardWidth, cardHeight, contentHeight, maxScroll, scrollY, rects }
 }
 
+function createContainedCardGrid(options) {
+  const viewport = options.viewport
+  const count = Math.max(0, options.count || 0)
+  const columns = Math.max(1, options.columns || 1)
+  const rows = Math.max(1, Math.ceil(count / columns))
+  const gap = Math.max(0, options.gap || 0)
+  const padding = Math.max(0, options.padding || 0)
+  const ratio = options.aspectRatio || CARD_ASPECT_RATIO
+  const availableWidth = Math.max(0, viewport.width - padding * 2 - gap * (columns - 1))
+  const availableHeight = Math.max(0, viewport.height - padding * 2 - gap * (rows - 1))
+  const cardWidth = Math.min(availableWidth / columns, availableHeight / rows * ratio)
+  const cardHeight = cardWidth / ratio
+  const gridWidth = columns * cardWidth + gap * (columns - 1)
+  const gridHeight = rows * cardHeight + gap * (rows - 1)
+  const originX = viewport.x + (viewport.width - gridWidth) / 2
+  const originY = viewport.y + (viewport.height - gridHeight) / 2
+  const rects = Array.from({ length: count }, (_, index) => {
+    const column = index % columns
+    const row = Math.floor(index / columns)
+    return {
+      x: originX + column * (cardWidth + gap),
+      y: originY + row * (cardHeight + gap),
+      width: cardWidth,
+      height: cardHeight,
+      index
+    }
+  })
+  return { cardWidth, cardHeight, gridWidth, gridHeight, rows, columns, rects }
+}
+
 function rectsIntersect(first, second) {
   return first.x < second.x + second.width &&
     first.x + first.width > second.x &&
@@ -64,6 +94,7 @@ module.exports = {
   GESTURE_THRESHOLD,
   clamp,
   createVerticalCardGrid,
+  createContainedCardGrid,
   rectsIntersect,
   intersectionRect,
   classifyCardGesture

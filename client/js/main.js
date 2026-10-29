@@ -21,6 +21,7 @@ const { searchTimerState, createSearchLayout } = require('./ui/search-room')
 const {
   CARD_ASPECT_RATIO,
   clamp,
+  createContainedCardGrid,
   createVerticalCardGrid,
   rectsIntersect,
   intersectionRect,
@@ -799,16 +800,20 @@ function drawLoadout() {
   text('行动背包', backpackRect.x + 12, backpackRect.y + 18, 14, '#e9d7ff', 'left', 'bold')
   text('10 格 · 最多带 4 张', backpackRect.x + backpackRect.width - 10, backpackRect.y + 18, 8, '#ae9aba', 'right')
   ui.loadoutBackpackDropRect = backpackRect
-  const bagColumns = 2
-  const bagRows = 5
-  const bagGap = 5
-  const bagTop = backpackRect.y + 34
-  const slotWidth = (backpackRect.width - 20 - bagGap) / bagColumns
-  const slotHeight = (backpackRect.height - 44 - bagGap * (bagRows - 1)) / bagRows
-  for (let index = 0; index < C.BACKPACK_SLOTS; index += 1) {
-    const column = index % bagColumns
-    const row = Math.floor(index / bagColumns)
-    const rect = { x: backpackRect.x + 10 + column * (slotWidth + bagGap), y: bagTop + row * (slotHeight + bagGap), width: slotWidth, height: slotHeight }
+  const bagViewport = {
+    x: backpackRect.x + 8,
+    y: backpackRect.y + 31,
+    width: backpackRect.width - 16,
+    height: backpackRect.height - 39
+  }
+  const bagGrid = createContainedCardGrid({
+    viewport: bagViewport,
+    count: C.BACKPACK_SLOTS,
+    columns: 3,
+    gap: 5,
+    padding: 3
+  })
+  bagGrid.rects.forEach((rect, index) => {
     roundedPath(rect.x, rect.y, rect.width, rect.height, 6)
     context.fillStyle = index < C.LOADOUT_CARD_LIMIT ? 'rgba(103,61,113,.22)' : 'rgba(255,255,255,.035)'
     context.fill()
@@ -826,7 +831,7 @@ function drawLoadout() {
     } else {
       text(`${index + 1}`, rect.x + rect.width / 2, rect.y + rect.height / 2, 8, '#5d5361', 'center')
     }
-  }
+  })
   if (loadoutDragging) {
     const target = loadoutDragging.source === 'WAREHOUSE' ? backpackRect : warehouseRect
     context.save()
