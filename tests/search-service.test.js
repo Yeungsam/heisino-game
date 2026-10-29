@@ -1,5 +1,7 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
+const fs = require('node:fs')
+const path = require('node:path')
 const { server } = require('../server')
 const { matchRoute } = require('../functions/heisino-game/http-handler')
 
@@ -21,6 +23,7 @@ test('搜索服务提供建局、进入房间、观察和权威背包接口', as
   const health = await request(origin, '/api/search/health')
   assert.equal(health.status, 200)
   assert.equal(health.body.service, 'heisino-search-service')
+  assert.equal(health.body.schemaVersion, '2.0.0')
 
   const created = await request(origin, '/api/search/games', {
     method: 'POST',
@@ -41,10 +44,11 @@ test('搜索服务提供建局、进入房间、观察和权威背包接口', as
   const observed = await request(origin, `/api/search/games/${gameId}/visits/${visitId}/observe`, {
     method: 'POST',
     requestId: 'api-observe-1',
-    body: { playerId: 'P1' }
+    body: { playerId: 'P1', areaId: visit.body.data.room.areas.find(area => area.itemCount > 0).areaId }
   })
   assert.equal(observed.status, 200)
   assert.equal(observed.body.data.visit.observation.active, true)
+  assert.ok(observed.body.data.room.activeArea)
 })
 
 test('搜索路由同时兼容本地完整路径和 CloudBase 网关剥离路径', () => {
@@ -53,4 +57,11 @@ test('搜索路由同时兼容本地完整路径和 CloudBase 网关剥离路径
   assert.deepEqual(matchRoute('/api/search/games/game-1/visits'), ['games', 'game-1', 'visits'])
   assert.deepEqual(matchRoute('/games/game-1/visits'), ['games', 'game-1', 'visits'])
   assert.equal(matchRoute('/api/cards'), null)
+})
+
+test('CloudBase 部署配置不覆盖搜索函数密钥变量', () => {
+  const config = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'cloudbaserc.json'), 'utf8'))
+  const searchFunction = config.functions.find(item => item.name === 'heisino-game')
+  assert.ok(searchFunction)
+  assert.equal(Object.hasOwn(searchFunction, 'envVariables'), false)
 })

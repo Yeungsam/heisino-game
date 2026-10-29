@@ -1,10 +1,13 @@
 const SEARCH_DURATION_MS = 50000
 const REVEAL_INTERVAL_MS = 2000
-const MAX_VISIBLE_ITEMS = 2
+const MAX_VISIBLE_ITEMS = 30
+const ROOM_AREA_CAPACITY = 30
 const BACKPACK_SLOTS = 10
 const BOARD_SIZE = 5
 const VAULT_NODE_ID = 'n_2_2'
 const EXTRACTION_NODE_ID = 'n_4_4'
+const SEARCH_SCHEMA_VERSION = 2
+const ROOM_AREA_IDS = Object.freeze(['LEFT_CABINET', 'MAIN_TABLE', 'RIGHT_TABLE'])
 const LOADOUT_CATEGORIES = new Set(['WEAPON', 'ARMOR', 'SKILL'])
 
 function clone(value) {
@@ -30,6 +33,60 @@ function seededRandom(seed) {
     state = (Math.imul(state, 1664525) + 1013904223) >>> 0
     return state / 0x100000000
   }
+}
+
+function createRoom(roomNodeId) {
+  return {
+    nodeId: roomNodeId,
+    itemIds: [],
+    areas: Object.fromEntries(ROOM_AREA_IDS.map(areaId => [areaId, { areaId, itemIds: [] }]))
+  }
+}
+
+function deterministicAreaId(gameId, roomNodeId, instanceId) {
+  return ROOM_AREA_IDS[hashSeed(`${gameId}:${roomNodeId}:${instanceId}`) % ROOM_AREA_IDS.length]
+}
+
+function ensureSchemaV2(game) {
+  game.requestResults = game.requestResults || {}
+  game.visits = game.visits || {}
+  game.rooms = game.rooms || {}
+  game.items = game.items || []
+
+  Object.keys(game.rooms).forEach(roomNodeId => {
+    const room = game.rooms[roomNodeId]
+    room.nodeId = room.nodeId || roomNodeId
+    room.itemIds = Array.isArray(room.itemIds) ? room.itemIds : []
+    room.areas = room.areas || {}
+    ROOM_AREA_IDS.forEach(areaId => {
+      room.areas[areaId] = room.areas[areaId] || { areaId, itemIds: [] }
+      room.areas[areaId].areaId = areaId
+      room.areas[areaId].itemIds = []
+    })
+  })
+
+  game.items.forEach(item => {
+    item.exposedBy = Array.isArray(item.exposedBy) ? item.exposedBy : []
+    if (!item.nodeId || !game.rooms[item.nodeId]) {
+      item.areaId = null
+      return
+    }
+    const room = game.rooms[item.nodeId]
+    if (!room.itemIds.includes(item.instanceId)) room.itemIds.push(item.instanceId)
+    if (!ROOM_AREA_IDS.includes(item.areaId)) item.areaId = deterministicAreaId(game.gameId, item.nodeId, item.instanceId)
+    if (!room.areas[item.areaId].itemIds.includes(item.instanceId)) room.areas[item.areaId].itemIds.push(item.instanceId)
+  })
+  Object.values(game.visits).forEach(visit => {
+    const observation = visit && visit.observation
+    if (!observation || ROOM_AREA_IDS.includes(observation.areaId)) return
+    observation.areaId = null
+    observation.active = false
+    observation.visibleItemIds = []
+    observation.newlyExposedItemIds = []
+    observation.initialVisibleCount = 0
+  })
+  game.schemaVersion = SEARCH_SCHEMA_VERSION
+  return game
 }
 
 function cardIdOf(card) {
@@ -89,44 +146,50 @@ class SearchGameService {
     const playerId = String(input.playerId || '').trim()
     if (!gameId || !playerId) throw error('INVALID_GAME_IDENTITY')
     const existing = await this.store.get(gameId)
-    if (existing) return this.gameSnapshot(existing, playerId)
+    if (existing) return this.gameSnapshot(ensureSchemaV2(existing), playerId)
 
     const random = seededRandom(hashSeed(input.seed || gameId))
     let itemSequence = 1
     const items = []
     const rooms = {}
-    const addItem = (cardId, roomNodeId, state = 'HIDDEN', ownerId = null) => {
+    const addItem = (cardId, roomNodeId, areaId = null, state = 'HIDDEN', ownerId = null) => {
       const item = {
         instanceId: `${gameId}-item-${itemSequence++}`,
         cardId,
         state,
         nodeId: ownerId ? null : roomNodeId,
+        areaId: ownerId ? null : areaId,
         ownerId,
         exposedBy: [],
         createdAt: this.now()
       }
       items.push(item)
-      if (roomNodeId) rooms[roomNodeId].itemIds.push(item.instanceId)
+      if (roomNodeId) {
+        rooms[roomNodeId].itemIds.push(item.instanceId)
+        rooms[roomNodeId].areas[areaId].itemIds.push(item.instanceId)
+      }
       return item
     }
 
     for (let y = 0; y < BOARD_SIZE; y += 1) {
       for (let x = 0; x < BOARD_SIZE; x += 1) {
         const roomNodeId = nodeId(x, y)
-        rooms[roomNodeId] = { nodeId: roomNodeId, itemIds: [] }
+        rooms[roomNodeId] = createRoom(roomNodeId)
         const count = roomNodeId === EXTRACTION_NODE_ID ? 0 : roomNodeId === VAULT_NODE_ID ? 10 : 4
         for (let index = 0; index < count; index += 1) {
           const cardId = this.lootCardIds[Math.floor(random() * this.lootCardIds.length)]
-          addItem(cardId, roomNodeId)
+          const areaId = ROOM_AREA_IDS[Math.floor(random() * ROOM_AREA_IDS.length)]
+          addItem(cardId, roomNodeId, areaId)
         }
       }
     }
 
     const loadoutCardIds = Array.isArray(input.loadoutCardIds) ? input.loadoutCardIds : []
     const inventory = loadoutCardIds.filter(cardId => this.loadoutCardIds.has(cardId)).slice(0, BACKPACK_SLOTS)
-      .map(cardId => addItem(cardId, null, 'IN_INVENTORY', playerId).instanceId)
+      .map(cardId => addItem(cardId, null, null, 'IN_INVENTORY', playerId).instanceId)
     const game = {
       gameId,
+      schemaVersion: SEARCH_SCHEMA_VERSION,
       version: 1,
       createdAt: this.now(),
       itemSequence,
@@ -178,14 +241,17 @@ class SearchGameService {
     return this.mutate(input.gameId, input.requestId, game => {
       const player = this.requirePlayer(game, input.playerId)
       const visit = this.requireActiveVisit(game, input.visitId, input.playerId)
-      const roomItems = this.roomItems(game, visit.roomNodeId).filter(item => item.state !== 'IN_INVENTORY' && item.state !== 'DESTROYED')
-      if (roomItems.length === 0) throw error('ROOM_EMPTY')
-      const visibleItemIds = roomItems
+      const areaId = String(input.areaId || '')
+      if (!ROOM_AREA_IDS.includes(areaId)) throw error('AREA_NOT_FOUND', 404)
+      const areaItems = this.areaItems(game, visit.roomNodeId, areaId).filter(item => item.state !== 'IN_INVENTORY' && item.state !== 'DESTROYED')
+      const visibleItemIds = areaItems
         .filter(item => item.exposedBy.includes(input.playerId))
         .slice(0, MAX_VISIBLE_ITEMS)
         .map(item => item.instanceId)
       visit.observation = {
+        areaId,
         startedAt: this.now(),
+        initialVisibleCount: visibleItemIds.length,
         visibleItemIds,
         newlyExposedItemIds: [],
         active: true
@@ -202,9 +268,10 @@ class SearchGameService {
       if (!visit.observation || !visit.observation.active || !visit.observation.visibleItemIds.includes(input.instanceId)) throw error('ITEM_NOT_VISIBLE')
       if (player.inventory.length >= BACKPACK_SLOTS) throw error('BACKPACK_FULL')
       const item = game.items.find(candidate => candidate.instanceId === input.instanceId)
-      if (!item || item.nodeId !== visit.roomNodeId || !['EXPOSED', 'DROPPED'].includes(item.state)) throw error('ITEM_UNAVAILABLE', 409)
+      if (!item || item.nodeId !== visit.roomNodeId || item.areaId !== visit.observation.areaId || !['EXPOSED', 'DROPPED'].includes(item.state)) throw error('ITEM_UNAVAILABLE', 409)
       item.state = 'IN_INVENTORY'
       item.nodeId = null
+      item.areaId = null
       item.ownerId = input.playerId
       player.inventory.push(item.instanceId)
       visit.observation.visibleItemIds = visit.observation.visibleItemIds.filter(id => id !== item.instanceId)
@@ -217,14 +284,19 @@ class SearchGameService {
       const player = this.requirePlayer(game, input.playerId)
       const visit = this.requireActiveVisit(game, input.visitId, input.playerId)
       if (!visit.observation || !visit.observation.active) throw error('OBSERVATION_NOT_ACTIVE', 409)
+      const areaId = visit.observation.areaId
+      if (this.areaItems(game, visit.roomNodeId, areaId).filter(candidate => candidate.state !== 'IN_INVENTORY' && candidate.state !== 'DESTROYED').length >= ROOM_AREA_CAPACITY) throw error('AREA_FULL', 409)
       const item = game.items.find(candidate => candidate.instanceId === input.instanceId)
       if (!item || item.ownerId !== input.playerId || !player.inventory.includes(item.instanceId)) throw error('ITEM_NOT_OWNED')
       player.inventory = player.inventory.filter(id => id !== item.instanceId)
       item.state = 'DROPPED'
       item.ownerId = null
       item.nodeId = visit.roomNodeId
+      item.areaId = areaId
       if (!item.exposedBy.includes(input.playerId)) item.exposedBy.push(input.playerId)
       if (!game.rooms[visit.roomNodeId].itemIds.includes(item.instanceId)) game.rooms[visit.roomNodeId].itemIds.push(item.instanceId)
+      if (!game.rooms[visit.roomNodeId].areas[areaId].itemIds.includes(item.instanceId)) game.rooms[visit.roomNodeId].areas[areaId].itemIds.push(item.instanceId)
+      if (!visit.observation.visibleItemIds.includes(item.instanceId)) visit.observation.visibleItemIds.push(item.instanceId)
       return this.visitSnapshot(game, visit, player)
     })
   }
@@ -257,9 +329,10 @@ class SearchGameService {
     for (let attempt = 0; attempt < 4; attempt += 1) {
       const game = await this.store.get(gameId)
       if (!game) throw error('GAME_NOT_FOUND', 404)
+      const before = JSON.stringify(game)
+      ensureSchemaV2(game)
       if (requestId && game.requestResults[requestId]) return clone(game.requestResults[requestId])
       const expectedVersion = game.version
-      const before = JSON.stringify(game)
       const result = operation(game)
       if (options.allowNoWrite && before === JSON.stringify(game)) return clone(result)
       game.version += 1
@@ -286,11 +359,13 @@ class SearchGameService {
     const observation = visit.observation
     if (!observation || !observation.active) return
     const elapsedIntervals = Math.floor((now - observation.startedAt) / REVEAL_INTERVAL_MS)
-    const targetCount = Math.min(MAX_VISIBLE_ITEMS, Math.max(0, elapsedIntervals))
+    const areaId = observation.areaId
+    const areaItems = this.areaItems(game, visit.roomNodeId, areaId).filter(item => item.state !== 'IN_INVENTORY' && item.state !== 'DESTROYED')
+    const targetCount = Math.min(MAX_VISIBLE_ITEMS, areaItems.length, (observation.initialVisibleCount || 0) + Math.max(0, elapsedIntervals))
     while (observation.visibleItemIds.length < targetCount) {
-      const hidden = this.roomItems(game, visit.roomNodeId).find(item => item.state === 'HIDDEN')
+      const hidden = areaItems.find(item => !item.exposedBy.includes(visit.playerId) && !observation.visibleItemIds.includes(item.instanceId))
       if (!hidden) break
-      hidden.state = 'EXPOSED'
+      if (hidden.state === 'HIDDEN') hidden.state = 'EXPOSED'
       if (!hidden.exposedBy.includes(visit.playerId)) hidden.exposedBy.push(visit.playerId)
       observation.visibleItemIds.push(hidden.instanceId)
       observation.newlyExposedItemIds.push(hidden.instanceId)
@@ -299,7 +374,14 @@ class SearchGameService {
 
   roomItems(game, roomNodeId) {
     const room = game.rooms[roomNodeId]
-    return room.itemIds.map(id => game.items.find(item => item.instanceId === id)).filter(Boolean)
+    return room.itemIds.map(id => game.items.find(item => item.instanceId === id)).filter(item => item && item.nodeId === roomNodeId)
+  }
+
+  areaItems(game, roomNodeId, areaId) {
+    const room = game.rooms[roomNodeId]
+    const area = room && room.areas && room.areas[areaId]
+    if (!area) return []
+    return area.itemIds.map(id => game.items.find(item => item.instanceId === id)).filter(item => item && item.nodeId === roomNodeId && item.areaId === areaId)
   }
 
   requirePlayer(game, playerId) {
@@ -327,6 +409,7 @@ class SearchGameService {
       cardId: item.cardId,
       state: item.state,
       nodeId: item.nodeId,
+      areaId: item.areaId,
       ownerId: item.ownerId
     }
   }
@@ -340,13 +423,23 @@ class SearchGameService {
         playerId,
         inventory: player.inventory.map(id => this.itemView(game.items.find(item => item.instanceId === id)))
       },
-      rooms: Object.values(game.rooms).map(room => ({ nodeId: room.nodeId, itemCount: this.roomItems(game, room.nodeId).filter(item => item.state !== 'IN_INVENTORY').length }))
+      schemaVersion: game.schemaVersion,
+      rooms: Object.values(game.rooms).map(room => ({
+        nodeId: room.nodeId,
+        itemCount: this.roomItems(game, room.nodeId).filter(item => item.state !== 'IN_INVENTORY' && item.state !== 'DESTROYED').length,
+        areas: ROOM_AREA_IDS.map(areaId => ({
+          areaId,
+          itemCount: this.areaItems(game, room.nodeId, areaId).filter(item => item.state !== 'IN_INVENTORY' && item.state !== 'DESTROYED').length
+        }))
+      }))
     }
   }
 
   visitSnapshot(game, visit, player) {
     const roomItems = this.roomItems(game, visit.roomNodeId).filter(item => item.state !== 'IN_INVENTORY' && item.state !== 'DESTROYED')
     const visibleIds = visit.observation && visit.observation.active ? visit.observation.visibleItemIds : []
+    const activeAreaId = visit.observation && visit.observation.active ? visit.observation.areaId : null
+    const activeAreaItems = activeAreaId ? this.areaItems(game, visit.roomNodeId, activeAreaId).filter(item => item.state !== 'IN_INVENTORY' && item.state !== 'DESTROYED') : []
     return {
       gameId: game.gameId,
       version: game.version,
@@ -355,7 +448,23 @@ class SearchGameService {
         nodeId: visit.roomNodeId,
         unpickedCount: roomItems.length,
         unsearchedCount: roomItems.filter(item => !item.exposedBy.includes(visit.playerId)).length,
-        canObserve: visit.status === 'ACTIVE' && roomItems.length > 0,
+        canObserve: visit.status === 'ACTIVE',
+        activeAreaId,
+        areas: ROOM_AREA_IDS.map(areaId => {
+          const items = this.areaItems(game, visit.roomNodeId, areaId).filter(item => item.state !== 'IN_INVENTORY' && item.state !== 'DESTROYED')
+          return {
+            areaId,
+            itemCount: items.length,
+            unsearchedCount: items.filter(item => !item.exposedBy.includes(visit.playerId)).length
+          }
+        }),
+        activeArea: activeAreaId ? {
+          areaId: activeAreaId,
+          capacity: ROOM_AREA_CAPACITY,
+          itemCount: activeAreaItems.length,
+          unsearchedCount: activeAreaItems.filter(item => !item.exposedBy.includes(visit.playerId)).length,
+          visibleItems: visibleIds.map(id => this.itemView(game.items.find(item => item.instanceId === id))).filter(Boolean)
+        } : null,
         visibleItems: visibleIds.map(id => this.itemView(game.items.find(item => item.instanceId === id))).filter(Boolean)
       },
       inventory: player.inventory.map(id => this.itemView(game.items.find(item => item.instanceId === id))).filter(Boolean),
@@ -368,6 +477,9 @@ module.exports = {
   SEARCH_DURATION_MS,
   REVEAL_INTERVAL_MS,
   MAX_VISIBLE_ITEMS,
+  ROOM_AREA_CAPACITY,
+  ROOM_AREA_IDS,
+  SEARCH_SCHEMA_VERSION,
   BACKPACK_SLOTS,
   BOARD_SIZE,
   VAULT_NODE_ID,

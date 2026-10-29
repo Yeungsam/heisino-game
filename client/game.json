@@ -1,6 +1,12 @@
 {
   "deviceOrientation": "landscape",
   "showStatusBar": false,
+  "subpackages": [
+    {
+      "name": "search",
+      "root": "subpackages/search"
+    }
+  ],
   "networkTimeout": {
     "request": 10000,
     "connectSocket": 10000,

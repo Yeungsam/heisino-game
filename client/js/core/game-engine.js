@@ -72,12 +72,13 @@ class GameEngine {
     }
   }
 
-  createItem(cardId, roomNodeId, state = 'HIDDEN', ownerId = null) {
+  createItem(cardId, roomNodeId, state = 'HIDDEN', ownerId = null, areaId = null) {
     const item = {
       instanceId: `item_${this.nextItemSequence++}`,
       cardId,
       state,
       nodeId: ownerId ? null : roomNodeId,
+      areaId: ownerId ? null : areaId,
       ownerId,
       durability: this.cardById[cardId].maxDurability || 0,
       revealedBy: null,
@@ -95,7 +96,8 @@ class GameEngine {
         const roomNodeId = nodeId(x, y)
         const count = roomNodeId === C.EXTRACTION_NODE_ID ? 0 : x === 2 && y === 2 ? 10 : 4
         for (let index = 0; index < count; index += 1) {
-          this.createItem(lootIds[Math.floor(this.rng() * lootIds.length)], roomNodeId)
+          const areaId = C.SEARCH_ROOM_AREA_IDS[Math.floor(this.rng() * C.SEARCH_ROOM_AREA_IDS.length)]
+          this.createItem(lootIds[Math.floor(this.rng() * lootIds.length)], roomNodeId, 'HIDDEN', null, areaId)
         }
       }
     }
@@ -321,11 +323,12 @@ class GameEngine {
     item.state = 'IN_INVENTORY'
     item.ownerId = playerId
     item.nodeId = null
+    item.areaId = null
     player.inventory.push(item.instanceId)
     return { ok: true, action: 'PICKED_UP', item: clone(item) }
   }
 
-  dropItem(playerId, instanceId) {
+  dropItem(playerId, instanceId, areaId = 'MAIN_TABLE') {
     const player = this.getPlayer(playerId)
     if (!player || !player.inventory.includes(instanceId)) return { ok: false, reason: 'NOT_OWNED' }
     const item = this.items.find(candidate => candidate.instanceId === instanceId)
@@ -335,6 +338,7 @@ class GameEngine {
     item.state = 'DROPPED'
     item.ownerId = null
     item.nodeId = positionKey(player.position)
+    item.areaId = C.SEARCH_ROOM_AREA_IDS.includes(areaId) ? areaId : 'MAIN_TABLE'
     return { ok: true }
   }
 
@@ -345,6 +349,7 @@ class GameEngine {
       item.state = 'DROPPED'
       item.ownerId = null
       item.nodeId = roomNodeId
+      item.areaId = 'MAIN_TABLE'
     })
     player.inventory = []
     player.equippedWeaponId = null

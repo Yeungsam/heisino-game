@@ -21,6 +21,7 @@ async function request(pathname, options = {}) {
 async function main() {
   const health = await request('/health')
   assert.equal(health.service, 'heisino-search-service')
+  assert.equal(health.schemaVersion, '2.0.0')
 
   const game = await request('/games', {
     method: 'POST',
@@ -28,10 +29,12 @@ async function main() {
   })
   const roomCounts = Object.fromEntries(game.rooms.map(room => [room.nodeId, room.itemCount]))
   assert.equal(game.rooms.length, 25)
+  assert.equal(game.schemaVersion, 2)
   assert.equal(roomCounts.n_0_0, 4)
   assert.equal(roomCounts.n_2_2, 10)
   assert.equal(roomCounts.n_4_4, 0)
   assert.equal(game.player.inventory.length, 1)
+  game.rooms.forEach(room => assert.equal(room.areas.reduce((sum, area) => sum + area.itemCount, 0), room.itemCount))
 
   const entered = await request(`/games/${gameId}/visits`, {
     method: 'POST',
@@ -42,7 +45,7 @@ async function main() {
   await request(`/games/${gameId}/visits/${visitId}/observe`, {
     method: 'POST',
     requestId: `${gameId}-observe`,
-    body: { playerId }
+    body: { playerId, areaId: entered.room.areas.find(area => area.itemCount > 0).areaId }
   })
 
   await new Promise(resolve => setTimeout(resolve, 2200))
@@ -72,6 +75,7 @@ async function main() {
     normalRoomItems: roomCounts.n_0_0,
     vaultItems: roomCounts.n_2_2,
     extractionItems: roomCounts.n_4_4,
+    areaSchemaVersion: game.schemaVersion,
     revealedAfterMs: 2200,
     inventoryAfterPickup: picked.inventory.length,
     finalVisitStatus: left.visit.status

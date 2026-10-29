@@ -13,6 +13,14 @@ function directorySize(directory) {
   }, 0)
 }
 
+function primaryPackageSize(directory) {
+  return fs.readdirSync(directory, { withFileTypes: true }).reduce((total, entry) => {
+    if (entry.isDirectory() && entry.name === 'subpackages') return total
+    const entryPath = path.join(directory, entry.name)
+    return total + (entry.isDirectory() ? directorySize(entryPath) : fs.statSync(entryPath).size)
+  }, 0)
+}
+
 test('Figma 首页在 1920×1080 下保持原始图层坐标', () => {
   const layout = createHomeLayout(1920, 1080)
   assert.equal(layout.scale, 1)
@@ -47,7 +55,7 @@ test('窄比例横屏下前景安全区完整保留', () => {
   assert.ok(layout.buttons.start.y + layout.buttons.start.height <= 800)
 })
 
-test('Figma 首页七个本地素材完整且小游戏目录低于4MiB', () => {
+test('Figma 首页七个本地素材完整且小游戏主包低于4MiB', () => {
   const assetDirectory = path.join(clientRoot, 'assets', 'ui', 'home')
   const assets = [
     'background.jpg',
@@ -59,7 +67,16 @@ test('Figma 首页七个本地素材完整且小游戏目录低于4MiB', () => {
     'start-button.png'
   ]
   assets.forEach(filename => assert.ok(fs.statSync(path.join(assetDirectory, filename)).size > 0))
-  assert.ok(directorySize(clientRoot) < 4 * 1024 * 1024)
+  assert.ok(primaryPackageSize(clientRoot) < 4 * 1024 * 1024)
+})
+
+test('房间搜索美术使用独立分包且低于4MiB', () => {
+  const searchPackage = path.join(clientRoot, 'subpackages', 'search')
+  assert.ok(fs.statSync(path.join(searchPackage, 'assets', 'room-background.png')).size > 0)
+  assert.ok(fs.statSync(path.join(searchPackage, 'assets', 'search-panel.png')).size > 0)
+  assert.ok(directorySize(searchPackage) < 4 * 1024 * 1024)
+  const config = JSON.parse(fs.readFileSync(path.join(clientRoot, 'game.json'), 'utf8'))
+  assert.ok(config.subpackages.some(item => item.name === 'search' && item.root === 'subpackages/search'))
 })
 
 test('首页按钮文字按字形边界上下视觉居中', () => {

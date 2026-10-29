@@ -58,7 +58,7 @@ function createSearchHttpHandler(service) {
 
     try {
       if (request.method === 'GET' && route.length === 1 && route[0] === 'health') {
-        sendJson(response, 200, { ok: true, service: 'heisino-search-service', schemaVersion: '1.0.0' })
+        sendJson(response, 200, { ok: true, service: 'heisino-search-service', schemaVersion: '2.0.0' })
         return true
       }
 

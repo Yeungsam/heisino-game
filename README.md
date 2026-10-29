@@ -4,7 +4,7 @@
 
 ## 当前状态
 
-当前里程碑：M2.3 权威搜索回合联调版。
+当前里程碑：M2.4 区域级权威搜索交互版。
 
 微信开发者工具内已经可以从头体验以下流程：
 
@@ -98,7 +98,7 @@ functions/heisino-game/      # 权威搜索回合 Web 云函数与 CloudBase 事
 cloudbaserc.json             # CloudBase 环境与函数配置
 ```
 
-客户端目前采用微信小游戏原生 Canvas + CommonJS JavaScript。卡牌目录通过 `GET /api/cards` 获取，搜索回合通过 `/api/search` 接口执行权威结算，卡面通过静态资源地址按需加载；接口不可用时使用内置目录和本地搜索状态机降级。规则引擎、服务端领域模型和表现层保持分离。
+客户端目前采用微信小游戏原生 Canvas + CommonJS JavaScript。卡牌目录通过 `GET /api/cards` 获取，搜索回合通过 `/api/search` 接口执行区域级权威结算，卡面通过静态资源地址按需加载；接口不可用时使用内置目录和同构的本地区域搜索状态机降级。规则引擎、服务端领域模型和表现层保持分离。
 
 ## 本地运行
 
@@ -147,6 +147,8 @@ npm run cards:build -- "/absolute/path/to/卡牌！"
 - 生产架构：HTTP 网关 → Web 云函数返回结构化目录；静态托管按需分发卡面。
 
 `heisino-game` 是 Web 云函数。按 CloudBase 的运行时约束，Web 云函数不会自动注入数据库访问凭证；函数环境变量已配置环境级 `CLOUDBASE_APIKEY`，代码会把它作为 `@cloudbase/node-sdk` 的 `accessKey` 使用。搜索集合由服务端幂等确认，新环境首次建局时可自动创建。API Key 只能保存在 CloudBase 环境变量或密钥系统中，不得写入 `cloudbaserc.json`、源码、日志或提交记录。
+
+`cloudbaserc.json` 故意不声明 `heisino-game.envVariables`：CloudBase CLI 会将该字段作为整体覆盖函数环境变量，若只写非敏感变量会同时删除 `CLOUDBASE_APIKEY`。搜索函数的环境 ID 可回退使用 `SCF_NAMESPACE`，集合名默认为 `heisino_search_games`；部署人不得为了方便而把密钥补进仓库配置。
 
 `/api/search` 已完成生产冒烟验证，覆盖健康检查、建局、25 房间与 4/10/0 物资数量、进入房间、2 秒曝光、拾取入包和离开房间。每次搜索服务部署后必须运行 `npm run verify:search:production`，不能只以健康检查通过作为发布结论。
 

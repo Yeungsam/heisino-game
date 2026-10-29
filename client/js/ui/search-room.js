@@ -1,4 +1,11 @@
 const SEARCH_DURATION_MS = 50000
+const SEARCH_DESIGN_WIDTH = 1920
+const SEARCH_DESIGN_HEIGHT = 1080
+const ROOM_AREA_TEMPLATE = Object.freeze([
+  { areaId: 'LEFT_CABINET', x: 43, y: 196, width: 306, height: 289 },
+  { areaId: 'MAIN_TABLE', x: 267, y: 508, width: 807, height: 306 },
+  { areaId: 'RIGHT_TABLE', x: 1223, y: 571, width: 573, height: 306 }
+])
 
 function searchTimerState(deadlineAt, now = Date.now()) {
   const remainingMs = Math.max(0, deadlineAt - now)
@@ -11,18 +18,56 @@ function searchTimerState(deadlineAt, now = Date.now()) {
 }
 
 function createSearchLayout(viewWidth, viewHeight) {
-  const top = 78
-  const bottom = 54
-  const outer = 18
-  const gap = 14
-  const leftWidth = viewWidth * 0.47
-  const contentHeight = viewHeight - top - bottom
+  const scale = Math.min(viewWidth / SEARCH_DESIGN_WIDTH, viewHeight / SEARCH_DESIGN_HEIGHT)
+  const offsetX = (viewWidth - SEARCH_DESIGN_WIDTH * scale) / 2
+  const offsetY = (viewHeight - SEARCH_DESIGN_HEIGHT * scale) / 2
+  const rect = (x, y, width, height) => ({
+    x: offsetX + x * scale,
+    y: offsetY + y * scale,
+    width: width * scale,
+    height: height * scale
+  })
   return {
-    timer: { x: viewWidth * 0.28, y: 51, width: viewWidth * 0.44, height: 18 },
-    inventory: { x: outer, y: top, width: leftWidth, height: contentHeight },
-    search: { x: outer + leftWidth + gap, y: top, width: viewWidth - outer * 2 - leftWidth - gap, height: contentHeight },
-    finish: { x: viewWidth - 146, y: viewHeight - 44, width: 128, height: 34 }
+    scale,
+    offsetX,
+    offsetY,
+    timer: rect(551, 174, 817, 48),
+    inventory: rect(56, 247, 924, 690),
+    search: rect(990, 247, 884, 690),
+    finish: rect(1513, 941, 341, 99)
   }
 }
 
-module.exports = { SEARCH_DURATION_MS, searchTimerState, createSearchLayout }
+function createRoomLayout(viewWidth, viewHeight) {
+  const scale = Math.max(viewWidth / SEARCH_DESIGN_WIDTH, viewHeight / SEARCH_DESIGN_HEIGHT)
+  const offsetX = (viewWidth - SEARCH_DESIGN_WIDTH * scale) / 2
+  const offsetY = (viewHeight - SEARCH_DESIGN_HEIGHT * scale) / 2
+  const convert = source => ({
+    ...source,
+    x: offsetX + source.x * scale,
+    y: offsetY + source.y * scale,
+    width: source.width * scale,
+    height: source.height * scale
+  })
+  return {
+    scale,
+    offsetX,
+    offsetY,
+    designWidth: SEARCH_DESIGN_WIDTH,
+    designHeight: SEARCH_DESIGN_HEIGHT,
+    areas: ROOM_AREA_TEMPLATE.map(convert),
+    title: convert({ x: 133, y: 58, width: 515, height: 163 }),
+    timer: convert({ x: 1297, y: 36, width: 459, height: 178 }),
+    leave: convert({ x: 1371, y: 889, width: 292, height: 104 })
+  }
+}
+
+module.exports = {
+  SEARCH_DURATION_MS,
+  SEARCH_DESIGN_WIDTH,
+  SEARCH_DESIGN_HEIGHT,
+  ROOM_AREA_TEMPLATE,
+  searchTimerState,
+  createSearchLayout,
+  createRoomLayout
+}

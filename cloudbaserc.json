@@ -22,11 +22,7 @@
       "installDependency": true,
       "timeout": 10,
       "memorySize": 256,
-      "description": "大劫卡西诺权威搜索回合 API",
-      "envVariables": {
-        "CLOUDBASE_ENV_ID": "cloud1-d5ghcmrajdca722b5",
-        "SEARCH_GAME_COLLECTION": "heisino_search_games"
-      }
+      "description": "大劫卡西诺权威搜索回合 API"
     }
   ]
 }
