@@ -7,7 +7,10 @@ const {
   createSearchLayout,
   createRoomLayout,
   fitAspectRect,
-  createHudSafeLayout
+  createHudSafeLayout,
+  nextSearchMagnifierIndex,
+  magnifierOrbitState,
+  MAGNIFIER_ORBIT_PERIOD_MS
 } = require('../client/js/ui/search-room')
 const { CARD_ASPECT_RATIO } = require('../client/js/ui/card-scroll')
 
@@ -67,4 +70,27 @@ test('顶部物资文字会避让微信系统胶囊', () => {
   const layout = createHudSafeLayout(2622, { left: 2310, right: 2580, top: 8, bottom: 42 })
   assert.ok(layout.resourceRight < 2310)
   assert.equal(createHudSafeLayout(1280, null).resourceRight, 1262)
+})
+
+test('放大镜按下一张未揭示卡牌的卡槽逐格移动', () => {
+  assert.equal(nextSearchMagnifierIndex(0, 4, 0), 0)
+  assert.equal(nextSearchMagnifierIndex(1, 4, 2100), 1)
+  assert.equal(nextSearchMagnifierIndex(3, 4, 6100), 3)
+  assert.equal(nextSearchMagnifierIndex(4, 4, 8100), null)
+  assert.equal(nextSearchMagnifierIndex(0, 0, 1999), 0)
+  assert.equal(nextSearchMagnifierIndex(0, 0, 2000), null)
+})
+
+test('放大镜围绕目标卡槽做连续圆周运动', () => {
+  const slot = { x: 100, y: 200, width: 120, height: 180 }
+  const start = magnifierOrbitState(slot, 1000, 1000)
+  const quarter = magnifierOrbitState(slot, 1000 + MAGNIFIER_ORBIT_PERIOD_MS / 4, 1000)
+  const complete = magnifierOrbitState(slot, 1000 + MAGNIFIER_ORBIT_PERIOD_MS, 1000)
+  assert.equal(start.centerX, 160)
+  assert.equal(start.centerY, 290)
+  assert.ok(Math.abs(Math.hypot(start.x - start.centerX, start.y - start.centerY) - start.radius) < 1e-9)
+  assert.ok(quarter.x > start.x)
+  assert.ok(Math.abs(complete.x - start.x) < 1e-9)
+  assert.ok(Math.abs(complete.y - start.y) < 1e-9)
+  assert.equal(complete.alpha, 1)
 })

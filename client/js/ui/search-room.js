@@ -1,11 +1,13 @@
 const SEARCH_DURATION_MS = 50000
+const MAGNIFIER_ORBIT_PERIOD_MS = 1600
 const SEARCH_DESIGN_WIDTH = 1920
 const SEARCH_DESIGN_HEIGHT = 1080
 const SEARCH_ASSET_CROPS = Object.freeze({
   slot: Object.freeze({ x: 58, y: 64, width: 240, height: 290 }),
   slotPattern: Object.freeze({ x: 85, y: 31, width: 249, height: 354 }),
   bagIcon: Object.freeze({ x: 51, y: 22, width: 158, height: 170 }),
-  briefcaseIcon: Object.freeze({ x: 31, y: 39, width: 198, height: 157 })
+  briefcaseIcon: Object.freeze({ x: 31, y: 39, width: 198, height: 157 }),
+  magnifier: Object.freeze({ x: 118, y: 73, width: 212, height: 212 })
 })
 const ROOM_AREA_TEMPLATE = Object.freeze([
   { areaId: 'LEFT_CABINET', x: 43, y: 196, width: 306, height: 289 },
@@ -96,8 +98,38 @@ function createHudSafeLayout(viewWidth, menuButtonRect) {
   return { resourceRight }
 }
 
+function nextSearchMagnifierIndex(visibleCount, itemCount, elapsedMs, revealIntervalMs = 2000) {
+  const visible = Math.max(0, Number(visibleCount) || 0)
+  const total = Math.max(0, Number(itemCount) || 0)
+  if (total === 0) return elapsedMs < revealIntervalMs ? 0 : null
+  return visible < total ? visible : null
+}
+
+function magnifierOrbitState(slot, now, startedAt, periodMs = MAGNIFIER_ORBIT_PERIOD_MS) {
+  const elapsed = Math.max(0, now - startedAt)
+  const phase = periodMs > 0 ? (elapsed % periodMs) / periodMs : 0
+  const angle = phase * Math.PI * 2 - Math.PI / 2
+  const centerX = slot.x + slot.width / 2
+  const centerY = slot.y + slot.height / 2
+  const radius = Math.min(slot.width, slot.height) * 0.24
+  const entrance = Math.min(1, elapsed / 220)
+  const easedEntrance = 1 - Math.pow(1 - entrance, 3)
+  return {
+    x: centerX + Math.cos(angle) * radius,
+    y: centerY + Math.sin(angle) * radius,
+    centerX,
+    centerY,
+    radius,
+    angle,
+    rotation: angle + Math.PI / 2 + Math.sin(angle * 2) * 0.08,
+    scale: (0.92 + Math.sin(angle + Math.PI / 3) * 0.05) * easedEntrance,
+    alpha: easedEntrance
+  }
+}
+
 module.exports = {
   SEARCH_DURATION_MS,
+  MAGNIFIER_ORBIT_PERIOD_MS,
   SEARCH_DESIGN_WIDTH,
   SEARCH_DESIGN_HEIGHT,
   SEARCH_ASSET_CROPS,
@@ -106,5 +138,7 @@ module.exports = {
   createSearchLayout,
   createRoomLayout,
   fitAspectRect,
-  createHudSafeLayout
+  createHudSafeLayout,
+  nextSearchMagnifierIndex,
+  magnifierOrbitState
 }

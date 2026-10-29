@@ -24,7 +24,9 @@ const {
   createSearchLayout,
   createRoomLayout,
   fitAspectRect,
-  createHudSafeLayout
+  createHudSafeLayout,
+  nextSearchMagnifierIndex,
+  magnifierOrbitState
 } = require('./ui/search-room')
 const {
   CARD_ASPECT_RATIO,
@@ -158,6 +160,8 @@ let searchInventoryIdMap = {}
 let searchDragging = null
 let searchDragPoint = null
 let searchRoomScrollY = 0
+let searchMagnifierSlotIndex = null
+let searchMagnifierChangedAt = 0
 let searchGesture = null
 
 const ui = {
@@ -1245,6 +1249,8 @@ async function beginRoomVisit() {
   searchFinishedVisitId = null
   searchRequestPending = true
   searchRoomScrollY = 0
+  searchMagnifierSlotIndex = null
+  searchMagnifierChangedAt = 0
   searchGesture = null
   if (searchGameReadyPromise) await searchGameReadyPromise
   if (searchAuthority === 'REMOTE') {
@@ -1894,6 +1900,50 @@ function drawMagnifier(centerX, centerY) {
   context.restore()
 }
 
+function drawMagnifierSprite(state, size, alpha = 1) {
+  if (!assets.searchMagnifier || state.scale <= 0 || alpha <= 0) return
+  context.save()
+  context.globalAlpha = Math.max(0, Math.min(1, alpha * state.alpha))
+  context.translate(state.x, state.y)
+  context.rotate(state.rotation)
+  context.scale(state.scale, state.scale)
+  context.shadowColor = 'rgba(255, 190, 72, .72)'
+  context.shadowBlur = size * 0.18
+  context.drawImage(
+    assets.searchMagnifier,
+    SEARCH_ASSET_CROPS.magnifier.x,
+    SEARCH_ASSET_CROPS.magnifier.y,
+    SEARCH_ASSET_CROPS.magnifier.width,
+    SEARCH_ASSET_CROPS.magnifier.height,
+    -size / 2,
+    -size / 2,
+    size,
+    size
+  )
+  context.restore()
+}
+
+function drawSearchMagnifierOrbit(slot, startedAt) {
+  const now = Date.now()
+  const state = magnifierOrbitState(slot, now, startedAt)
+  context.save()
+  context.beginPath()
+  context.arc(state.centerX, state.centerY, state.radius, 0, Math.PI * 2)
+  context.strokeStyle = `rgba(255, 215, 116, ${0.12 + state.alpha * 0.16})`
+  context.lineWidth = Math.max(1, slot.width * 0.012)
+  if (context.setLineDash) context.setLineDash([Math.max(3, slot.width * 0.045), Math.max(5, slot.width * 0.075)])
+  context.stroke()
+  if (context.setLineDash) context.setLineDash([])
+  context.restore()
+
+  const size = Math.min(slot.width, slot.height) * 0.42
+  ;[150, 100, 55].forEach((delay, index) => {
+    const trail = magnifierOrbitState(slot, now - delay, startedAt)
+    drawMagnifierSprite(trail, size * (0.82 + index * 0.05), 0.08 + index * 0.05)
+  })
+  drawMagnifierSprite(state, size, 1)
+}
+
 function drawSearchInventoryPanel(rect) {
   if (assets.searchPanel) context.drawImage(assets.searchPanel, rect.x, rect.y, rect.width, rect.height)
   else panel(rect.x, rect.y, rect.width, rect.height, { fill: 'rgba(27,15,29,.94)', stroke: '#c9914b', lineWidth: 2, radius: 14 })
@@ -1937,7 +1987,24 @@ function drawSearchRoomPanel(rect) {
   ui.searchRoomScrollRect = gridViewport
   ui.searchItemRects = []
   const slotCount = Math.min(C.SEARCH_AREA_CAPACITY, Math.max(10, Math.ceil(Math.max(itemCount, visible.length) / 5) * 5))
-  const grid = createVerticalCardGrid({ viewport: gridViewport, count: slotCount, columns: 5, gap: slotGap, padding: slotPadding, scrollY: searchRoomScrollY })
+  const observation = searchVisitState && searchVisitState.visit.observation
+  const elapsed = observation ? Date.now() - observation.startedAt : 0
+  const magnifierIndex = nextSearchMagnifierIndex(visible.length, itemCount, elapsed, C.SEARCH_REVEAL_INTERVAL_MS)
+  let grid = createVerticalCardGrid({ viewport: gridViewport, count: slotCount, columns: 5, gap: slotGap, padding: slotPadding, scrollY: searchRoomScrollY })
+  if (magnifierIndex !== searchMagnifierSlotIndex) {
+    searchMagnifierSlotIndex = magnifierIndex
+    searchMagnifierChangedAt = Date.now()
+    const targetSlot = magnifierIndex === null ? null : grid.rects[magnifierIndex]
+    if (targetSlot) {
+      let nextScroll = grid.scrollY
+      if (targetSlot.y < gridViewport.y) nextScroll -= gridViewport.y - targetSlot.y
+      if (targetSlot.y + targetSlot.height > gridViewport.y + gridViewport.height) nextScroll += targetSlot.y + targetSlot.height - gridViewport.y - gridViewport.height
+      if (nextScroll !== grid.scrollY) {
+        searchRoomScrollY = clamp(nextScroll, 0, grid.maxScroll)
+        grid = createVerticalCardGrid({ viewport: gridViewport, count: slotCount, columns: 5, gap: slotGap, padding: slotPadding, scrollY: searchRoomScrollY })
+      }
+    }
+  }
   searchRoomScrollY = grid.scrollY
   ui.searchRoomMaxScroll = grid.maxScroll
   context.save()
@@ -1959,18 +2026,13 @@ function drawSearchRoomPanel(rect) {
   context.restore()
   drawScrollIndicator(gridViewport, grid.contentHeight, searchRoomScrollY)
 
-  const elapsed = searchVisitState && searchVisitState.visit.observation ? Date.now() - searchVisitState.visit.observation.startedAt : 0
-  if (visible.length === 0) {
-    const emptyResolved = itemCount === 0 && elapsed >= C.SEARCH_REVEAL_INTERVAL_MS
-    if (!emptyResolved) {
-      if (assets.searchMagnifier) {
-        const pulse = 1 + Math.sin(Date.now() / 240) * 0.06
-        const size = 112 * scale * pulse
-        context.drawImage(assets.searchMagnifier, rect.x + rect.width / 2 - size / 2, rect.y + rect.height / 2 - size / 2, size, size)
-      } else drawMagnifier(rect.x + rect.width / 2, rect.y + rect.height / 2)
-      text('正在搜索房间…', rect.x + rect.width / 2, rect.y + rect.height / 2 + 78 * scale, Math.max(9, 22 * scale), '#e2c7b2', 'center', 'bold')
-    } else text('该区域未发现物品', rect.x + rect.width / 2, rect.y + rect.height / 2, Math.max(11, 26 * scale), '#e2c7b2', 'center', 'bold')
+  const targetSlot = magnifierIndex === null ? null : grid.rects[magnifierIndex]
+  if (targetSlot && rectsIntersect(targetSlot, gridViewport)) {
+    if (assets.searchMagnifier) drawSearchMagnifierOrbit(targetSlot, searchMagnifierChangedAt)
+    else drawMagnifier(targetSlot.x + targetSlot.width / 2, targetSlot.y + targetSlot.height / 2)
   }
+  const emptyResolved = itemCount === 0 && elapsed >= C.SEARCH_REVEAL_INTERVAL_MS
+  if (emptyResolved) text('该区域未发现物品', rect.x + rect.width / 2, rect.y + rect.height / 2, Math.max(11, 26 * scale), '#e2c7b2', 'center', 'bold')
 }
 
 function drawSearchDrag() {
@@ -2147,6 +2209,8 @@ function nextTurn() {
   searchDragging = null
   searchDragPoint = null
   searchRoomScrollY = 0
+  searchMagnifierSlotIndex = null
+  searchMagnifierChangedAt = 0
   searchGesture = null
   presentation = result.gameOver || engine.phase === 'GAME_OVER' ? 'SETTLEMENT' : 'MAP'
 }
@@ -2164,6 +2228,8 @@ async function openSearchObservation(areaId) {
       searchVisitState = localVisitSnapshot()
     }
     searchRoomScrollY = 0
+    searchMagnifierSlotIndex = null
+    searchMagnifierChangedAt = Date.now()
     searchGesture = null
     presentation = 'SEARCH'
   } catch (requestError) {
@@ -2185,6 +2251,8 @@ async function finishSearchOverlay() {
     }
     presentation = 'ROOM'
     searchRoomScrollY = 0
+    searchMagnifierSlotIndex = null
+    searchMagnifierChangedAt = 0
     searchGesture = null
   } catch (requestError) {
     addToast('完成搜索失败，请重试。')
