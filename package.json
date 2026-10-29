@@ -5,7 +5,7 @@
   "description": "大劫卡西诺微信小游戏完整流程测试包",
   "scripts": {
     "test": "node --test tests/*.test.js",
-    "check": "node --check client/game.js && node --check client/js/main.js && node --check client/js/api/search.js && node --check server/index.js && node --check functions/heisino-cards/index.js && node --check functions/heisino-game/index.js && node --check functions/heisino-game/search-domain.js && node --check functions/heisino-game/cloudbase-store.js && node --test tests/*.test.js",
+    "check": "node --check client/game.js && node --check client/js/main.js && node --check client/js/ui/card-scroll.js && node --check client/js/api/search.js && node --check server/index.js && node --check functions/heisino-cards/index.js && node --check functions/heisino-game/index.js && node --check functions/heisino-game/search-domain.js && node --check functions/heisino-game/cloudbase-store.js && node --test tests/*.test.js",
     "verify:cards:production": "node scripts/verify-production-card-service.js",
     "verify:search:production": "node scripts/verify-production-search-service.js",
     "server": "node server/index.js",

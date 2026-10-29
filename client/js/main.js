@@ -19,6 +19,14 @@ const { cardAssetBaseUrl } = require('./config')
 const { createCardCatalogIndex, resolveCardAssetUrl } = require('./ui/card-art')
 const { searchTimerState, createSearchLayout } = require('./ui/search-room')
 const {
+  CARD_ASPECT_RATIO,
+  clamp,
+  createVerticalCardGrid,
+  rectsIntersect,
+  intersectionRect,
+  classifyCardGesture
+} = require('./ui/card-scroll')
+const {
   ROOM_MASK_ALPHA,
   PIN_TRANSITION_MS,
   LANDMARK_ROOMS,
@@ -63,7 +71,6 @@ const assetSources = {
 const assets = {}
 const cardImages = {}
 const PLAYER_ACCOUNT_GOLD = 12000
-const CARD_PAGE_SIZE = 10
 let assetsLoaded = 0
 let baseAssetsReady = false
 let cardCatalogReady = false
@@ -87,10 +94,13 @@ let toastUntil = 0
 let draggingItemId = null
 let loadoutSelection = null
 let loadoutDragging = null
+let loadoutDragPoint = null
+let loadoutGesture = null
+let loadoutScrollY = 0
 let warehouseFilter = 'ALL'
-let warehousePage = 0
-let warehouseSelection = null
-let loadoutPage = 0
+let warehouseScrollY = 0
+let warehousePreviewCardId = null
+let warehouseGesture = null
 let searchGameId = null
 let searchAuthority = 'LOCAL'
 let searchGameReadyPromise = null
@@ -113,7 +123,11 @@ const ui = {
   loadoutWarehouseRects: [],
   loadoutBackpackRects: [],
   loadoutWarehouseDropRect: null,
-  loadoutBackpackDropRect: null
+  loadoutBackpackDropRect: null,
+  loadoutWarehouseScrollRect: null,
+  loadoutWarehouseMaxScroll: 0,
+  warehouseScrollRect: null,
+  warehouseMaxScroll: 0
 }
 
 function setScene(nextScene) {
@@ -385,14 +399,17 @@ function drawHome() {
 function enterLoadout() {
   loadoutSelection = null
   loadoutDragging = null
-  loadoutPage = 0
+  loadoutDragPoint = null
+  loadoutGesture = null
+  loadoutScrollY = 0
   setScene('LOADOUT')
 }
 
 function enterWarehouse() {
   warehouseFilter = 'ALL'
-  warehousePage = 0
-  warehouseSelection = null
+  warehouseScrollY = 0
+  warehousePreviewCardId = null
+  warehouseGesture = null
   setScene('WAREHOUSE')
 }
 
@@ -412,6 +429,30 @@ function cardMeta(card) {
   if (card.category === 'ARMOR') return `防具卡 · 耐久 ${card.maxDurability}/${card.maxDurability}`
   if (card.category === 'SKILL') return `技能卡 · ${card.description}`
   return `物资卡 · ${card.value !== null ? formatGold(card.value) : '价值待定'}`
+}
+
+function drawWrappedText(value, x, y, maxWidth, lineHeight, size = 10, color = PALETTE.cream, maxLines = 2) {
+  context.save()
+  context.font = `normal ${size}px sans-serif`
+  context.fillStyle = color
+  context.textAlign = 'left'
+  context.textBaseline = 'middle'
+  const characters = Array.from(String(value || ''))
+  const lines = []
+  let line = ''
+  characters.forEach(character => {
+    const candidate = line + character
+    if (line && context.measureText(candidate).width > maxWidth) {
+      lines.push(line)
+      line = character
+    } else line = candidate
+  })
+  if (line) lines.push(line)
+  lines.slice(0, maxLines).forEach((content, index) => {
+    const clipped = index === maxLines - 1 && lines.length > maxLines ? `${content.slice(0, -1)}…` : content
+    context.fillText(clipped, x, y + index * lineHeight)
+  })
+  context.restore()
 }
 
 function drawCardArt(card, rect, options = {}) {
@@ -446,6 +487,34 @@ function drawCardArt(card, rect, options = {}) {
   context.stroke()
   context.restore()
   return art
+}
+
+function drawScrollIndicator(viewport, contentHeight, scrollY) {
+  if (contentHeight <= viewport.height + 1) return
+  const trackHeight = viewport.height - 12
+  const thumbHeight = Math.max(28, trackHeight * viewport.height / contentHeight)
+  const maxScroll = contentHeight - viewport.height
+  const travel = trackHeight - thumbHeight
+  const thumbY = viewport.y + 6 + travel * (scrollY / maxScroll)
+  roundedPath(viewport.x + viewport.width - 5, viewport.y + 6, 3, trackHeight, 2)
+  context.fillStyle = 'rgba(255,255,255,.10)'
+  context.fill()
+  roundedPath(viewport.x + viewport.width - 5, thumbY, 3, thumbHeight, 2)
+  context.fillStyle = 'rgba(255,215,116,.72)'
+  context.fill()
+}
+
+function drawFloatingCard(card, point) {
+  if (!card || !point) return
+  const width = Math.min(94, viewWidth * 0.115)
+  const height = width / CARD_ASPECT_RATIO
+  const rect = { x: point.x - width / 2, y: point.y - height * 0.5, width, height }
+  context.save()
+  context.globalAlpha = 0.93
+  context.shadowColor = '#ffd266'
+  context.shadowBlur = 18
+  drawCardArt(card, rect, { radius: 10, inset: 2, stroke: '#fff1a8', lineWidth: 2 })
+  context.restore()
 }
 
 function drawCasinoCardBack(rect) {
@@ -559,8 +628,7 @@ function drawWarehouse() {
 
   const filterY = panelRect.y + 11
   const filterGap = 4
-  const pagerWidth = 82
-  const filterWidth = (panelRect.width - 24 - pagerWidth - filterGap * 4) / 5
+  const filterWidth = (panelRect.width - 24 - filterGap * 4) / 5
   const filters = [
     ['warehouse_filter_all', '全部', 'ALL'],
     ['warehouse_filter_weapon', '武器', 'WEAPON'],
@@ -578,43 +646,66 @@ function drawWarehouse() {
   })
 
   const filteredCards = warehouseCards()
-  const totalPages = Math.max(1, Math.ceil(filteredCards.length / CARD_PAGE_SIZE))
-  warehousePage = Math.min(warehousePage, totalPages - 1)
-  const visibleCards = filteredCards.slice(warehousePage * CARD_PAGE_SIZE, (warehousePage + 1) * CARD_PAGE_SIZE)
-  const pagerX = panelRect.x + panelRect.width - pagerWidth - 10
-  button('warehouse_page_prev', '‹', { x: pagerX, y: filterY, width: 25, height: 27 }, { top: '#554457', bottom: '#29212e', stroke: '#8f7a92', size: 16, radius: 7 })
-  text(`${warehousePage + 1}/${totalPages}`, pagerX + 41, filterY + 14, 8, '#d4c5d1', 'center', 'bold')
-  button('warehouse_page_next', '›', { x: pagerX + 57, y: filterY, width: 25, height: 27 }, { top: '#554457', bottom: '#29212e', stroke: '#8f7a92', size: 16, radius: 7 })
-  const gridTop = panelRect.y + 48
-  const detailHeight = 45
-  const gridBottom = panelRect.y + panelRect.height - detailHeight - 8
-  const columns = 5
-  const rows = 2
-  const gap = 8
-  const cardWidth = (panelRect.width - 24 - gap * (columns - 1)) / columns
-  const cardHeight = Math.max(56, (gridBottom - gridTop - gap) / rows)
-  visibleCards.forEach((card, index) => {
-    const column = index % columns
-    const row = Math.floor(index / columns)
-    const rect = {
-      x: panelRect.x + 12 + column * (cardWidth + gap),
-      y: gridTop + row * (cardHeight + gap),
-      width: cardWidth,
-      height: cardHeight
-    }
-    drawLoadoutCard(card, rect, warehouseSelection === card.cardId, 'WAREHOUSE')
-    ui.hotspots.push({ id: 'warehouse_card', rect, data: card.cardId })
+  const gridViewport = {
+    x: panelRect.x + 9,
+    y: panelRect.y + 46,
+    width: panelRect.width - 18,
+    height: panelRect.height - 55
+  }
+  const columns = gridViewport.width >= 900 ? 7 : gridViewport.width >= 700 ? 6 : 5
+  const grid = createVerticalCardGrid({
+    viewport: gridViewport,
+    count: filteredCards.length,
+    columns,
+    gap: 9,
+    padding: 7,
+    scrollY: warehouseScrollY
   })
+  warehouseScrollY = grid.scrollY
+  ui.warehouseScrollRect = gridViewport
+  ui.warehouseMaxScroll = grid.maxScroll
 
-  const selectedCard = cardById(warehouseSelection)
-  const detailY = panelRect.y + panelRect.height - detailHeight
-  context.fillStyle = 'rgba(255,255,255,.04)'
-  context.fillRect(panelRect.x + 1, detailY, panelRect.width - 2, detailHeight - 1)
-  text(selectedCard ? selectedCard.name : '卡牌详情', panelRect.x + 14, detailY + 14, 11, selectedCard ? cardColor(selectedCard) : '#b9a9b7', 'left', 'bold')
-  text(selectedCard ? cardMeta(selectedCard) : '点击真实卡面查看详情；仓库中的卡牌不会自动带入对局。', panelRect.x + 14, detailY + 31, 9, '#d4c5d1')
+  context.save()
+  roundedPath(gridViewport.x, gridViewport.y, gridViewport.width, gridViewport.height, 10)
+  context.clip()
+  grid.rects.forEach((rect, index) => {
+    if (!rectsIntersect(rect, gridViewport)) return
+    const card = filteredCards[index]
+    drawLoadoutCard(card, rect, false, 'WAREHOUSE')
+    ui.hotspots.push({ id: 'warehouse_card', rect: intersectionRect(rect, gridViewport), data: card.cardId })
+  })
+  context.restore()
+  drawScrollIndicator(gridViewport, grid.contentHeight, warehouseScrollY)
 
   button('warehouse_home', '返回首页', { x: 14, y: viewHeight - 43, width: 124, height: 31 }, { top: '#554653', bottom: '#2a222c', stroke: '#a692a4', size: 11 })
-  text(`当前分类 ${filteredCards.length} 张 · 第 ${warehousePage + 1}/${totalPages} 页`, viewWidth / 2, viewHeight - 28, 9, '#c6b8c8', 'center')
+  text(`当前分类 ${filteredCards.length} 张 · 上下滑动浏览 · 点击卡牌查看大图`, viewWidth / 2, viewHeight - 28, 9, '#c6b8c8', 'center')
+  drawWarehousePreview()
+}
+
+function drawWarehousePreview() {
+  const card = cardById(warehousePreviewCardId)
+  if (!card) return
+  context.fillStyle = 'rgba(7,4,12,.92)'
+  context.fillRect(0, 0, viewWidth, viewHeight)
+
+  const detailHeight = Math.min(112, viewHeight * 0.23)
+  const detailY = viewHeight - detailHeight - 10
+  const availableHeight = detailY - 22
+  const cardWidth = Math.min(viewWidth * 0.34, availableHeight * CARD_ASPECT_RATIO)
+  const cardHeight = cardWidth / CARD_ASPECT_RATIO
+  const cardRect = {
+    x: (viewWidth - cardWidth) / 2,
+    y: 12 + Math.max(0, (availableHeight - cardHeight) / 2),
+    width: cardWidth,
+    height: cardHeight
+  }
+  drawCardArt(card, cardRect, { radius: 14, inset: 3, stroke: '#ffe199', lineWidth: 2.5 })
+  text('点击屏幕任意位置返回仓库', viewWidth - 18, 19, 9, '#d8c6d4', 'right', 'bold')
+
+  panel(18, detailY, viewWidth - 36, detailHeight, { fill: 'rgba(32,20,38,.98)', stroke: '#d5a84e', lineWidth: 2, radius: 14 })
+  text(card.name, 34, detailY + 23, 16, cardColor(card), 'left', 'bold')
+  text(cardMeta(card), viewWidth - 34, detailY + 23, 10, '#ffe9bd', 'right', 'bold')
+  drawWrappedText(card.description || cardMeta(card), 34, detailY + 49, viewWidth - 68, 18, 10, '#d9cbd8', 3)
 }
 
 function drawLoadout() {
@@ -659,32 +750,42 @@ function drawLoadout() {
 
   panel(warehouseRect.x, warehouseRect.y, warehouseRect.width, warehouseRect.height, { fill: 'rgba(31,20,35,.94)', stroke: 'rgba(247,201,92,.74)', radius: 15 })
   text('玩家仓库', warehouseRect.x + 14, warehouseRect.y + 18, 14, PALETTE.paleGold, 'left', 'bold')
-  const loadoutPages = Math.max(1, Math.ceil(state.warehouseCardIds.length / CARD_PAGE_SIZE))
-  loadoutPage = Math.min(loadoutPage, loadoutPages - 1)
-  const loadoutPagerX = warehouseRect.x + warehouseRect.width - 88
-  button('loadout_page_prev', '‹', { x: loadoutPagerX, y: warehouseRect.y + 5, width: 23, height: 24 }, { top: '#554457', bottom: '#29212e', stroke: '#8f7a92', size: 15, radius: 6 })
-  text(`${loadoutPage + 1}/${loadoutPages}`, loadoutPagerX + 44, warehouseRect.y + 17, 8, '#d9cad8', 'center', 'bold')
-  button('loadout_page_next', '›', { x: loadoutPagerX + 65, y: warehouseRect.y + 5, width: 23, height: 24 }, { top: '#554457', bottom: '#29212e', stroke: '#8f7a92', size: 15, radius: 6 })
+  text(`${state.warehouseCardIds.length} 张 · 上下滑动`, warehouseRect.x + warehouseRect.width - 12, warehouseRect.y + 18, 8, '#c9b9ca', 'right', 'bold')
   ui.loadoutWarehouseDropRect = warehouseRect
   const detailHeight = 36
-  const gridTop = warehouseRect.y + 34
-  const gridHeight = warehouseRect.height - 42 - detailHeight
-  const columns = 5
-  const rows = 2
-  const cardGap = 6
-  const cardWidth = (warehouseRect.width - 20 - cardGap * (columns - 1)) / columns
-  const cardHeight = (gridHeight - cardGap) / rows
-  const visibleWarehouseIds = state.warehouseCardIds.slice(loadoutPage * CARD_PAGE_SIZE, (loadoutPage + 1) * CARD_PAGE_SIZE)
-  visibleWarehouseIds.forEach((cardId, index) => {
+  const gridViewport = {
+    x: warehouseRect.x + 7,
+    y: warehouseRect.y + 33,
+    width: warehouseRect.width - 14,
+    height: warehouseRect.height - 39 - detailHeight
+  }
+  const columns = gridViewport.width >= 540 ? 5 : 4
+  const grid = createVerticalCardGrid({
+    viewport: gridViewport,
+    count: state.warehouseCardIds.length,
+    columns,
+    gap: 6,
+    padding: 4,
+    scrollY: loadoutScrollY
+  })
+  loadoutScrollY = grid.scrollY
+  ui.loadoutWarehouseScrollRect = gridViewport
+  ui.loadoutWarehouseMaxScroll = grid.maxScroll
+  context.save()
+  roundedPath(gridViewport.x, gridViewport.y, gridViewport.width, gridViewport.height, 9)
+  context.clip()
+  grid.rects.forEach((rect, index) => {
+    if (!rectsIntersect(rect, gridViewport)) return
+    const cardId = state.warehouseCardIds[index]
     const card = cardById(cardId)
-    const column = index % columns
-    const row = Math.floor(index / columns)
-    const rect = { x: warehouseRect.x + 10 + column * (cardWidth + cardGap), y: gridTop + row * (cardHeight + cardGap), width: cardWidth, height: cardHeight }
     const selected = loadoutSelection && loadoutSelection.cardId === cardId && loadoutSelection.source === 'WAREHOUSE'
     drawLoadoutCard(card, rect, selected, 'WAREHOUSE')
-    ui.loadoutWarehouseRects.push({ ...rect, cardId })
-    ui.hotspots.push({ id: 'loadout_warehouse_card', rect, data: cardId })
+    const visibleRect = intersectionRect(rect, gridViewport)
+    ui.loadoutWarehouseRects.push({ ...visibleRect, cardId })
+    ui.hotspots.push({ id: 'loadout_warehouse_card', rect: visibleRect, data: cardId })
   })
+  context.restore()
+  drawScrollIndicator(gridViewport, grid.contentHeight, loadoutScrollY)
   if (state.warehouseCardIds.length === 0) text('仓库中暂无可选卡牌', warehouseRect.x + warehouseRect.width / 2, warehouseRect.y + warehouseRect.height / 2, 11, '#8e7e8c', 'center')
 
   const selectedCard = loadoutSelection && cardById(loadoutSelection.cardId)
@@ -747,6 +848,7 @@ function drawLoadout() {
   button('loadout_home', '返回首页', { x: 14, y: viewHeight - 45, width: 124, height: 32 }, { top: '#554653', bottom: '#2a222c', stroke: '#a692a4', size: 11 })
   text('可空手出发 · 推荐至少携带 1 张武器卡', viewWidth / 2, viewHeight - 28, 9, '#b9a9b8', 'center')
   button('loadout_match', '开始匹配', { x: viewWidth - 154, y: viewHeight - 47, width: 140, height: 35 }, { top: '#dc9f3a', bottom: '#882e25', stroke: '#ffe19a', size: 12 })
+  if (loadoutDragging) drawFloatingCard(cardById(loadoutDragging.cardId), loadoutDragPoint)
 }
 
 function beginMatchmaking() {
@@ -1676,14 +1778,7 @@ function drawSearchRoomPanel(rect) {
 
 function drawSearchDrag() {
   if (!searchDragging || !searchDragPoint) return
-  const width = Math.min(90, viewWidth * 0.11)
-  const rect = { x: searchDragPoint.x - width / 2, y: searchDragPoint.y - width * 0.68, width, height: width * 1.36 }
-  context.save()
-  context.globalAlpha = 0.92
-  context.shadowColor = '#ffd266'
-  context.shadowBlur = 18
-  drawCardArt(cardById(searchDragging.cardId), rect, { radius: 10, inset: 2, stroke: '#fff1a8', lineWidth: 2 })
-  context.restore()
+  drawFloatingCard(cardById(searchDragging.cardId), searchDragPoint)
 }
 
 function drawSearch(state) {
@@ -1814,6 +1909,10 @@ function draw() {
   ui.loadoutBackpackRects = []
   ui.loadoutWarehouseDropRect = null
   ui.loadoutBackpackDropRect = null
+  ui.loadoutWarehouseScrollRect = null
+  ui.loadoutWarehouseMaxScroll = 0
+  ui.warehouseScrollRect = null
+  ui.warehouseMaxScroll = 0
   ui.discardRect = null
   if (scene === 'LOADING') drawLoading()
   if (scene === 'HOME') drawHome()
@@ -1952,36 +2051,27 @@ function handleAction(action) {
   if (action.id === 'warehouse_home') setScene('HOME')
   if (action.id === 'warehouse_filter_all') {
     warehouseFilter = 'ALL'
-    warehousePage = 0
-    warehouseSelection = null
+    warehouseScrollY = 0
   }
   if (action.id === 'warehouse_filter_weapon') {
     warehouseFilter = 'WEAPON'
-    warehousePage = 0
-    warehouseSelection = null
+    warehouseScrollY = 0
   }
   if (action.id === 'warehouse_filter_armor') {
     warehouseFilter = 'ARMOR'
-    warehousePage = 0
-    warehouseSelection = null
+    warehouseScrollY = 0
   }
   if (action.id === 'warehouse_filter_skill') {
     warehouseFilter = 'SKILL'
-    warehousePage = 0
-    warehouseSelection = null
+    warehouseScrollY = 0
   }
   if (action.id === 'warehouse_filter_loot') {
     warehouseFilter = 'LOOT'
-    warehousePage = 0
-    warehouseSelection = null
+    warehouseScrollY = 0
   }
-  if (action.id === 'warehouse_page_prev') warehousePage = Math.max(0, warehousePage - 1)
-  if (action.id === 'warehouse_page_next') warehousePage = Math.min(Math.max(0, Math.ceil(warehouseCards().length / CARD_PAGE_SIZE) - 1), warehousePage + 1)
-  if (action.id === 'warehouse_card') warehouseSelection = action.data
+  if (action.id === 'warehouse_card') warehousePreviewCardId = action.data
   if (action.id === 'loadout_home') setScene('HOME')
   if (action.id === 'loadout_match') beginMatchmaking()
-  if (action.id === 'loadout_page_prev') loadoutPage = Math.max(0, loadoutPage - 1)
-  if (action.id === 'loadout_page_next') loadoutPage = Math.min(Math.max(0, Math.ceil(loadout.snapshot().warehouseCardIds.length / CARD_PAGE_SIZE) - 1), loadoutPage + 1)
   if (action.id === 'loadout_warehouse_card') {
     if (loadoutSelection && loadoutSelection.cardId === action.data && loadoutSelection.source === 'WAREHOUSE') addLoadoutCard(action.data)
     else loadoutSelection = { cardId: action.data, source: 'WAREHOUSE' }
@@ -2040,11 +2130,23 @@ function handleAction(action) {
 
 wx.onTouchStart(event => {
   const point = touchPoint(event, false)
+  if (scene === 'WAREHOUSE') {
+    warehouseGesture = { start: point, last: point, mode: warehousePreviewCardId ? 'PREVIEW' : 'PENDING' }
+    return
+  }
   if (scene === 'LOADOUT') {
     const warehouseCard = ui.loadoutWarehouseRects.find(rect => pointInRect(point, rect))
     const backpackCard = ui.loadoutBackpackRects.find(rect => pointInRect(point, rect))
-    if (warehouseCard) loadoutDragging = { cardId: warehouseCard.cardId, source: 'WAREHOUSE' }
-    else if (backpackCard) loadoutDragging = { cardId: backpackCard.cardId, source: 'BACKPACK' }
+    if (warehouseCard || backpackCard || pointInRect(point, ui.loadoutWarehouseScrollRect)) {
+      const card = warehouseCard || backpackCard
+      loadoutGesture = {
+        start: point,
+        last: point,
+        mode: 'PENDING',
+        cardId: card && card.cardId,
+        source: warehouseCard ? 'WAREHOUSE' : backpackCard ? 'BACKPACK' : 'WAREHOUSE_SCROLL'
+      }
+    }
     return
   }
   if (scene === 'GAME' && presentation === 'SEARCH') {
@@ -2060,13 +2162,55 @@ wx.onTouchStart(event => {
 })
 
 wx.onTouchMove(event => {
-  if (!searchDragging) return
-  searchDragPoint = touchPoint(event, false)
+  const point = touchPoint(event, false)
+  if (scene === 'WAREHOUSE' && warehouseGesture && warehouseGesture.mode !== 'PREVIEW') {
+    if (warehouseGesture.mode === 'PENDING' && Math.hypot(point.x - warehouseGesture.start.x, point.y - warehouseGesture.start.y) >= 7) warehouseGesture.mode = 'SCROLL'
+    if (warehouseGesture.mode === 'SCROLL') {
+      warehouseScrollY = clamp(warehouseScrollY + warehouseGesture.last.y - point.y, 0, ui.warehouseMaxScroll)
+    }
+    warehouseGesture.last = point
+    return
+  }
+  if (scene === 'LOADOUT' && loadoutGesture) {
+    if (loadoutGesture.mode === 'PENDING') {
+      if (!loadoutGesture.cardId) {
+        if (Math.hypot(point.x - loadoutGesture.start.x, point.y - loadoutGesture.start.y) >= 7) loadoutGesture.mode = 'SCROLL'
+      } else if (loadoutGesture.source === 'BACKPACK') {
+        if (Math.hypot(point.x - loadoutGesture.start.x, point.y - loadoutGesture.start.y) >= 7) loadoutGesture.mode = 'DRAG'
+      } else loadoutGesture.mode = classifyCardGesture(loadoutGesture.start, point)
+    }
+    if (loadoutGesture.mode === 'SCROLL') {
+      loadoutScrollY = clamp(loadoutScrollY + loadoutGesture.last.y - point.y, 0, ui.loadoutWarehouseMaxScroll)
+    }
+    if (loadoutGesture.mode === 'DRAG' && loadoutGesture.cardId) {
+      loadoutDragging = { cardId: loadoutGesture.cardId, source: loadoutGesture.source }
+      loadoutDragPoint = point
+    }
+    loadoutGesture.last = point
+    return
+  }
+  if (searchDragging) searchDragPoint = point
 })
 
 wx.onTouchEnd(event => {
   const point = touchPoint(event)
-  if (scene === 'LOADOUT' && loadoutDragging) {
+  if (scene === 'WAREHOUSE' && warehousePreviewCardId) {
+    warehousePreviewCardId = null
+    warehouseGesture = null
+    return
+  }
+  if (scene === 'WAREHOUSE' && warehouseGesture) {
+    const scrolled = warehouseGesture.mode === 'SCROLL'
+    warehouseGesture = null
+    if (scrolled) return
+  }
+  if (scene === 'LOADOUT' && loadoutGesture && loadoutGesture.mode === 'SCROLL') {
+    loadoutGesture = null
+    loadoutDragging = null
+    loadoutDragPoint = null
+    return
+  }
+  if (scene === 'LOADOUT' && loadoutGesture && loadoutGesture.mode === 'DRAG' && loadoutDragging) {
     let handled = false
     if (loadoutDragging.source === 'WAREHOUSE' && pointInRect(point, ui.loadoutBackpackDropRect)) {
       addLoadoutCard(loadoutDragging.cardId)
@@ -2076,9 +2220,13 @@ wx.onTouchEnd(event => {
       removeLoadoutCard(loadoutDragging.cardId)
       handled = true
     }
+    loadoutGesture = null
     loadoutDragging = null
-    if (handled) return
+    loadoutDragPoint = null
+    if (!handled) addToast('拖到目标区域即可移动卡牌。', 1000)
+    return
   }
+  if (scene === 'LOADOUT') loadoutGesture = null
   if (searchDragging) {
     const dragged = searchDragging
     searchDragging = null
