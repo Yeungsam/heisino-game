@@ -17,6 +17,7 @@ const {
 } = require('./api/search')
 const { cardAssetBaseUrl } = require('./config')
 const { createCardCatalogIndex, resolveCardAssetUrl } = require('./ui/card-art')
+const { createHomeLayout } = require('./ui/home-screen')
 const { searchTimerState, createSearchLayout } = require('./ui/search-room')
 const {
   CARD_ASPECT_RATIO,
@@ -62,7 +63,13 @@ const PALETTE = {
 }
 
 const assetSources = {
-  homeMenu: 'assets/home-menu.jpg',
+  homeBackground: 'assets/ui/home/background.jpg',
+  homeLogo: 'assets/ui/home/logo.png',
+  homeCharacter: 'assets/ui/home/character.png',
+  homeCat: 'assets/ui/home/cat.png',
+  homeShopButton: 'assets/ui/home/shop-button.png',
+  homeWarehouseButton: 'assets/ui/home/warehouse-button.png',
+  homeStartButton: 'assets/ui/home/start-button.png',
   home: 'assets/home.jpg',
   movementMap: 'assets/movement-map.jpg',
   map: 'assets/map.jpg',
@@ -388,13 +395,31 @@ function drawLoading() {
 }
 
 function drawHome() {
-  drawContainedBackdrop(assets.homeMenu, '#120b16')
-  const shopRect = containedSourceRect(assets.homeMenu, { x: 382, y: 590, width: 246, height: 112 })
-  const warehouseRect = containedSourceRect(assets.homeMenu, { x: 630, y: 590, width: 266, height: 112 })
-  const startRect = containedSourceRect(assets.homeMenu, { x: 900, y: 580, width: 356, height: 126 })
-  ui.hotspots.push({ id: 'home_shop', rect: shopRect })
-  ui.hotspots.push({ id: 'home_warehouse', rect: warehouseRect })
-  ui.hotspots.push({ id: 'home_start', rect: startRect })
+  drawCover(assets.homeBackground)
+  const layout = createHomeLayout(viewWidth, viewHeight)
+  const drawLayer = (image, rect) => {
+    if (image) context.drawImage(image, rect.x, rect.y, rect.width, rect.height)
+  }
+  drawLayer(assets.homeCharacter, layout.character)
+  drawLayer(assets.homeCat, layout.cat)
+  drawLayer(assets.homeLogo, layout.logo)
+  drawLayer(assets.homeShopButton, layout.buttons.shop)
+  drawLayer(assets.homeWarehouseButton, layout.buttons.warehouse)
+  drawLayer(assets.homeStartButton, layout.buttons.start)
+  Object.values(layout.labels).forEach(label => {
+    context.save()
+    context.fillStyle = '#fff1c1'
+    context.font = `900 ${label.size}px "Noto Serif SC", "Songti SC", serif`
+    context.textAlign = 'center'
+    context.textBaseline = 'middle'
+    context.shadowColor = 'rgba(54, 12, 10, .9)'
+    context.shadowBlur = Math.max(1, 3 * layout.scale)
+    context.fillText(label.text, label.x, label.y)
+    context.restore()
+  })
+  ui.hotspots.push({ id: 'home_shop', rect: layout.buttons.shop })
+  ui.hotspots.push({ id: 'home_warehouse', rect: layout.buttons.warehouse })
+  ui.hotspots.push({ id: 'home_start', rect: layout.buttons.start })
 }
 
 function enterLoadout() {
@@ -605,7 +630,7 @@ function warehouseFilterButton(id, label, filter, rect) {
 }
 
 function drawWarehouse() {
-  drawCover(assets.homeMenu)
+  drawCover(assets.homeBackground)
   darken(0.72, '13, 7, 24')
 
   const margin = Math.max(12, viewWidth * 0.055)
