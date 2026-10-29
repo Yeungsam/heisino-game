@@ -18,7 +18,14 @@ const {
 const { cardAssetBaseUrl } = require('./config')
 const { createCardCatalogIndex, resolveCardAssetUrl } = require('./ui/card-art')
 const { createHomeLayout, centeredTextBaseline } = require('./ui/home-screen')
-const { searchTimerState, createSearchLayout, createRoomLayout } = require('./ui/search-room')
+const {
+  SEARCH_ASSET_CROPS,
+  searchTimerState,
+  createSearchLayout,
+  createRoomLayout,
+  fitAspectRect,
+  createHudSafeLayout
+} = require('./ui/search-room')
 const {
   CARD_ASPECT_RATIO,
   clamp,
@@ -43,6 +50,12 @@ const {
 const canvas = wx.createCanvas()
 const context = canvas.getContext('2d')
 const windowInfo = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync()
+let menuButtonRect = null
+try {
+  menuButtonRect = wx.getMenuButtonBoundingClientRect ? wx.getMenuButtonBoundingClientRect() : null
+} catch (menuButtonError) {
+  menuButtonRect = null
+}
 const pixelRatio = windowInfo.pixelRatio || 1
 const viewWidth = windowInfo.windowWidth
 const viewHeight = windowInfo.windowHeight
@@ -404,6 +417,11 @@ function drawImageContainInRect(image, rect, radius = 7) {
   context.clip()
   context.drawImage(image, rect.x + (rect.width - width) / 2, rect.y + (rect.height - height) / 2, width, height)
   context.restore()
+}
+
+function drawImageSourceInRect(image, source, rect) {
+  if (!image || !source) return
+  context.drawImage(image, source.x, source.y, source.width, source.height, rect.x, rect.y, rect.width, rect.height)
 }
 
 function darken(alpha = 0.45, color = '0, 0, 0') {
@@ -1269,6 +1287,7 @@ function currentState() {
 
 function drawTopHud(state) {
   const local = state.players.find(player => player.id === 'P1')
+  const hudLayout = createHudSafeLayout(viewWidth, menuButtonRect)
   const gradient = context.createLinearGradient(0, 0, viewWidth, 0)
   gradient.addColorStop(0, 'rgba(110,17,31,.96)')
   gradient.addColorStop(0.55, 'rgba(34,20,40,.95)')
@@ -1292,7 +1311,7 @@ function drawTopHud(state) {
   text(`HP ${local.hp}/${local.maxHp}`, viewWidth * 0.48, 15, 11, '#fff5e3', 'center', 'bold')
   hpBar(viewWidth * 0.43, 29, viewWidth * 0.1, local.hp, local.maxHp)
   text(state.turn >= 10 ? '⚠ 警报圈生效' : '警报圈：第10轮', viewWidth * 0.66, 23, 11, state.turn >= 10 ? '#ff6c6c' : '#c7b8cc', 'center', 'bold')
-  text(`物资 ${formatGold(engine.inventoryValue('P1'))}`, viewWidth - 18, 23, 12, PALETTE.gold, 'right', 'bold')
+  text(`物资 ${formatGold(engine.inventoryValue('P1'))}`, hudLayout.resourceRight, 23, 12, PALETTE.gold, 'right', 'bold')
 }
 
 function formatGold(value) {
@@ -1787,7 +1806,10 @@ function drawDesignAsset(key, layout, sourceRect, options = {}) {
 
 function drawRoomArtwork() {
   const layout = createRoomLayout(viewWidth, viewHeight)
-  drawCover(assets.searchRoomBackground || assets.map)
+  const background = assets.searchRoomBackground || assets.map
+  drawCover(background)
+  darken(0.34, '9, 4, 14')
+  if (background) context.drawImage(background, layout.contentRect.x, layout.contentRect.y, layout.contentRect.width, layout.contentRect.height)
   drawDesignAsset('searchRoomChairLeft', layout, { x: 238, y: 461, width: 188, height: 229 }, { rotation: 0.85 })
   drawDesignAsset('searchRoomChairLeft', layout, { x: 899, y: 442, width: 201, height: 236 }, { rotation: -173.74, flipY: true })
   drawDesignAsset('searchRoomChairLeft', layout, { x: 620, y: 379, width: 242, height: 279 }, { rotation: 169.81, flipY: true })
@@ -1876,21 +1898,21 @@ function drawSearchInventoryPanel(rect) {
   if (assets.searchPanel) context.drawImage(assets.searchPanel, rect.x, rect.y, rect.width, rect.height)
   else panel(rect.x, rect.y, rect.width, rect.height, { fill: 'rgba(27,15,29,.94)', stroke: '#c9914b', lineWidth: 2, radius: 14 })
   const scale = createSearchLayout(viewWidth, viewHeight).scale
-  if (assets.searchBagIcon) context.drawImage(assets.searchBagIcon, rect.x + 54 * scale, rect.y + 22 * scale, 38 * scale, 42 * scale)
-  text(`玩家背包  ${searchVisitState ? searchVisitState.inventory.length : 0}/${C.BACKPACK_SLOTS}`, rect.x + 105 * scale, rect.y + 44 * scale, Math.max(10, 30 * scale), PALETTE.paleGold, 'left', 'bold')
+  if (assets.searchBagIcon) drawImageSourceInRect(assets.searchBagIcon, SEARCH_ASSET_CROPS.bagIcon, { x: rect.x + 52 * scale, y: rect.y + 25 * scale, width: 34 * scale, height: 37 * scale })
+  text(`玩家背包  ${searchVisitState ? searchVisitState.inventory.length : 0}/${C.BACKPACK_SLOTS}`, rect.x + 102 * scale, rect.y + 47 * scale, Math.max(10, 28 * scale), PALETTE.paleGold, 'left', 'bold')
   ui.searchInventoryRects = []
   const gridViewport = { x: rect.x + 54 * scale, y: rect.y + 101 * scale, width: rect.width - 108 * scale, height: rect.height - 174 * scale }
   const grid = createContainedCardGrid({ viewport: gridViewport, count: C.BACKPACK_SLOTS, columns: 5, gap: 10 * scale, padding: 2 * scale })
   ui.searchBackpackRect = gridViewport
   grid.rects.forEach((slot, index) => {
-    if (assets.searchSlot) context.drawImage(assets.searchSlot, slot.x, slot.y, slot.width, slot.height)
+    if (assets.searchSlot) drawImageSourceInRect(assets.searchSlot, SEARCH_ASSET_CROPS.slot, slot)
     else panel(slot.x, slot.y, slot.width, slot.height, { fill: 'rgba(255,255,255,.045)', stroke: 'rgba(236,201,126,.32)', radius: 7 })
     const item = searchVisitState && searchVisitState.inventory[index]
     if (item) {
-      drawCardArt(cardById(item.cardId), { x: slot.x + 4 * scale, y: slot.y + 5 * scale, width: slot.width - 8 * scale, height: slot.height - 10 * scale }, { radius: 7, inset: 1, stroke: 'rgba(255,226,157,.72)', lineWidth: 1 })
+      drawCardArt(cardById(item.cardId), fitAspectRect(slot, CARD_ASPECT_RATIO), { radius: 7, inset: 1, stroke: 'rgba(255,226,157,.72)', lineWidth: 1 })
       ui.searchInventoryRects.push({ ...slot, instanceId: item.instanceId, cardId: item.cardId })
     } else {
-      if (assets.searchSlotPattern) context.drawImage(assets.searchSlotPattern, slot.x + slot.width * 0.34, slot.y + slot.height * 0.34, slot.width * 0.32, slot.height * 0.32)
+      if (assets.searchSlotPattern) drawImageSourceInRect(assets.searchSlotPattern, SEARCH_ASSET_CROPS.slotPattern, { x: slot.x + slot.width * 0.35, y: slot.y + slot.height * 0.32, width: slot.width * 0.3, height: slot.height * 0.36 })
     }
   })
 }
@@ -1902,9 +1924,9 @@ function drawSearchRoomPanel(rect) {
   const activeArea = searchVisitState && searchVisitState.room.activeArea
   const visible = activeArea ? activeArea.visibleItems : []
   const itemCount = activeArea ? activeArea.itemCount : 0
-  if (assets.searchBriefcaseIcon) context.drawImage(assets.searchBriefcaseIcon, rect.x + 66 * scale, rect.y + 18 * scale, 40 * scale, 42 * scale)
-  text(`搜索物品  ${visible.length}/${itemCount}`, rect.x + 122 * scale, rect.y + 42 * scale, Math.max(10, 30 * scale), PALETTE.paleGold, 'left', 'bold')
-  text('每 2 秒揭示 1 件', rect.x + rect.width - 50 * scale, rect.y + 42 * scale, Math.max(7, 18 * scale), '#d8c1b6', 'right')
+  if (assets.searchBriefcaseIcon) drawImageSourceInRect(assets.searchBriefcaseIcon, SEARCH_ASSET_CROPS.briefcaseIcon, { x: rect.x + 58 * scale, y: rect.y + 29 * scale, width: 40 * scale, height: 32 * scale })
+  text(`搜索物品  ${visible.length}/${itemCount}`, rect.x + 112 * scale, rect.y + 47 * scale, Math.max(10, 28 * scale), PALETTE.paleGold, 'left', 'bold')
+  text('每 2 秒揭示 1 件', rect.x + rect.width - 54 * scale, rect.y + 47 * scale, Math.max(7, 17 * scale), '#d8c1b6', 'right')
   const gridWidth = rect.width - 104 * scale
   const slotGap = 10 * scale
   const slotPadding = 2 * scale
@@ -1923,15 +1945,15 @@ function drawSearchRoomPanel(rect) {
   context.clip()
   grid.rects.forEach((slot, index) => {
     if (!rectsIntersect(slot, gridViewport)) return
-    if (assets.searchSlot) context.drawImage(assets.searchSlot, slot.x, slot.y, slot.width, slot.height)
+    if (assets.searchSlot) drawImageSourceInRect(assets.searchSlot, SEARCH_ASSET_CROPS.slot, slot)
     const item = visible[index]
     if (item) {
-      const cardRect = { x: slot.x + 4 * scale, y: slot.y + 5 * scale, width: slot.width - 8 * scale, height: slot.height - 10 * scale }
+      const cardRect = fitAspectRect(slot, CARD_ASPECT_RATIO)
       drawCardArt(cardById(item.cardId), cardRect, { radius: 8, inset: 1, stroke: '#ffe09a', lineWidth: 1.5 })
       const visibleRect = intersectionRect(slot, gridViewport)
       if (visibleRect) ui.searchItemRects.push({ ...visibleRect, instanceId: item.instanceId, cardId: item.cardId })
     } else if (assets.searchSlotPattern) {
-      context.drawImage(assets.searchSlotPattern, slot.x + slot.width * 0.34, slot.y + slot.height * 0.34, slot.width * 0.32, slot.height * 0.32)
+      drawImageSourceInRect(assets.searchSlotPattern, SEARCH_ASSET_CROPS.slotPattern, { x: slot.x + slot.width * 0.35, y: slot.y + slot.height * 0.32, width: slot.width * 0.3, height: slot.height * 0.36 })
     }
   })
   context.restore()
