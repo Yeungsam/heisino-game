@@ -1,15 +1,21 @@
 const C = require('./constants')
 
+const LOADOUT_CATEGORIES = new Set(['WEAPON', 'ARMOR', 'SKILL'])
+
 class LoadoutSession {
   constructor(options) {
     this.cards = options.cards
     this.ownedCardIds = this.cards.map(card => card.cardId)
+    this.loadoutCardIds = new Set(this.cards
+      .filter(card => LOADOUT_CATEGORIES.has(String(card.category || '').toUpperCase()))
+      .map(card => card.cardId))
     this.selectedCardIds = []
     this.limit = options.limit || C.LOADOUT_CARD_LIMIT
   }
 
   add(cardId) {
     if (!this.ownedCardIds.includes(cardId)) return { ok: false, reason: 'NOT_OWNED' }
+    if (!this.loadoutCardIds.has(cardId)) return { ok: false, reason: 'LOADOUT_CATEGORY_NOT_ALLOWED' }
     if (this.selectedCardIds.includes(cardId)) return { ok: false, reason: 'ALREADY_SELECTED' }
     if (this.selectedCardIds.length >= this.limit) return { ok: false, reason: 'LOADOUT_FULL' }
     this.selectedCardIds.push(cardId)
@@ -23,7 +29,7 @@ class LoadoutSession {
   }
 
   warehouseCardIds() {
-    return this.ownedCardIds.filter(cardId => !this.selectedCardIds.includes(cardId))
+    return this.ownedCardIds.filter(cardId => this.loadoutCardIds.has(cardId) && !this.selectedCardIds.includes(cardId))
   }
 
   snapshot() {
@@ -37,4 +43,4 @@ class LoadoutSession {
   }
 }
 
-module.exports = { LoadoutSession }
+module.exports = { LOADOUT_CATEGORIES, LoadoutSession }

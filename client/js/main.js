@@ -567,7 +567,9 @@ function addLoadoutCard(cardId) {
     addToast('卡牌已放入行动背包。')
     return true
   }
-  addToast(result.reason === 'LOADOUT_FULL' ? '本次行动最多携带 4 张卡牌。' : '该卡牌无法放入背包。')
+  if (result.reason === 'LOADOUT_FULL') addToast('本次行动最多携带 4 张卡牌。')
+  else if (result.reason === 'LOADOUT_CATEGORY_NOT_ALLOWED') addToast('战备只可携带武器、防具或技能卡。')
+  else addToast('该卡牌无法放入背包。')
   return false
 }
 
@@ -751,7 +753,7 @@ function drawLoadout() {
 
   panel(warehouseRect.x, warehouseRect.y, warehouseRect.width, warehouseRect.height, { fill: 'rgba(31,20,35,.94)', stroke: 'rgba(247,201,92,.74)', radius: 15 })
   text('玩家仓库', warehouseRect.x + 14, warehouseRect.y + 18, 14, PALETTE.paleGold, 'left', 'bold')
-  text(`${state.warehouseCardIds.length} 张 · 上下滑动`, warehouseRect.x + warehouseRect.width - 12, warehouseRect.y + 18, 8, '#c9b9ca', 'right', 'bold')
+  text(`武器/防具/技能 · ${state.warehouseCardIds.length}张`, warehouseRect.x + warehouseRect.width - 12, warehouseRect.y + 18, 8, '#c9b9ca', 'right', 'bold')
   ui.loadoutWarehouseDropRect = warehouseRect
   const detailHeight = 36
   const gridViewport = {
@@ -787,7 +789,7 @@ function drawLoadout() {
   })
   context.restore()
   drawScrollIndicator(gridViewport, grid.contentHeight, loadoutScrollY)
-  if (state.warehouseCardIds.length === 0) text('仓库中暂无可选卡牌', warehouseRect.x + warehouseRect.width / 2, warehouseRect.y + warehouseRect.height / 2, 11, '#8e7e8c', 'center')
+  if (state.warehouseCardIds.length === 0) text('暂无可携带的武器、防具或技能卡', warehouseRect.x + warehouseRect.width / 2, warehouseRect.y + warehouseRect.height / 2, 11, '#8e7e8c', 'center')
 
   const selectedCard = loadoutSelection && cardById(loadoutSelection.cardId)
   const detailY = warehouseRect.y + warehouseRect.height - detailHeight

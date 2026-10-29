@@ -4,10 +4,19 @@ const cards = require('../client/data/cards')
 const C = require('../client/js/core/constants')
 const { LoadoutSession } = require('../client/js/core/loadout')
 
-test('战备仓库默认拥有当前版本全部卡牌', () => {
+test('玩家拥有全部卡牌，战备仓库仅展示武器、防具和技能', () => {
   const loadout = new LoadoutSession({ cards })
   assert.equal(loadout.snapshot().ownedCardIds.length, cards.length)
-  assert.deepEqual(loadout.snapshot().warehouseCardIds, cards.map(card => card.cardId))
+  const eligibleCardIds = cards.filter(card => card.category !== 'LOOT').map(card => card.cardId)
+  assert.deepEqual(loadout.snapshot().warehouseCardIds, eligibleCardIds)
+  assert.equal(loadout.snapshot().warehouseCardIds.length, 29)
+})
+
+test('物资卡不能通过战备逻辑放入行动背包', () => {
+  const loadout = new LoadoutSession({ cards })
+  const lootCard = cards.find(card => card.category === 'LOOT')
+  assert.equal(loadout.add(lootCard.cardId).reason, 'LOADOUT_CATEGORY_NOT_ALLOWED')
+  assert.deepEqual(loadout.snapshot().selectedCardIds, [])
 })
 
 test('行动战备最多携带4张且背包固定显示10格', () => {

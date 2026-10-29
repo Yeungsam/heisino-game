@@ -28,6 +28,16 @@ test('对局初始化为普通房间4件、中央金库10件、撤离点0件', a
   assert.equal(game.player.inventory.length, 1)
 })
 
+test('服务端建局时不接受物资卡作为战备', async () => {
+  const { service } = fixture()
+  const game = await service.createGame({
+    gameId: 'game-loadout-categories',
+    playerId: 'P1',
+    loadoutCardIds: ['wp_001', 'loot_001', 'ar_001', 'sk_001']
+  })
+  assert.deepEqual(game.player.inventory.map(item => item.cardId), ['wp_001', 'ar_001', 'sk_001'])
+})
+
 test('搜索观察每2秒曝光1件且一次最多展示2件', async () => {
   const { service, advance } = fixture()
   await service.createGame({ gameId: 'game-reveal', playerId: 'P1', loadoutCardIds: [], seed: 'reveal' })

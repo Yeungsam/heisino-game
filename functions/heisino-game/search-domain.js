@@ -5,6 +5,7 @@ const BACKPACK_SLOTS = 10
 const BOARD_SIZE = 5
 const VAULT_NODE_ID = 'n_2_2'
 const EXTRACTION_NODE_ID = 'n_4_4'
+const LOADOUT_CATEGORIES = new Set(['WEAPON', 'ARMOR', 'SKILL'])
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value))
@@ -37,6 +38,10 @@ function cardIdOf(card) {
 
 function isLootCard(card) {
   return (card.kind || '').toUpperCase() === 'LOOT' || (card.category || '').toUpperCase() === 'LOOT'
+}
+
+function isLoadoutCard(card) {
+  return LOADOUT_CATEGORIES.has(String(card.category || '').toUpperCase())
 }
 
 function error(code, statusCode = 400) {
@@ -72,8 +77,8 @@ class MemorySearchStore {
 class SearchGameService {
   constructor(options) {
     this.cards = options.cards || []
-    this.cardIds = new Set(this.cards.map(cardIdOf))
     this.lootCardIds = this.cards.filter(isLootCard).map(cardIdOf)
+    this.loadoutCardIds = new Set(this.cards.filter(isLoadoutCard).map(cardIdOf))
     this.store = options.store || new MemorySearchStore()
     this.now = options.now || (() => Date.now())
     if (this.lootCardIds.length === 0) throw error('LOOT_CATALOG_EMPTY', 500)
@@ -118,7 +123,7 @@ class SearchGameService {
     }
 
     const loadoutCardIds = Array.isArray(input.loadoutCardIds) ? input.loadoutCardIds : []
-    const inventory = loadoutCardIds.filter(cardId => this.cardIds.has(cardId)).slice(0, BACKPACK_SLOTS)
+    const inventory = loadoutCardIds.filter(cardId => this.loadoutCardIds.has(cardId)).slice(0, BACKPACK_SLOTS)
       .map(cardId => addItem(cardId, null, 'IN_INVENTORY', playerId).instanceId)
     const game = {
       gameId,
