@@ -17,7 +17,7 @@ const {
 } = require('./api/search')
 const { cardAssetBaseUrl } = require('./config')
 const { createCardCatalogIndex, resolveCardAssetUrl } = require('./ui/card-art')
-const { createHomeLayout } = require('./ui/home-screen')
+const { createHomeLayout, centeredTextBaseline } = require('./ui/home-screen')
 const { searchTimerState, createSearchLayout } = require('./ui/search-room')
 const {
   CARD_ASPECT_RATIO,
@@ -406,15 +406,20 @@ function drawHome() {
   drawLayer(assets.homeShopButton, layout.buttons.shop)
   drawLayer(assets.homeWarehouseButton, layout.buttons.warehouse)
   drawLayer(assets.homeStartButton, layout.buttons.start)
-  Object.values(layout.labels).forEach(label => {
+  Object.entries(layout.labels).forEach(([key, label]) => {
     context.save()
     context.fillStyle = '#fff1c1'
     context.font = `900 ${label.size}px "Noto Serif SC", "Songti SC", serif`
     context.textAlign = 'center'
-    context.textBaseline = 'middle'
+    const metrics = context.measureText(label.text)
+    const hasGlyphBounds = Number.isFinite(metrics.actualBoundingBoxAscent) && Number.isFinite(metrics.actualBoundingBoxDescent)
+    context.textBaseline = hasGlyphBounds ? 'alphabetic' : 'middle'
     context.shadowColor = 'rgba(54, 12, 10, .9)'
     context.shadowBlur = Math.max(1, 3 * layout.scale)
-    context.fillText(label.text, label.x, label.y)
+    const textY = hasGlyphBounds
+      ? centeredTextBaseline(layout.buttons[key], metrics)
+      : layout.buttons[key].y + layout.buttons[key].height / 2
+    context.fillText(label.text, label.x, textY)
     context.restore()
   })
   ui.hotspots.push({ id: 'home_shop', rect: layout.buttons.shop })

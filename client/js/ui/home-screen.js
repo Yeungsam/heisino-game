@@ -57,4 +57,9 @@ function createHomeLayout(viewWidth, viewHeight) {
   }
 }
 
-module.exports = { HOME_SOURCE_SIZE, HOME_LAYERS, HOME_LABELS, createHomeLayout }
+function centeredTextBaseline(rect, metrics) {
+  const centerY = rect.y + rect.height / 2
+  return centerY + (metrics.actualBoundingBoxAscent - metrics.actualBoundingBoxDescent) / 2
+}
+
+module.exports = { HOME_SOURCE_SIZE, HOME_LAYERS, HOME_LABELS, createHomeLayout, centeredTextBaseline }

@@ -2,7 +2,7 @@ const test = require('node:test')
 const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
-const { HOME_SOURCE_SIZE, HOME_LAYERS, HOME_LABELS, createHomeLayout } = require('../client/js/ui/home-screen')
+const { HOME_SOURCE_SIZE, HOME_LAYERS, HOME_LABELS, createHomeLayout, centeredTextBaseline } = require('../client/js/ui/home-screen')
 
 const clientRoot = path.join(__dirname, '..', 'client')
 
@@ -60,4 +60,13 @@ test('Figma 首页七个本地素材完整且小游戏目录低于4MiB', () => {
   ]
   assets.forEach(filename => assert.ok(fs.statSync(path.join(assetDirectory, filename)).size > 0))
   assert.ok(directorySize(clientRoot) < 4 * 1024 * 1024)
+})
+
+test('首页按钮文字按字形边界上下视觉居中', () => {
+  const rect = HOME_LAYERS.shop
+  const metrics = { actualBoundingBoxAscent: 30, actualBoundingBoxDescent: 8 }
+  const baseline = centeredTextBaseline(rect, metrics)
+  const glyphTop = baseline - metrics.actualBoundingBoxAscent
+  const glyphBottom = baseline + metrics.actualBoundingBoxDescent
+  assert.equal((glyphTop + glyphBottom) / 2, rect.y + rect.height / 2)
 })
