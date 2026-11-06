@@ -266,9 +266,11 @@ class SearchGameService {
       const visit = this.requireActiveVisit(game, input.visitId, input.playerId)
       this.advanceVisit(game, visit)
       if (!visit.observation || !visit.observation.active || !visit.observation.visibleItemIds.includes(input.instanceId)) throw error('ITEM_NOT_VISIBLE')
-      if (player.inventory.length >= BACKPACK_SLOTS) throw error('BACKPACK_FULL')
       const item = game.items.find(candidate => candidate.instanceId === input.instanceId)
       if (!item || item.nodeId !== visit.roomNodeId || item.areaId !== visit.observation.areaId || !['EXPOSED', 'DROPPED'].includes(item.state)) throw error('ITEM_UNAVAILABLE', 409)
+      const counts = {}
+      player.inventory.map(id => game.items.find(unit => unit.instanceId === id)).concat(item).forEach(unit => { counts[unit.cardId] = (counts[unit.cardId] || 0) + 1 })
+      if (Object.values(counts).reduce((total, count) => total + Math.ceil(count / 99), 0) > BACKPACK_SLOTS) throw error('BACKPACK_FULL')
       item.state = 'IN_INVENTORY'
       item.nodeId = null
       item.areaId = null

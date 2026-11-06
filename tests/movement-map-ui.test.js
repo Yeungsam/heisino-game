@@ -9,7 +9,9 @@ const {
   landmarkIconRect,
   roomRect,
   roomHighlightStyle,
+  roomInfoAt,
   roomTypeAt,
+  roomTypeForNode,
   pinTransitionOpacity
 } = require('../client/js/ui/movement-map')
 
@@ -59,9 +61,26 @@ test('房间网格不会侵入顶部HUD或右侧房间图例', () => {
 })
 
 test('特殊房间类型与规则坐标保持一致', () => {
-  assert.equal(roomTypeAt(2, 2), '地下金库')
-  assert.equal(roomTypeAt(4, 4), '白鸽撤离点')
-  assert.equal(roomTypeAt(0, 0), '复活点')
+  assert.equal(roomTypeAt(2, 2), '中央金库')
+  assert.equal(roomTypeAt(4, 4), '撤离点')
+  for (const [x, y] of [[0, 0], [4, 0], [0, 4]]) assert.equal(roomTypeAt(x, y), '出生点')
+})
+
+test('逐格匹配飞书房间地图，房间标题与地图标签共用同一名称', () => {
+  const expected = [
+    ['出生点', '会客厅', '监控室', '仓库', '出生点'],
+    ['会客厅', '医疗室', '会客厅', '监控室', '医疗室'],
+    ['监控室', '会客厅', '中央金库', '仓库', '会客厅'],
+    ['医疗室', '监控室', '仓库', '医疗室', '监控室'],
+    ['出生点', '仓库', '医疗室', '会客厅', '撤离点']
+  ]
+  expected.forEach((row, y) => row.forEach((name, x) => {
+    assert.equal(roomInfoAt(x, y).name, name)
+    assert.equal(roomTypeAt(x, y), name)
+    assert.equal(roomTypeForNode(`n_${x}_${y}`), name)
+  }))
+  assert.equal(roomTypeForNode('invalid'), '未知房间')
+  assert.equal(roomTypeForNode('n_5_0'), '未知房间')
 })
 
 test('中央金库宝箱与撤离出口图标位于对应房间内部', () => {

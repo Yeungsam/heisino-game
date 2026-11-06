@@ -70,11 +70,12 @@ test('背包满时拒绝拾取且物品留在房间', () => {
   game.submitMove('P3', { x: 4, y: 0 })
   game.resolveMoves()
   const player = game.getPlayer('P1')
+  const target = game.searchItemsFor('P1').find(candidate => candidate.state === 'HIDDEN')
+  const fillerIds = cards.filter(card => card.category === 'LOOT' && card.cardId !== target.cardId).map(card => card.cardId)
   while (player.inventory.length < C.BACKPACK_SLOTS) {
-    const filler = game.createItem('loot_001', null, 'IN_INVENTORY', 'P1')
+    const filler = game.createItem(fillerIds[player.inventory.length - 1], null, 'IN_INVENTORY', 'P1')
     player.inventory.push(filler.instanceId)
   }
-  const target = game.searchItemsFor('P1').find(candidate => candidate.state === 'HIDDEN')
   game.interactWithItem('P1', target.instanceId)
   const result = game.interactWithItem('P1', target.instanceId)
   assert.equal(result.reason, 'BACKPACK_FULL')
@@ -113,7 +114,7 @@ test('警报圈伤害使生命归零时立即战败', () => {
   assert.equal(game.players[0].hp, 0)
 })
 
-test('完成一轮战斗后武器耐久减少且不会低于零', () => {
+test('战斗后武器不再消耗耐久或因耐久销毁', () => {
   const { game } = createGame(11)
   game.players[0].position = { x: 1, y: 1 }
   game.players[1].position = { x: 1, y: 1 }
@@ -123,7 +124,8 @@ test('完成一轮战斗后武器耐久减少且不会低于零', () => {
   game.resolveMoves()
   weaponIds.forEach(instanceId => {
     const weapon = game.items.find(item => item.instanceId === instanceId)
-    assert.ok(weapon.durability >= 0 && weapon.durability <= 1)
+    assert.equal(Object.hasOwn(weapon, 'durability'), false)
+    assert.notEqual(weapon.state, 'DESTROYED')
   })
 })
 

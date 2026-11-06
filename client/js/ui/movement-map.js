@@ -23,12 +23,23 @@ const SOURCE_RECTS = Object.freeze({
   action: Object.freeze({ x: 1084, y: 608, width: 176, height: 50 })
 })
 
+const ROOM_TYPE_INFO = Object.freeze({
+  SPAWN: Object.freeze({ name: '出生点', color: '#ffd07a' }),
+  LOUNGE: Object.freeze({ name: '会客厅', color: '#efa4bb' }),
+  SECURITY: Object.freeze({ name: '监控室', color: '#9ccef9' }),
+  STORAGE: Object.freeze({ name: '仓库', color: '#f2ac7c' }),
+  MEDICAL: Object.freeze({ name: '医疗室', color: '#9fe1d0' }),
+  EXIT: Object.freeze({ name: '撤离点', color: '#c5d7ff' }),
+  VAULT: Object.freeze({ name: '中央金库', color: '#ffe192' })
+})
+
+// 飞书《房间地图说明》：从左到右、从上到下，按 [y][x] 取房间。
 const ROOM_TYPES = Object.freeze([
-  Object.freeze(['复活点', '赌博区域', '仓库', '赌博区域', '复活点']),
-  Object.freeze(['赌博区域', '表演后台', '赌博区域', '表演后台', '仓库']),
-  Object.freeze(['赌博区域', '复活点', '地下金库', '赌博区域', '仓库']),
-  Object.freeze(['赌博区域', '仓库', '赌博区域', '表演后台', '赌博区域']),
-  Object.freeze(['复活点', '赌博区域', '赌博区域', '仓库', '白鸽撤离点'])
+  Object.freeze(['SPAWN', 'LOUNGE', 'SECURITY', 'STORAGE', 'SPAWN']),
+  Object.freeze(['LOUNGE', 'MEDICAL', 'LOUNGE', 'SECURITY', 'MEDICAL']),
+  Object.freeze(['SECURITY', 'LOUNGE', 'VAULT', 'STORAGE', 'LOUNGE']),
+  Object.freeze(['MEDICAL', 'SECURITY', 'STORAGE', 'MEDICAL', 'SECURITY']),
+  Object.freeze(['SPAWN', 'STORAGE', 'MEDICAL', 'LOUNGE', 'EXIT'])
 ])
 
 function containedTransform(viewWidth, viewHeight, imageWidth = SOURCE_SIZE.width, imageHeight = SOURCE_SIZE.height) {
@@ -76,8 +87,19 @@ function roomRect(layout, x, y, inset = 0) {
   }
 }
 
+function roomInfoAt(x, y) {
+  if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || x >= 5 || y < 0 || y >= 5) return null
+  return ROOM_TYPE_INFO[ROOM_TYPES[y][x]]
+}
+
 function roomTypeAt(x, y) {
-  return ROOM_TYPES[y] && ROOM_TYPES[y][x] ? ROOM_TYPES[y][x] : '未知房间'
+  const room = roomInfoAt(x, y)
+  return room ? room.name : '未知房间'
+}
+
+function roomTypeForNode(nodeId) {
+  const coordinates = /^n_(\d+)_(\d+)$/.exec(nodeId)
+  return coordinates ? roomTypeAt(Number(coordinates[1]), Number(coordinates[2])) : '未知房间'
 }
 
 function roomHighlightStyle(state) {
@@ -119,11 +141,14 @@ module.exports = {
   LANDMARK_ROOMS,
   SOURCE_RECTS,
   ROOM_TYPES,
+  ROOM_TYPE_INFO,
   containedTransform,
   projectRect,
   createMovementLayout,
   roomRect,
+  roomInfoAt,
   roomTypeAt,
+  roomTypeForNode,
   roomHighlightStyle,
   landmarkIconRect,
   pinTransitionOpacity

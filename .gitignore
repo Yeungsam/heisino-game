@@ -6,3 +6,6 @@ coverage/
 # Local authentication/QR artifacts must never enter source control.
 feishu-auth-qr*.png
 client/project.private.config.json
+functions/heisino-account/runtime/
+.env
+.env.*

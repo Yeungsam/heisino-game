@@ -3,33 +3,28 @@ const C = require('./core/constants')
 const { GameEngine, positionKey } = require('./core/game-engine')
 const { MatchmakingSession } = require('./core/matchmaking')
 const { LoadoutSession } = require('./core/loadout')
-const { createSeededRng } = require('./core/rng')
+const { stackItems, quantitySlots } = require('./core/inventory')
+const accountApi = require('./api/account')
+const { formatDiagnostics } = require('./api/connection-diagnostics')
 const { fetchCardCatalog } = require('./api/cards')
-const {
-  createSearchGame,
-  startSearchVisit,
-  getSearchVisit,
-  observeSearch,
-  pickupSearchItem,
-  dropSearchItem,
-  finishSearchObservation,
-  leaveSearchRoom
-} = require('./api/search')
-const { cardAssetBaseUrl } = require('./config')
+const { cardAssetBaseUrl, gameApiBaseUrl } = require('./config')
 const { createCardCatalogIndex, resolveCardAssetUrl } = require('./ui/card-art')
+const { createNicknameInput } = require('./ui/nickname-input')
+const { createTapFeedback, createRenderScheduler, createMemo, createLayerCanvas } = require('./ui/render-performance')
 const { createHomeLayout, centeredTextBaseline } = require('./ui/home-screen')
 const {
   SEARCH_ASSET_CROPS,
   SEARCH_PANEL_NINE_SLICE,
   searchTimerState,
+  syncSearchDeadline,
   createSearchLayout,
   createRoomLayout,
   fitAspectRect,
   createHudSafeLayout,
   createSearchPanelContentLayout,
   createNineSliceGeometry,
-  nextSearchMagnifierIndex,
-  magnifierOrbitState
+  nextSearchRippleIndex,
+  searchRippleState
 } = require('./ui/search-room')
 const {
   CARD_ASPECT_RATIO,
@@ -49,11 +44,14 @@ const {
   roomRect,
   roomHighlightStyle,
   roomTypeAt,
+  roomInfoAt,
+  ROOM_TYPE_INFO,
+  roomTypeForNode,
   pinTransitionOpacity
 } = require('./ui/movement-map')
 
 const canvas = wx.createCanvas()
-const context = canvas.getContext('2d')
+let context = canvas.getContext('2d')
 const windowInfo = wx.getWindowInfo ? wx.getWindowInfo() : wx.getSystemInfoSync()
 let menuButtonRect = null
 try {
@@ -61,12 +59,25 @@ try {
 } catch (menuButtonError) {
   menuButtonRect = null
 }
-const pixelRatio = windowInfo.pixelRatio || 1
+const pixelRatio = Math.min(2, windowInfo.pixelRatio || 1)
 const viewWidth = windowInfo.windowWidth
 const viewHeight = windowInfo.windowHeight
 canvas.width = viewWidth * pixelRatio
 canvas.height = viewHeight * pixelRatio
 context.scale(pixelRatio, pixelRatio)
+const frameScheduler = createRenderScheduler(30)
+const tapFeedback = createTapFeedback()
+const memoText = createMemo(160)
+let frameCache = null
+let frameCacheContext = null
+try {
+  frameCache = createLayerCanvas(wx, canvas)
+  frameCacheContext = frameCache && frameCache.getContext('2d')
+} catch (_) { frameCache = null; frameCacheContext = null }
+let cachedFrameReady = false
+let roomArtworkCache = null
+let roomArtworkCacheDisabled = false
+function invalidateFrame() { frameScheduler.invalidate() }
 
 const PALETTE = {
   red: '#a51f2d',
@@ -106,7 +117,6 @@ const searchAssetSources = {
   searchRoomChairFront: 'subpackages/search/assets/room-chair-front.png',
   searchRoomTimerTrack: 'subpackages/search/assets/room-timer-track.png',
   searchRoomTimerFill: 'subpackages/search/assets/room-timer-fill.png',
-  searchRoomTimerWarning: 'subpackages/search/assets/room-timer-warning.png',
   searchPanel: 'subpackages/search/assets/search-panel.png',
   searchSlot: 'subpackages/search/assets/search-slot.png',
   searchSlotPattern: 'subpackages/search/assets/search-slot-pattern.png',
@@ -114,18 +124,45 @@ const searchAssetSources = {
   searchBriefcaseIcon: 'subpackages/search/assets/search-briefcase-icon.png',
   searchFinishButton: 'subpackages/search/assets/search-finish-button.png',
   searchProgressTrack: 'subpackages/search/assets/search-progress-track.png',
-  searchProgressFill: 'subpackages/search/assets/search-progress-fill.png',
-  searchMagnifier: 'subpackages/search/assets/search-magnifier.png'
+  searchProgressFill: 'subpackages/search/assets/search-progress-fill.png'
 }
 const assets = {}
 const cardImages = {}
-const PLAYER_ACCOUNT_GOLD = 12000
+let PLAYER_ACCOUNT_GOLD = 0
+let accountProfile = null
+let accountGame = null
+let accountSettlement = null
+let accountBusy = false
+let heartbeatInFlight = false
+let accountBusySince = 0
+let accountBusyLabel = ''
+let accountConnectionError = null
+let connectionDiagnosticsOpen = false
+let accountRevision = 0
+let accountLastHeartbeat = 0
+let accountBackground = false
+let profileNickname = ''
+let profileAvatarUrl = ''
+let profileAvatarImage = null
+let profileMessage = ''
+let profileConfirmationOpen = false
+let userInfoButton = null
+let pendingResume = false
+const nicknameInput = createNicknameInput(wx, {
+  onValue(value) { profileNickname = value; profileMessage = ''; invalidateFrame(); confirmProfileDraft() },
+  onError(message) { profileMessage = message; invalidateFrame() },
+  onVisibility(active) {
+    invalidateFrame()
+    if (userInfoButton && typeof userInfoButton[active ? 'hide' : 'show'] === 'function') userInfoButton[active ? 'hide' : 'show']()
+  }
+})
 let assetsLoaded = 0
 let baseAssetsReady = false
 let searchAssetsReady = false
 let searchAssetsPromise = null
 let cardCatalogReady = false
 let cardCatalogSource = 'LOADING'
+let pendingCardCatalog = null
 let scene = 'LOADING'
 let sceneEnteredAt = Date.now()
 let matchmaking = new MatchmakingSession()
@@ -152,19 +189,15 @@ let warehouseFilter = 'ALL'
 let warehouseScrollY = 0
 let warehousePreviewCardId = null
 let warehouseGesture = null
-let searchGameId = null
-let searchAuthority = 'LOCAL'
-let searchGameReadyPromise = null
+let searchAuthority = 'ACCOUNT'
 let searchVisitState = null
+let roomTimerAnchor = null
 let searchRequestPending = false
-let searchLastRefreshAt = 0
-let searchFinishedVisitId = null
-let searchInventoryIdMap = {}
 let searchDragging = null
 let searchDragPoint = null
 let searchRoomScrollY = 0
-let searchMagnifierSlotIndex = null
-let searchMagnifierChangedAt = 0
+let searchRippleSlotIndex = null
+let searchRippleStartedAt = 0
 let searchGesture = null
 
 const ui = {
@@ -189,9 +222,19 @@ const ui = {
 }
 
 function setScene(nextScene) {
+  invalidateFrame()
+  nicknameInput.close()
+  profileConfirmationOpen = false
+  if (userInfoButton) { userInfoButton.destroy(); userInfoButton = null }
   scene = nextScene
   sceneEnteredAt = Date.now()
   ui.hotspots = []
+  if (nextScene === 'PROFILE' && !profileNickname) {
+    const enteredAt = sceneEnteredAt
+    setTimeout(() => {
+      if (scene === 'PROFILE' && sceneEnteredAt === enteredAt && !profileNickname) inputNickname()
+    }, 0)
+  }
 }
 
 function loadAssets() {
@@ -199,6 +242,7 @@ function loadAssets() {
     const image = wx.createImage()
     image.onload = () => {
       assets[key] = image
+      invalidateFrame()
       assetsLoaded += 1
       if (assetsLoaded === Object.keys(assetSources).length) {
         baseAssetsReady = true
@@ -206,6 +250,7 @@ function loadAssets() {
       }
     }
     image.onerror = () => {
+      invalidateFrame()
       assetsLoaded += 1
       if (assetsLoaded === Object.keys(assetSources).length) {
         baseAssetsReady = true
@@ -224,9 +269,11 @@ function loadSearchAssets() {
       const entries = Object.entries(searchAssetSources)
       let completed = 0
       const finish = () => {
+        invalidateFrame()
         completed += 1
         if (completed !== entries.length) return
         searchAssetsReady = true
+        roomArtworkCache = null
         resolve()
       }
       entries.forEach(([key, source]) => {
@@ -247,7 +294,232 @@ function loadSearchAssets() {
 
 function finishBoot() {
   if (scene !== 'LOADING' || !baseAssetsReady || !cardCatalogReady) return
-  setTimeout(() => setScene('HOME'), 350)
+  connectAccount()
+}
+
+function accountError(error) {
+  const messages = {
+    ACCOUNT_UNAVAILABLE: '游戏账号服务暂不可用，请稍后重试。',
+    DOMAIN_NOT_ALLOWED: '微信拦截了账号服务域名，请查看连接诊断。后台已配置时，也需核对当前账号与手机端配置。',
+    WECHAT_NOT_CONFIGURED: '微信登录尚未配置，请联系开发者完成服务端配置。',
+    MODERATION_UNAVAILABLE: '昵称审核服务暂不可用，请稍后重试。',
+    NICKNAME_INVALID: '昵称须为 2–16 个汉字、字母、数字或下划线。',
+    NICKNAME_RESERVED: '该昵称包含保留称谓，请换一个。',
+    NICKNAME_REJECTED: '昵称未通过内容检查，请换一个。',
+    NOT_OWNED: '仓库数量不足，请重新选择战备。',
+    STALE_TURN: '回合已推进，已刷新最新状态。',
+    BACKPACK_FULL: '背包已满，物品仍留在房间。',
+    AREA_FULL: '该搜索区域已满。',
+    ACTIVE_GAME_EXISTS: '有未完成的对局，请先恢复。'
+  }
+  return messages[error.code] || '连接失败，请检查网络后重试。'
+}
+
+async function connectAccount() {
+  if (accountBusy) return
+  beginAccountRequest('连接微信账号…')
+  accountConnectionError = null
+  profileMessage = '正在连接微信账号…'
+  try {
+    const response = await accountApi.login()
+    applyAccountResponse(response)
+    if (response.profile.profileComplete) loadSearchAssets()
+    if (!accountProfile.profileComplete) setScene('PROFILE')
+    else if (response.activeGame) resumeAccountGame()
+    else if (response.lastSettlement && !response.lastSettlement.acknowledged) { pendingResume = true; applyAccountResponse(response); setScene('GAME'); presentation = 'SETTLEMENT' }
+    else setScene('HOME')
+    profileMessage = ''
+  } catch (error) {
+    accountConnectionError = error
+    profileMessage = accountError(error)
+    setScene('LOGIN')
+    if (error.code === 'DOMAIN_NOT_ALLOWED') showConnectionDiagnostics()
+  } finally { endAccountRequest() }
+}
+
+function beginAccountRequest(label) {
+  accountBusy = true
+  accountBusySince = Date.now()
+  accountBusyLabel = label
+  invalidateFrame()
+}
+
+function endAccountRequest() {
+  accountBusy = false
+  invalidateFrame()
+}
+
+function showConnectionDiagnostics() {
+  if (connectionDiagnosticsOpen || !accountConnectionError || !wx.showModal) return
+  connectionDiagnosticsOpen = true
+  try {
+    wx.showModal({ title: '账号连接诊断', content: formatDiagnostics(accountConnectionError, wx, gameApiBaseUrl),
+      showCancel: false, confirmText: '知道了', complete() { connectionDiagnosticsOpen = false } })
+  } catch (_) { connectionDiagnosticsOpen = false }
+}
+
+function applyAccountResponse(response) {
+  if (!response || response.revision < accountRevision) return
+  invalidateFrame()
+  accountLastHeartbeat = Date.now()
+  accountRevision = response.revision
+  const previousGame = accountGame
+  const changedAssets = !accountProfile || JSON.stringify(accountProfile.quantities) !== JSON.stringify(response.profile.quantities)
+  accountProfile = response.profile
+  if (!profileAvatarImage && accountProfile.avatarUrl) {
+    const image = wx.createImage()
+    image.onload = () => { profileAvatarImage = image; invalidateFrame() }
+    image.src = accountProfile.avatarUrl
+  }
+  PLAYER_ACCOUNT_GOLD = accountProfile.gold
+  if (changedAssets) loadout = new LoadoutSession({ cards, quantities: accountProfile.quantities })
+  accountGame = response.activeGame
+  accountSettlement = response.lastSettlement
+  if (accountGame) {
+    if (!engine || !previousGame || previousGame.gameId !== accountGame.gameId || engine.cards !== cards) engine = new GameEngine({ cards })
+    Object.assign(engine, accountGame.state)
+    const receivedAt = Date.now()
+    const clockOffset = receivedAt - response.serverNow
+    engine.moveDeadlineAt += clockOffset
+    engine.turnDeadlineAt += clockOffset
+    searchAuthority = 'ACCOUNT'
+    const search = accountGame.search
+    roomTimerAnchor = search ? syncSearchDeadline(roomTimerAnchor, search.visit, response.serverNow, receivedAt) : null
+    searchVisitState = search ? { ...search, visit: {
+      ...search.visit,
+      deadlineAt: roomTimerAnchor.localDeadlineAt,
+      observation: search.visit.observation && {
+        ...search.visit.observation,
+        startedAt: search.visit.observation.startedAt + clockOffset
+      }
+    } } : null
+    if (previousGame && previousGame.state.turn !== accountGame.state.turn) {
+      selectedMove = null
+      activeBattle = null
+      presentation = 'MAP'
+      searchRippleSlotIndex = null
+      searchRoomScrollY = 0
+    } else if (previousGame && previousGame.state.phase === 'MOVE_SELECTION' && engine.phase !== 'MOVE_SELECTION') decidePostMove()
+  } else if (accountSettlement && (scene === 'GAME' || pendingResume)) {
+    engine = new GameEngine({ cards })
+    Object.assign(engine, accountSettlement.state)
+    engine.phase = 'GAME_OVER'
+    searchVisitState = null
+    roomTimerAnchor = null
+    presentation = 'SETTLEMENT'
+  }
+}
+
+function resumeAccountGame() {
+  pendingResume = true
+  loadSearchAssets()
+  setScene('GAME')
+  if (!accountGame) { presentation = 'SETTLEMENT'; return }
+  movementPinPosition = { ...engine.getPlayer('P1').position }
+  if (engine.phase === 'MOVE_SELECTION') presentation = 'MAP'
+  else presentation = searchVisitState && searchVisitState.visit.observation && searchVisitState.visit.observation.active ? 'SEARCH' : 'ROOM'
+}
+
+async function accountAction(action, extra = {}) {
+  if (!accountGame) return false
+  if (accountBusy) { addToast('上一操作处理中，请稍候。', 900); return false }
+  beginAccountRequest('正在同步操作…')
+  try {
+    applyAccountResponse(await accountApi.command('game', { gameId: accountGame.gameId, turn: accountGame.state.turn, action, ...extra }))
+    return true
+  } catch (error) {
+    addToast(accountError(error), 2200)
+    try { applyAccountResponse(await accountApi.command('resume')) } catch (_) {}
+    return false
+  } finally { endAccountRequest() }
+}
+
+async function heartbeatAccount() {
+  if (accountBusy || heartbeatInFlight || accountBackground || !accountGame) return
+  heartbeatInFlight = true
+  try { applyAccountResponse(await accountApi.command('heartbeat')) } catch (_) { addToast('连接中断，10 分钟内重进可恢复。', 1500) }
+  finally { heartbeatInFlight = false }
+}
+
+function inputNickname() {
+  if (accountBusy || profileConfirmationOpen) return
+  nicknameInput.open(profileNickname)
+}
+
+function confirmProfileDraft() {
+  if (scene !== 'PROFILE' || profileConfirmationOpen || typeof wx.showModal !== 'function') return
+  const nickname = profileNickname
+  profileConfirmationOpen = true
+  const finish = () => { profileConfirmationOpen = false }
+  try {
+    wx.showModal({ title: '确认游戏身份',
+      content: `游戏昵称：${nickname}\n${profileAvatarUrl ? '使用已选择的微信头像。' : '使用默认头像，不获取微信头像。'}\n当前版本创建后暂不能修改昵称。`,
+      confirmText: '确认创建', cancelText: '返回修改',
+      success(result) {
+        finish()
+        if (result.confirm && scene === 'PROFILE' && profileNickname === nickname) saveProfile()
+      },
+      fail() { finish(); profileMessage = '昵称已填入，请点击下方确认按钮完成内容审核。' }
+    })
+  } catch (_) { finish(); profileMessage = '昵称已填入，请点击下方确认按钮完成内容审核。' }
+}
+
+async function saveProfile() {
+  if (accountBusy || nicknameInput.active || profileConfirmationOpen) return
+  beginAccountRequest('正在检查昵称…')
+  profileMessage = '正在检查昵称…'
+  try {
+    applyAccountResponse(await accountApi.command('profile', { nickname: profileNickname, avatarUrl: profileAvatarUrl }))
+    profileMessage = ''
+    setScene('HOME')
+    loadSearchAssets()
+  } catch (error) { profileMessage = accountError(error) }
+  finally { endAccountRequest() }
+}
+
+function drawAccountSetup() {
+  drawCover(assets.homeBackground)
+  darken(0.76)
+  const width = Math.min(530, viewWidth - 32)
+  const x = (viewWidth - width) / 2
+  const y = Math.max(12, (viewHeight - 325) / 2)
+  panel(x, y, width, Math.min(325, viewHeight - 24), { fill: 'rgba(30,18,37,.97)', stroke: PALETTE.gold })
+  text(scene === 'LOGIN' ? '连接游戏账号' : '创建你的赌场身份', viewWidth / 2, y + 30, 20, PALETTE.paleGold, 'center', 'bold')
+  if (scene === 'LOGIN') {
+    drawWrappedText(profileMessage, x + 24, y + 90, width - 48, 22, 12, '#f5d4c8', 4)
+    button('account_retry', accountBusy ? '连接中…' : '重试微信登录', { x: x + width / 2 - 90, y: y + 220, width: 180, height: 38 })
+    if (accountConnectionError) button('account_diagnostics', '查看连接诊断', { x: x + width / 2 - 90, y: y + 267, width: 180, height: 30 }, { size: 11 })
+    return
+  }
+  const avatar = { x: x + 30, y: y + 66, width: 60, height: 60 }
+  panel(avatar.x, avatar.y, avatar.width, avatar.height, { radius: 30, fill: '#4b304b' })
+  if (profileAvatarImage) context.drawImage(profileAvatarImage, avatar.x + 2, avatar.y + 2, 56, 56)
+  else text('♠', avatar.x + 30, avatar.y + 30, 33, PALETTE.gold, 'center')
+  text('头像和昵称授权可跳过', x + 108, y + 78, 12, '#f5e2bc')
+  text('不获取手机号、位置等信息', x + 108, y + 102, 10, '#c7b5c7')
+  const rect = { x: x + 24, y: y + 140, width: width - 48, height: 39 }
+  button('profile_name', profileNickname || '输入或修改游戏昵称', rect, { size: 13 })
+  text('2–16 个汉字、字母、数字或下划线', x + 24, y + 194, 10, '#d7c5d3')
+  drawWrappedText(profileMessage || '未授权时使用默认头像，昵称需通过检查。', x + 24, y + 215, width - 48, 17, 10, '#ffcf9f', 2)
+  button('profile_save', accountBusy ? '检查中…' : '确认昵称并进入游戏', { x: x + 24, y: y + 264, width: width - 48, height: 35 }, { size: 12 })
+  if (!userInfoButton && !nicknameInput.active && wx.createUserInfoButton) {
+    try {
+      userInfoButton = wx.createUserInfoButton({ type: 'text', text: '使用微信头像昵称（可选）',
+        style: { left: x + width - 230, top: y + 114, width: 206, height: 24, lineHeight: 24, backgroundColor: '#663844', color: '#fff0d6', fontSize: 10, textAlign: 'center', borderRadius: 6 } })
+      userInfoButton.onTap(result => {
+        invalidateFrame()
+        if (!result.userInfo) { profileMessage = '已跳过授权，请输入游戏昵称。'; return }
+        profileNickname = result.userInfo.nickName && result.userInfo.nickName !== '微信用户' ? result.userInfo.nickName : ''
+        profileAvatarUrl = result.userInfo.avatarUrl || ''
+        if (profileAvatarUrl) {
+          const image = wx.createImage()
+          image.onload = () => { profileAvatarImage = image; invalidateFrame() }
+          image.src = profileAvatarUrl
+        }
+        profileMessage = profileNickname ? '请确认昵称，或点击修改后进入游戏。' : '微信未返回可用昵称，请输入游戏昵称。'
+      })
+    } catch (_) { profileMessage = '当前环境不支持资料授权，请输入游戏昵称。' }
+  }
 }
 
 function beginCardImageLoad(card, record) {
@@ -261,6 +533,7 @@ function beginCardImageLoad(card, record) {
     record.status = 'READY'
     record.ready = true
     record.failed = false
+    invalidateFrame()
   }
   image.onerror = error => {
     record.status = 'FAILED'
@@ -268,6 +541,7 @@ function beginCardImageLoad(card, record) {
     record.failed = true
     record.error = error
     record.retryAt = Date.now() + 2000 * record.attempts
+    invalidateFrame()
     console.error(`[card-art] failed to load ${card.cardId}: ${record.url}`)
   }
   image.src = record.url
@@ -292,18 +566,26 @@ function cardById(cardId) {
 }
 
 function applyCardCatalog(nextCards, source) {
+  invalidateFrame()
   cards = nextCards
   cardsById = createCardCatalogIndex(cards)
-  loadout = new LoadoutSession({ cards })
+  loadout = new LoadoutSession({ cards, quantities: accountProfile ? accountProfile.quantities : {} })
   cardCatalogSource = source
   cardCatalogReady = true
   finishBoot()
 }
 
 function loadCardCatalog() {
+  // The bundled, validated catalog is usable immediately. A slow catalog GET
+  // must not serialize before wx.login; never change cards mid-match/loadout.
+  applyCardCatalog(bundledCards, 'LOCAL_CACHE')
   fetchCardCatalog()
-    .then(catalog => applyCardCatalog(catalog.cards, 'SERVER'))
-    .catch(() => applyCardCatalog(bundledCards, 'LOCAL_CACHE'))
+    .then(catalog => {
+      if (JSON.stringify(catalog.cards) === JSON.stringify(cards)) { cardCatalogSource = 'SERVER'; invalidateFrame(); return }
+      if (accountGame || ['LOADOUT', 'MATCHING', 'MATCH_FOUND', 'GAME'].includes(scene)) pendingCardCatalog = catalog.cards
+      else applyCardCatalog(catalog.cards, 'SERVER')
+    })
+    .catch(() => {})
 }
 
 function roundedPath(x, y, width, height, radius = 12) {
@@ -332,12 +614,13 @@ function panel(x, y, width, height, options = {}) {
   context.restore()
 }
 
-function text(value, x, y, size = 14, color = PALETTE.cream, align = 'left', weight = 'normal') {
+function text(value, x, y, size = 14, color = PALETTE.cream, align = 'left', weight = 'normal', maxWidth) {
   context.fillStyle = color
   context.font = `${weight} ${size}px sans-serif`
   context.textAlign = align
   context.textBaseline = 'middle'
-  context.fillText(String(value), x, y)
+  if (maxWidth === undefined) context.fillText(String(value), x, y)
+  else if (maxWidth > 0) context.fillText(String(value), x, y, maxWidth)
 }
 
 function button(id, label, rect, options = {}) {
@@ -458,6 +741,7 @@ function hpBar(x, y, width, hp, maxHp, color = PALETTE.brightRed) {
 }
 
 function addToast(message, duration = 1800) {
+  invalidateFrame()
   toast = message
   toastUntil = Date.now() + duration
 }
@@ -519,9 +803,19 @@ function drawHome() {
   ui.hotspots.push({ id: 'home_shop', rect: layout.buttons.shop })
   ui.hotspots.push({ id: 'home_warehouse', rect: layout.buttons.warehouse })
   ui.hotspots.push({ id: 'home_start', rect: layout.buttons.start })
+  if (accountProfile) {
+    panel(12, 10, 200, 42, { fill: 'rgba(25,14,31,.88)', stroke: '#b98d4d' })
+    if (profileAvatarImage) context.drawImage(profileAvatarImage, 18, 15, 32, 32)
+    else text('♠', 34, 31, 24, PALETTE.gold, 'center')
+    text(accountProfile.nickname, 59, 24, 11, '#fff0ca', 'left', 'bold')
+    text(`金币 ${accountProfile.gold}`, 59, 41, 9, '#dec492')
+  }
 }
 
 function enterLoadout() {
+  if (pendingCardCatalog && !accountGame) { applyCardCatalog(pendingCardCatalog, 'SERVER'); pendingCardCatalog = null }
+  if (!accountProfile || !accountProfile.profileComplete) return
+  if (accountGame) { resumeAccountGame(); return }
   loadoutSelection = null
   loadoutDragging = null
   loadoutDragPoint = null
@@ -550,8 +844,8 @@ function cardColor(card) {
 }
 
 function cardMeta(card) {
-  if (card.category === 'WEAPON') return `武器卡 · 攻击倍率 ${Math.round((card.attackMultiplier || 0) * 100)}% · 耐久 ${card.maxDurability}/${card.maxDurability}`
-  if (card.category === 'ARMOR') return `防具卡 · 耐久 ${card.maxDurability}/${card.maxDurability}`
+  if (card.category === 'WEAPON') return `武器卡 · 攻击倍率 ${Math.round((card.attackMultiplier || 0) * 100)}%`
+  if (card.category === 'ARMOR') return '防具卡'
   if (card.category === 'SKILL') return `技能卡 · ${card.description}`
   return `物资卡 · ${card.value !== null ? formatGold(card.value) : '价值待定'}`
 }
@@ -562,17 +856,17 @@ function drawWrappedText(value, x, y, maxWidth, lineHeight, size = 10, color = P
   context.fillStyle = color
   context.textAlign = 'left'
   context.textBaseline = 'middle'
-  const characters = Array.from(String(value || ''))
-  const lines = []
-  let line = ''
-  characters.forEach(character => {
-    const candidate = line + character
-    if (line && context.measureText(candidate).width > maxWidth) {
-      lines.push(line)
-      line = character
-    } else line = candidate
+  const lines = memoText(JSON.stringify([String(value || ''), maxWidth, size]), () => {
+    const result = []
+    let line = ''
+    for (const character of Array.from(String(value || ''))) {
+      const candidate = line + character
+      if (line && context.measureText(candidate).width > maxWidth) { result.push(line); line = character }
+      else line = candidate
+    }
+    if (line) result.push(line)
+    return result
   })
-  if (line) lines.push(line)
   lines.slice(0, maxLines).forEach((content, index) => {
     const clipped = index === maxLines - 1 && lines.length > maxLines ? `${content.slice(0, -1)}…` : content
     context.fillText(clipped, x, y + index * lineHeight)
@@ -664,7 +958,12 @@ function drawCasinoCardBack(rect) {
   context.restore()
 }
 
-function drawLoadoutCard(card, rect, selected, location) {
+function drawQuantity(rect, quantity) {
+  panel(rect.x + rect.width - 29, rect.y + 2, 27, 16, { radius: 4, fill: 'rgba(10,6,14,.92)', stroke: '#e6c379' })
+  text(`×${quantity}`, rect.x + rect.width - 15, rect.y + 10, 9, '#fff0cf', 'center', 'bold')
+}
+
+function drawLoadoutCard(card, rect, selected, location, quantity) {
   const color = cardColor(card)
   drawCardArt(card, rect, { stroke: selected ? PALETTE.paleGold : color, lineWidth: selected ? 2.5 : 1.2 })
   context.save()
@@ -682,6 +981,7 @@ function drawLoadoutCard(card, rect, selected, location) {
     text('已携带', rect.x + rect.width / 2, rect.y + rect.height - 9, 7, '#9ff0c5', 'center', 'bold')
   }
   context.restore()
+  if (quantity !== undefined) drawQuantity(rect, quantity)
 }
 
 function addLoadoutCard(cardId) {
@@ -708,12 +1008,9 @@ function removeLoadoutCard(cardId) {
 }
 
 function warehouseCards() {
-  const ownedCardIds = loadout.snapshot().ownedCardIds
-  return cards.filter(card => {
-    if (!ownedCardIds.includes(card.cardId)) return false
-    if (warehouseFilter !== 'ALL') return card.category === warehouseFilter
-    return true
-  })
+  return quantitySlots(accountProfile ? accountProfile.quantities : {})
+    .map(slot => ({ ...cardById(slot.cardId), quantity: slot.quantity }))
+    .filter(card => warehouseFilter === 'ALL' || card.category === warehouseFilter)
 }
 
 function warehouseFilterButton(id, label, filter, rect) {
@@ -751,7 +1048,7 @@ function drawWarehouse() {
   context.stroke()
   text('玩 家 仓 库', 16, 21, 18, PALETTE.paleGold, 'left', 'bold')
   text('查看当前账号持有的全部卡牌', viewWidth / 2, 21, 10, '#d6c7d8', 'center')
-  text(`拥有 ${loadout.snapshot().ownedCardIds.length}/${cards.length} · ${cardCatalogSource === 'SERVER' ? '云端卡库' : '本地缓存'}`, viewWidth - 16, 21, 9, cardCatalogSource === 'SERVER' ? '#9fe5c2' : '#ffd47d', 'right', 'bold')
+  text(`拥有 ${loadout.ownedCardIds.length}/${cards.length} · ${cardCatalogSource === 'SERVER' ? '云端卡库' : '本地缓存'}`, viewWidth - 16, 21, 9, cardCatalogSource === 'SERVER' ? '#9fe5c2' : '#ffd47d', 'right', 'bold')
 
   const filterY = panelRect.y + 11
   const filterGap = 4
@@ -798,7 +1095,7 @@ function drawWarehouse() {
   grid.rects.forEach((rect, index) => {
     if (!rectsIntersect(rect, gridViewport)) return
     const card = filteredCards[index]
-    drawLoadoutCard(card, rect, false, 'WAREHOUSE')
+    drawLoadoutCard(card, rect, false, 'WAREHOUSE', card.quantity)
     ui.hotspots.push({ id: 'warehouse_card', rect: intersectionRect(rect, gridViewport), data: card.cardId })
   })
   context.restore()
@@ -849,6 +1146,10 @@ function drawLoadout() {
   const warehouseRect = { x: npcRect.x + npcRect.width + gap, y: top, width: warehouseWidth, height: contentHeight }
   const backpackRect = { x: warehouseRect.x + warehouseRect.width + gap, y: top, width: backpackWidth, height: contentHeight }
   const state = loadout.snapshot()
+  const remaining = { ...state.quantities }
+  state.selectedCardIds.forEach(id => { remaining[id] -= 1 })
+  const warehouseStacks = quantitySlots(remaining).filter(slot => state.warehouseCardIds.includes(slot.cardId))
+  const selectedStacks = stackItems(state.selectedCardIds.map((cardId, index) => ({ cardId, instanceId: String(index) })))
 
   const headerGradient = context.createLinearGradient(0, 0, viewWidth, 0)
   headerGradient.addColorStop(0, 'rgba(126,24,38,.97)')
@@ -889,7 +1190,7 @@ function drawLoadout() {
   const columns = gridViewport.width >= 540 ? 5 : 4
   const grid = createVerticalCardGrid({
     viewport: gridViewport,
-    count: state.warehouseCardIds.length,
+    count: warehouseStacks.length,
     columns,
     gap: 6,
     padding: 4,
@@ -903,10 +1204,10 @@ function drawLoadout() {
   context.clip()
   grid.rects.forEach((rect, index) => {
     if (!rectsIntersect(rect, gridViewport)) return
-    const cardId = state.warehouseCardIds[index]
+    const cardId = warehouseStacks[index].cardId
     const card = cardById(cardId)
     const selected = loadoutSelection && loadoutSelection.cardId === cardId && loadoutSelection.source === 'WAREHOUSE'
-    drawLoadoutCard(card, rect, selected, 'WAREHOUSE')
+    drawLoadoutCard(card, rect, selected, 'WAREHOUSE', warehouseStacks[index].quantity)
     const visibleRect = intersectionRect(rect, gridViewport)
     ui.loadoutWarehouseRects.push({ ...visibleRect, cardId })
     ui.hotspots.push({ id: 'loadout_warehouse_card', rect: visibleRect, data: cardId })
@@ -945,11 +1246,11 @@ function drawLoadout() {
     context.fill()
     context.strokeStyle = index < C.LOADOUT_CARD_LIMIT ? 'rgba(205,161,241,.45)' : 'rgba(255,255,255,.13)'
     context.stroke()
-    const cardId = state.selectedCardIds[index]
+    const cardId = selectedStacks[index] && selectedStacks[index].cardId
     if (cardId) {
       const card = cardById(cardId)
       const selected = loadoutSelection && loadoutSelection.cardId === cardId && loadoutSelection.source === 'BACKPACK'
-      drawLoadoutCard(card, rect, selected, 'BACKPACK')
+      drawLoadoutCard(card, rect, selected, 'BACKPACK', selectedStacks[index].quantity)
       ui.loadoutBackpackRects.push({ ...rect, cardId })
       ui.hotspots.push({ id: 'loadout_backpack_card', rect, data: cardId })
     } else if (index < C.LOADOUT_CARD_LIMIT) {
@@ -1010,7 +1311,7 @@ function drawMatchmaking(found = false) {
   panel(x, y, panelWidth, panelHeight, { fill: 'rgba(28,15,33,.92)', stroke: PALETTE.gold, lineWidth: 2, radius: 20 })
   text(found ? '牌 局 集 结 完 成' : '正 在 寻 找 同 行 者', viewWidth / 2, y + 34, 22, PALETTE.paleGold, 'center', 'bold')
   text(found ? '三名劫匪已登船，准备登陆卡西诺岛' : '白鸽接应队正在为你安排同局玩家', viewWidth / 2, y + 62, 11, '#d8c8dc', 'center')
-  text(`本次战备 ${loadout.snapshot().selectedCardIds.length}/${C.LOADOUT_CARD_LIMIT}`, x + panelWidth - 18, y + 34, 9, '#bcaac2', 'right', 'bold')
+  text(`本次战备 ${loadout.selectedCardIds.length}/${C.LOADOUT_CARD_LIMIT}`, x + panelWidth - 18, y + 34, 9, '#bcaac2', 'right', 'bold')
 
   const suits = ['♠', '♥', '♣']
   const colors = [PALETTE.gold, '#ef6975', '#9f7ee8']
@@ -1044,264 +1345,52 @@ function drawMatchmaking(found = false) {
   button('match_single', '单人测试 · 立即开始', { x: x + panelWidth - 212, y: y + panelHeight - 52, width: 188, height: 34 }, { top: '#d79c39', bottom: '#8b3b23', stroke: '#ffe19a', size: 12 })
 }
 
-function startGame() {
-  engine = new GameEngine({
-    cards,
-    rng: createSeededRng(Date.now()),
-    localPlayerId: 'P1',
-    localLoadoutCardIds: loadout.snapshot().selectedCardIds
-  })
-  engine.start()
-  selectedMove = null
-  movementPinPosition = { ...engine.getPlayer('P1').position }
-  movementPinTransition = null
-  activeBattle = null
-  searchGameId = `game-${Date.now()}-${Math.floor(Math.random() * 100000)}`
-  searchAuthority = 'CONNECTING'
-  searchVisitState = null
-  searchFinishedVisitId = null
-  searchInventoryIdMap = {}
-  const selectedCardIds = loadout.snapshot().selectedCardIds
-  searchGameReadyPromise = createSearchGame({ gameId: searchGameId, playerId: 'P1', loadoutCardIds: selectedCardIds, seed: searchGameId })
-    .then(game => {
-      searchAuthority = 'REMOTE'
-      bindRemoteInventory(game.player.inventory)
-      return game
-    })
-    .catch(() => {
-      searchAuthority = 'LOCAL'
-      addToast('搜索服务暂不可用，已切换本地安全降级。', 2600)
-      return null
-    })
-  loadSearchAssets()
-  presentation = 'MAP'
-  setScene('GAME')
-}
-
-function bindRemoteInventory(remoteInventory) {
-  const player = engine.getPlayer('P1')
-  const claimed = new Set()
-  remoteInventory.forEach(remoteItem => {
-    const localId = player.inventory.find(instanceId => {
-      if (claimed.has(instanceId)) return false
-      const item = engine.items.find(candidate => candidate.instanceId === instanceId)
-      return item && item.cardId === remoteItem.cardId
-    })
-    if (localId) {
-      searchInventoryIdMap[remoteItem.instanceId] = localId
-      claimed.add(localId)
-    }
-  })
-}
-
-function syncAuthoritativeInventory(snapshot) {
-  if (!snapshot || !Array.isArray(snapshot.inventory)) return
-  const player = engine.getPlayer('P1')
-  const previousIds = new Set(player.inventory)
-  const nextIds = snapshot.inventory.map(remoteItem => {
-    let localId = searchInventoryIdMap[remoteItem.instanceId]
-    let localItem = localId && engine.items.find(item => item.instanceId === localId)
-    if (!localItem) {
-      localId = remoteItem.instanceId
-      localItem = engine.items.find(item => item.instanceId === localId)
-      if (!localItem) {
-        const card = cardById(remoteItem.cardId)
-        localItem = {
-          instanceId: localId,
-          cardId: remoteItem.cardId,
-          state: 'IN_INVENTORY',
-          nodeId: null,
-          areaId: null,
-          ownerId: 'P1',
-          durability: (card && card.maxDurability) || 0,
-          revealedBy: 'P1',
-          createdTurn: engine.turn
-        }
-        engine.items.push(localItem)
-      }
-      searchInventoryIdMap[remoteItem.instanceId] = localId
-    }
-    localItem.state = localItem.state === 'EQUIPPED' ? 'EQUIPPED' : 'IN_INVENTORY'
-    localItem.nodeId = null
-    localItem.areaId = null
-    localItem.ownerId = 'P1'
-    previousIds.delete(localId)
-    return localId
-  })
-  previousIds.forEach(localId => {
-    const item = engine.items.find(candidate => candidate.instanceId === localId)
-    if (!item) return
-    item.state = 'DROPPED'
-    item.ownerId = null
-    item.nodeId = searchVisitState ? searchVisitState.room.nodeId : positionKey(player.position)
-    item.areaId = searchVisitState && searchVisitState.room.activeAreaId ? searchVisitState.room.activeAreaId : 'MAIN_TABLE'
-  })
-  player.inventory = nextIds
-  if (player.equippedWeaponId && !nextIds.includes(player.equippedWeaponId)) player.equippedWeaponId = null
-}
-
-function localSearchItems(areaId = null) {
-  return engine.searchItemsFor('P1').filter(item => (
-    ['HIDDEN', 'REVEALED', 'DROPPED'].includes(item.state) && (!areaId || item.areaId === areaId)
-  ))
-}
-
-function localVisitSnapshot() {
-  const player = engine.getPlayer('P1')
-  const items = localSearchItems()
-  const observation = searchVisitState && searchVisitState.visit.observation
-  const visibleIds = observation && observation.active ? observation.visibleItemIds : []
-  const activeAreaId = observation && observation.active ? observation.areaId : null
-  const activeAreaItems = activeAreaId ? localSearchItems(activeAreaId) : []
-  const itemView = item => ({
-    instanceId: item.instanceId,
-    cardId: item.cardId,
-    state: item.state,
-    nodeId: item.nodeId,
-    areaId: item.areaId,
-    ownerId: item.ownerId
-  })
-  return {
-    gameId: searchGameId,
-    version: 0,
-    visit: searchVisitState.visit,
-    room: {
-      nodeId: searchVisitState.room.nodeId,
-      unpickedCount: items.length,
-      unsearchedCount: items.filter(item => item.state === 'HIDDEN').length,
-      canObserve: searchVisitState.visit.status === 'ACTIVE',
-      activeAreaId,
-      areas: C.SEARCH_ROOM_AREA_IDS.map(areaId => {
-        const areaItems = localSearchItems(areaId)
-        return {
-          areaId,
-          itemCount: areaItems.length,
-          unsearchedCount: areaItems.filter(item => item.state === 'HIDDEN').length
-        }
-      }),
-      activeArea: activeAreaId ? {
-        areaId: activeAreaId,
-        capacity: C.SEARCH_AREA_CAPACITY,
-        itemCount: activeAreaItems.length,
-        unsearchedCount: activeAreaItems.filter(item => item.state === 'HIDDEN').length,
-        visibleItems: visibleIds.map(id => activeAreaItems.find(item => item.instanceId === id)).filter(Boolean).map(itemView)
-      } : null,
-      visibleItems: visibleIds.map(id => activeAreaItems.find(item => item.instanceId === id)).filter(Boolean).map(itemView)
-    },
-    inventory: player.inventory.map(id => engine.items.find(item => item.instanceId === id)).filter(Boolean).map(itemView),
-    serverTime: Date.now()
-  }
-}
-
-function startLocalVisit() {
-  const now = Date.now()
-  searchVisitState = {
-    gameId: searchGameId,
-    visit: {
-      visitId: `local-visit-${engine.turn}-${now}`,
-      playerId: 'P1',
-      roomNodeId: positionKey(engine.getPlayer('P1').position),
-      turn: engine.turn,
-      status: 'ACTIVE',
-      startedAt: now,
-      deadlineAt: now + C.SEARCH_DURATION_MS,
-      observation: null,
-      finishReason: null
-    },
-    room: { nodeId: positionKey(engine.getPlayer('P1').position) },
-    inventory: []
-  }
-  searchVisitState = localVisitSnapshot()
-  return searchVisitState
-}
-
-function refreshLocalVisit() {
-  if (!searchVisitState || searchVisitState.visit.status !== 'ACTIVE') return searchVisitState
-  const now = Date.now()
-  if (now >= searchVisitState.visit.deadlineAt) {
-    searchVisitState.visit.status = 'TIMED_OUT'
-    searchVisitState.visit.finishReason = 'TIMEOUT'
-    if (searchVisitState.visit.observation) searchVisitState.visit.observation.active = false
-    searchVisitState = localVisitSnapshot()
-    return searchVisitState
-  }
-  const observation = searchVisitState.visit.observation
-  if (observation && observation.active) {
-    const areaItems = localSearchItems(observation.areaId)
-    const target = Math.min(C.SEARCH_VISIBLE_LIMIT, areaItems.length, (observation.initialVisibleCount || 0) + Math.floor((now - observation.startedAt) / C.SEARCH_REVEAL_INTERVAL_MS))
-    while (observation.visibleItemIds.length < target) {
-      const hidden = areaItems.find(item => item.state === 'HIDDEN' && !observation.visibleItemIds.includes(item.instanceId))
-      if (!hidden) break
-      hidden.state = 'REVEALED'
-      hidden.revealedBy = 'P1'
-      observation.visibleItemIds.push(hidden.instanceId)
-    }
-  }
-  searchVisitState = localVisitSnapshot()
-  return searchVisitState
-}
-
-function applySearchSnapshot(snapshot) {
-  searchVisitState = snapshot
-  if (searchAuthority === 'REMOTE') syncAuthoritativeInventory(snapshot)
-  if (snapshot && snapshot.visit) engine.turnDeadlineAt = snapshot.visit.deadlineAt
-  if (snapshot && snapshot.visit.status === 'TIMED_OUT') completeTimedOutSearch(snapshot.visit.visitId)
-}
-
-function completeTimedOutSearch(visitId) {
-  if (searchFinishedVisitId === visitId) return
-  searchFinishedVisitId = visitId
-  addToast('搜索时间结束，已返回地图。')
-  nextTurn()
-}
-
-async function beginRoomVisit() {
-  await loadSearchAssets()
-  presentation = 'ROOM'
-  searchVisitState = null
-  searchFinishedVisitId = null
-  searchRequestPending = true
-  searchRoomScrollY = 0
-  searchMagnifierSlotIndex = null
-  searchMagnifierChangedAt = 0
-  searchGesture = null
-  if (searchGameReadyPromise) await searchGameReadyPromise
-  if (searchAuthority === 'REMOTE') {
-    try {
-      const local = engine.getPlayer('P1')
-      const snapshot = await startSearchVisit({
-        gameId: searchGameId,
-        playerId: 'P1',
-        roomNodeId: positionKey(local.position),
-        turn: engine.turn
-      })
-      applySearchSnapshot(snapshot)
-      searchRequestPending = false
-      return
-    } catch (requestError) {
-      searchAuthority = 'LOCAL'
-      addToast('服务端搜索连接中断，已切换本地降级。', 2400)
-    }
-  }
-  applySearchSnapshot(startLocalVisit())
-  searchRequestPending = false
-}
-
-async function refreshRemoteVisit() {
-  if (searchAuthority !== 'REMOTE' || !searchVisitState || searchRequestPending) return
-  searchRequestPending = true
+async function startGame() {
+  if (accountBusy) return
+  beginAccountRequest('正在建立对局…')
   try {
-    const snapshot = await getSearchVisit({ gameId: searchGameId, visitId: searchVisitState.visit.visitId, playerId: 'P1' })
-    applySearchSnapshot(snapshot)
-  } catch (requestError) {
-    addToast('搜索状态同步失败，正在重试。', 1200)
-  } finally {
-    searchRequestPending = false
-  }
+    const response = await accountApi.command('start', { cardIds: loadout.snapshot().selectedCardIds, mode: matchmaking.mode })
+    applyAccountResponse(response)
+    selectedMove = null
+    activeBattle = null
+    movementPinPosition = { ...engine.getPlayer('P1').position }
+    movementPinTransition = null
+    loadSearchAssets()
+    pendingResume = true
+    presentation = 'MAP'
+    setScene('GAME')
+  } catch (error) {
+    addToast(accountError(error), 3000)
+    try {
+      const response = await accountApi.command('resume')
+      applyAccountResponse(response)
+      if (response.activeGame) resumeAccountGame()
+      else setScene('LOADOUT')
+    } catch (_) { setScene('LOADOUT') }
+  } finally { endAccountRequest() }
 }
+
+
+
+
+
+
+
+
+
+
+function beginRoomVisit() {
+  presentation = 'ROOM'
+  invalidateFrame()
+  // Display the usable room immediately, then replace fallback art as it loads.
+  // Waiting here also allowed a stale asset promise to overwrite a later turn.
+  loadSearchAssets().then(invalidateFrame)
+}
+
 
 function currentState() {
-  return engine ? engine.snapshot() : null
+  // Rendering only reads this server-projected engine. No JSON deep copy per frame.
+  return engine
 }
 
 function drawTopHud(state) {
@@ -1318,19 +1407,21 @@ function drawTopHud(state) {
   context.moveTo(0, 47)
   context.lineTo(viewWidth, 47)
   context.stroke()
-  text('♠ 大劫卡西诺', 16, 23, 17, PALETTE.paleGold, 'left', 'bold')
-  text(`回合 ${String(state.turn).padStart(2, '0')}/${C.MAX_TURNS}`, viewWidth * 0.27, 17, 11, '#decdd3')
-  const progressWidth = 96
-  roundedPath(viewWidth * 0.27, 29, progressWidth, 6, 3)
+  const { title, round, hp, alert, resource } = hudLayout
+  text('♠ 大劫卡西诺', title.x, 23, 17, PALETTE.paleGold, 'left', 'bold', title.width)
+  text(`回合 ${String(state.turn).padStart(2, '0')}/${C.MAX_TURNS}`, round.x, 17, 11, '#decdd3', 'left', 'normal', round.width)
+  const progressWidth = Math.min(96, round.width)
+  roundedPath(round.x, 29, progressWidth, 6, 3)
   context.fillStyle = 'rgba(255,255,255,.13)'
   context.fill()
-  roundedPath(viewWidth * 0.27, 29, progressWidth * state.turn / C.MAX_TURNS, 6, 3)
+  roundedPath(round.x, 29, progressWidth * state.turn / C.MAX_TURNS, 6, 3)
   context.fillStyle = state.turn >= 10 ? '#ee5252' : PALETTE.gold
   context.fill()
-  text(`HP ${local.hp}/${local.maxHp}`, viewWidth * 0.48, 15, 11, '#fff5e3', 'center', 'bold')
-  hpBar(viewWidth * 0.43, 29, viewWidth * 0.1, local.hp, local.maxHp)
-  text(state.turn >= 10 ? '⚠ 警报圈生效' : '警报圈：第10轮', viewWidth * 0.66, 23, 11, state.turn >= 10 ? '#ff6c6c' : '#c7b8cc', 'center', 'bold')
-  text(`物资 ${formatGold(engine.inventoryValue('P1'))}`, hudLayout.resourceRight, 23, 12, PALETTE.gold, 'right', 'bold')
+  text(`HP ${local.hp}/${local.maxHp}`, hp.x + hp.width / 2, 15, 11, '#fff5e3', 'center', 'bold', hp.width)
+  hpBar(hp.x, 29, hp.width, local.hp, local.maxHp)
+  const alertActive = state.turn >= C.ALERT_START_TURN
+  text(alertActive ? '⚠ 警报圈生效' : `警报圈：第${C.ALERT_START_TURN}轮`, alert.x + alert.width / 2, 23, 11, alertActive ? '#ff6c6c' : '#c7b8cc', 'center', 'bold', alert.width)
+  text(`物资 ${formatGold(engine.inventoryValue('P1'))}`, hudLayout.resourceRight, 23, 12, PALETTE.gold, 'right', 'bold', resource.width)
 }
 
 function formatGold(value) {
@@ -1422,6 +1513,7 @@ function drawMapGrid(state, layout) {
 
 function drawInventory(state, x, y, width, interactive = true) {
   const local = state.players.find(player => player.id === 'P1')
+  const inventoryStacks = stackItems(local.inventory.map(id => state.items.find(item => item.instanceId === id)).filter(Boolean))
   panel(x, y, width, viewHeight - y - 70, { fill: 'rgba(28,17,30,.9)', stroke: 'rgba(247,201,92,.66)', radius: 13 })
   text('装备与背包', x + 14, y + 20, 14, PALETTE.paleGold, 'left', 'bold')
   const weapon = state.items.find(item => item.instanceId === local.equippedWeaponId)
@@ -1431,9 +1523,8 @@ function drawInventory(state, x, y, width, interactive = true) {
   if (weaponCard) drawCardArt(weaponCard, equippedArtRect, { radius: 5, inset: 1, lineWidth: 1 })
   const weaponTextX = weaponCard ? x + 51 : x + 20
   text(weaponCard ? weaponCard.name : '徒手', weaponTextX, y + 54, 12, '#fff2d5', 'left', 'bold')
-  const weaponMaxDurability = weaponCard && weaponCard.maxDurability ? weaponCard.maxDurability : 2
-  text(weapon ? `耐久 ${'■'.repeat(weapon.durability)}${'□'.repeat(Math.max(0, weaponMaxDurability - weapon.durability))}` : '攻击倍率 0.3', weaponTextX, y + 72, 9, '#d7bca9')
-  text(`背包 ${local.inventory.length}/${C.BACKPACK_SLOTS}`, x + 14, y + 103, 11, '#d8cbd7', 'left', 'bold')
+  text(weaponCard ? `攻击倍率 ${weaponCard.attackMultiplier}` : '攻击倍率 0.3', weaponTextX, y + 72, 9, '#d7bca9')
+  text(`背包 ${inventoryStacks.length}/${C.BACKPACK_SLOTS}`, x + 14, y + 103, 11, '#d8cbd7', 'left', 'bold')
   ui.inventoryRects = []
   const columns = 5
   const rows = Math.ceil(C.BACKPACK_SLOTS / columns)
@@ -1451,11 +1542,12 @@ function drawInventory(state, x, y, width, interactive = true) {
     context.fill()
     context.strokeStyle = 'rgba(230,198,125,.35)'
     context.stroke()
-    const instanceId = local.inventory[index]
+    const instanceId = inventoryStacks[index] && inventoryStacks[index].instanceId
     if (instanceId) {
       const item = state.items.find(candidate => candidate.instanceId === instanceId)
       const card = item && cardById(item.cardId)
       drawCardArt(card, rect, { radius: 6, inset: 2, stroke: 'rgba(230,198,125,.55)', lineWidth: 1 })
+      drawQuantity(rect, inventoryStacks[index].quantity)
       if (item && item.state === 'EQUIPPED') {
         context.fillStyle = 'rgba(74,18,25,.84)'
         context.fillRect(rect.x + 2, rect.y + rect.height - 14, rect.width - 4, 12)
@@ -1525,6 +1617,16 @@ function drawMovementRooms(state, layout) {
         }
       }
       context.restore()
+
+      const info = roomInfoAt(x, y)
+      const labelWidth = rect.width * 0.72
+      const labelHeight = Math.min(rect.height * 0.3, Math.max(12, 21 * scale))
+      const labelX = rect.x + (rect.width - labelWidth) / 2
+      const labelY = rect.y + rect.height - labelHeight - 3 * scale
+      roundedPath(labelX, labelY, labelWidth, labelHeight, labelHeight / 2)
+      context.fillStyle = 'rgba(20,12,22,.86)'
+      context.fill()
+      text(info.name, rect.x + rect.width / 2, labelY + labelHeight / 2, Math.max(8, 16 * scale), info.color, 'center', 'bold', labelWidth - 6 * scale)
 
       if (selecting && (current || reachable)) ui.hotspots.push({ id: 'map_node', rect, data: { x, y } })
     }
@@ -1737,6 +1839,31 @@ function drawMovementHud(state, layout) {
   text(`目标：${roomTypeAt(target.x, target.y)}`, layout.action.x + layout.action.width / 2, layout.action.y + layout.action.height + 17 * scale, Math.max(8, 12 * scale), '#fff0c8', 'center', 'bold')
 }
 
+function drawMovementLegend(layout) {
+  const rect = layout.legend
+  const scale = layout.transform.scale
+  const entries = [
+    ...Object.values(ROOM_TYPE_INFO),
+    { name: '当前房间', color: '#d6ffe8' },
+    { name: '可前往房间', color: '#4bff9f' },
+    { name: '未探索区域', color: '#a8a5b4' }
+  ]
+  // The legacy background contains a printed legend; cover it completely.
+  context.fillStyle = '#171019'
+  context.fillRect(rect.x, rect.y, rect.width, rect.height)
+  context.strokeStyle = '#d9ad60'
+  context.lineWidth = Math.max(1, 2 * scale)
+  context.strokeRect(rect.x, rect.y, rect.width, rect.height)
+  text('房间类型', rect.x + rect.width / 2, rect.y + 25 * scale, Math.max(9, 18 * scale), '#ffe8b0', 'center', 'bold', rect.width - 12 * scale)
+  const rowHeight = (rect.height - 54 * scale) / entries.length
+  entries.forEach(({ name, color }, index) => {
+    const y = rect.y + 46 * scale + (index + 0.5) * rowHeight
+    context.fillStyle = color
+    context.fillRect(rect.x + 16 * scale, y - 5 * scale, 10 * scale, 10 * scale)
+    text(name, rect.x + 36 * scale, y, Math.max(8, 16 * scale), color, 'left', 'normal', rect.width - 47 * scale)
+  })
+}
+
 function drawMapScene(state) {
   const image = assets.movementMap || assets.map
   drawContainedBackdrop(image, '#09080b')
@@ -1744,6 +1871,7 @@ function drawMapScene(state) {
   drawMovementRooms(state, layout)
   drawMovementPin(state, layout)
   drawMovementLandmarks(layout)
+  drawMovementLegend(layout)
   drawMovementHud(state, layout)
   ui.discardRect = null
 }
@@ -1800,9 +1928,8 @@ function drawBattle(state) {
   button('battle_continue', won ? '查看战利品' : '进入结算', { x: viewWidth / 2 - 70, y: viewHeight - 39, width: 140, height: 30 }, { size: 10, top: won ? '#cc8b2f' : '#8b3546', bottom: won ? '#87421f' : '#4d2335' })
 }
 
-function searchSecondsRemaining() {
-  if (!searchVisitState || !searchVisitState.visit) return 50
-  return searchTimerState(searchVisitState.visit.deadlineAt).seconds
+function currentSearchProgress() {
+  return searchVisitState ? searchTimerState(searchVisitState.visit.deadlineAt, Date.now()).progress : 0
 }
 
 function drawDesignAsset(key, layout, sourceRect, options = {}) {
@@ -1824,24 +1951,46 @@ function drawDesignAsset(key, layout, sourceRect, options = {}) {
 }
 
 function drawRoomArtwork() {
+  if (!roomArtworkCache && !roomArtworkCacheDisabled && searchAssetsReady) {
+    const screenContext = context
+    try {
+      const layer = createLayerCanvas(wx, canvas)
+      if (!layer) throw new Error('Offscreen canvas unavailable')
+      context = layer.getContext('2d')
+      context.scale(pixelRatio, pixelRatio)
+      paintRoomArtwork()
+      roomArtworkCache = layer
+    } catch (_) { roomArtworkCacheDisabled = true }
+    finally { context = screenContext }
+  }
+  if (roomArtworkCache) {
+    try {
+      context.drawImage(roomArtworkCache, 0, 0, viewWidth, viewHeight)
+      return createRoomLayout(viewWidth, viewHeight)
+    } catch (_) { roomArtworkCache = null; roomArtworkCacheDisabled = true }
+  }
+  return paintRoomArtwork()
+}
+
+function paintRoomArtwork() {
   const layout = createRoomLayout(viewWidth, viewHeight)
-  const background = assets.searchRoomBackground || assets.map
-  drawCover(background)
-  darken(0.34, '9, 4, 14')
-  if (background) context.drawImage(background, layout.contentRect.x, layout.contentRect.y, layout.contentRect.width, layout.contentRect.height)
-  drawDesignAsset('searchRoomChairLeft', layout, { x: 238, y: 461, width: 188, height: 229 }, { rotation: 0.85 })
-  drawDesignAsset('searchRoomChairLeft', layout, { x: 899, y: 442, width: 201, height: 236 }, { rotation: -173.74, flipY: true })
-  drawDesignAsset('searchRoomChairLeft', layout, { x: 620, y: 379, width: 242, height: 279 }, { rotation: 169.81, flipY: true })
-  drawDesignAsset('searchRoomMainTable', layout, { x: 270, y: 500, width: 756, height: 462 })
-  drawDesignAsset('searchRoomChairFront', layout, { x: 809, y: 731, width: 217, height: 262 })
-  drawDesignAsset('searchRoomChairFront', layout, { x: 443, y: 740, width: 234, height: 274 }, { rotation: -175.75, flipY: true })
-  drawDesignAsset('searchRoomForeground', layout, { x: 0, y: 639, width: 1920, height: 442 })
+  const background = assets.searchRoomBackground
+  const artwork = layout.artwork
+  const { x, y, width, height } = layout.contentRect
+  if (background) context.drawImage(background, x, y, width, height)
+  else drawCover(assets.map)
+  drawDesignAsset('searchRoomChairLeft', artwork, { x: 238, y: 461, width: 188, height: 229 }, { rotation: 0.85 })
+  drawDesignAsset('searchRoomChairLeft', artwork, { x: 899, y: 442, width: 201, height: 236 }, { rotation: -173.74, flipY: true })
+  drawDesignAsset('searchRoomChairLeft', artwork, { x: 620, y: 379, width: 242, height: 279 }, { rotation: 169.81, flipY: true })
+  drawDesignAsset('searchRoomMainTable', artwork, { x: 270, y: 500, width: 756, height: 462 })
+  drawDesignAsset('searchRoomChairFront', artwork, { x: 809, y: 731, width: 217, height: 262 })
+  drawDesignAsset('searchRoomChairFront', artwork, { x: 443, y: 740, width: 234, height: 274 }, { rotation: -175.75, flipY: true })
+  drawDesignAsset('searchRoomForeground', artwork, { x: 0, y: 639, width: 1920, height: 442 })
   return layout
 }
 
 function drawSearchTimer(layout = createSearchLayout(viewWidth, viewHeight)) {
-  const seconds = searchSecondsRemaining()
-  const progress = searchVisitState ? searchTimerState(searchVisitState.visit.deadlineAt).progress : 1
+  const progress = currentSearchProgress()
   const timer = layout.timer
   if (assets.searchProgressTrack) context.drawImage(assets.searchProgressTrack, timer.x, timer.y, timer.width, timer.height)
   else panel(timer.x, timer.y, timer.width, timer.height, { fill: 'rgba(10,7,14,.9)', stroke: '#f0bd52', radius: timer.height / 2 })
@@ -1851,12 +2000,58 @@ function drawSearchTimer(layout = createSearchLayout(viewWidth, viewHeight)) {
   context.clip()
   if (assets.searchProgressFill) context.drawImage(assets.searchProgressFill, timer.x, timer.y, timer.width, timer.height)
   context.restore()
-  const fontSize = Math.max(8, 22 * (layout.scale || 0.6))
-  text(`搜索轮  ${String(seconds).padStart(2, '0')}s`, timer.x + timer.width / 2, timer.y + timer.height / 2, fontSize, seconds <= 10 ? '#ffdbb0' : '#fff1c1', 'center', 'bold')
+}
+
+function drawRoomClock(rect) {
+  const half = rect.width / (2 * Math.SQRT2)
+  const radius = rect.width * 0.22
+  context.save()
+  context.translate(rect.x + rect.width / 2, rect.y + rect.height / 2)
+  context.save()
+  context.rotate(Math.PI / 4)
+  panel(-half, -half, half * 2, half * 2, {
+    fill: '#51151b', stroke: '#edbf65', radius: half * 0.12, lineWidth: Math.max(1, radius * 0.16)
+  })
+  context.restore()
+  context.strokeStyle = '#ffe09a'
+  context.lineWidth = Math.max(1, radius * 0.15)
+  context.beginPath()
+  context.arc(0, 0, radius, 0, Math.PI * 2)
+  context.stroke()
+  context.beginPath()
+  context.moveTo(0, -radius * 0.62)
+  context.lineTo(0, 0)
+  context.lineTo(radius * 0.49, radius * 0.23)
+  context.stroke()
+  context.restore()
+}
+
+function drawRoomTimer(layout) {
+  const { timerTrack: track, timerFill: fill, timerIcon: icon } = layout
+  const image = assets.searchRoomTimerTrack
+  if (image) context.drawImage(image, track.x, track.y, track.width, track.height)
+  else panel(fill.x - 1, fill.y - 1, fill.width + 2, fill.height + 2, { fill: '#32131c', stroke: '#edbf65', radius: fill.height / 2 })
+  const progress = currentSearchProgress()
+  if (progress > 0) {
+    context.save()
+    roundedPath(fill.x, fill.y, fill.width, fill.height, fill.height / 2)
+    context.clip()
+    context.beginPath()
+    context.rect(fill.x, fill.y, fill.width * progress, fill.height)
+    context.clip()
+    const art = assets.searchRoomTimerFill
+    if (art) drawImageSourceInRect(art, SEARCH_ASSET_CROPS.roomTimerFill, fill)
+    else {
+      context.fillStyle = PALETTE.gold
+      context.fillRect(fill.x, fill.y, fill.width, fill.height)
+    }
+    context.restore()
+  }
+  drawRoomClock(icon)
 }
 
 function drawAuthorityBadge(x, y) {
-  const remote = searchAuthority === 'REMOTE'
+  const remote = searchAuthority === 'REMOTE' || searchAuthority === 'ACCOUNT'
   const label = remote ? '服务端权威结算' : searchAuthority === 'CONNECTING' ? '连接搜索服务' : '本地安全降级'
   panel(x, y, 106, 22, { fill: remote ? 'rgba(24,89,67,.88)' : 'rgba(88,48,38,.88)', stroke: remote ? '#8effc7' : '#ffd28c', radius: 11 })
   text(label, x + 53, y + 11, 8, remote ? '#d9ffea' : '#fff0cb', 'center', 'bold')
@@ -1865,96 +2060,41 @@ function drawAuthorityBadge(x, y) {
 function drawRoom(state) {
   const layout = drawRoomArtwork()
   const node = searchVisitState ? searchVisitState.room.nodeId : positionKey(engine.getPlayer('P1').position)
-  const parts = node.split('_')
-  const roomName = roomTypeAt(Number(parts[1]), Number(parts[2]))
+  const roomName = roomTypeForNode(node)
+  // Hit testing goes from last to first: background regions sit below buttons.
+  ui.roomAreaRects = layout.areas
+  if (searchVisitState && searchVisitState.visit.status === 'ACTIVE' && !searchRequestPending) {
+    layout.areas.forEach(area => ui.hotspots.push({ id: 'room_area', rect: area, data: area.areaId }))
+  }
   drawDesignAsset('searchRoomTitlePanel', layout, { x: 133, y: 58, width: 515, height: 163 })
   drawDesignAsset('searchRoomTitleSpade', layout, { x: 133, y: 95, width: 134, height: 90 })
   text(roomName, layout.offsetX + 428 * layout.scale, layout.offsetY + 135 * layout.scale, Math.max(18, 48 * layout.scale), '#fff1c1', 'center', 'bold')
 
-  const timerState = searchVisitState ? searchTimerState(searchVisitState.visit.deadlineAt) : { progress: 1, seconds: 50 }
-  drawDesignAsset('searchRoomTimerTrack', layout, { x: 1370, y: 36, width: 386, height: 178 })
-  context.save()
-  context.beginPath()
-  context.rect(layout.offsetX + 1321 * layout.scale, layout.offsetY + 78 * layout.scale, 277 * layout.scale * timerState.progress, 93 * layout.scale)
-  context.clip()
-  drawDesignAsset('searchRoomTimerFill', layout, { x: 1321, y: 78, width: 277, height: 93 })
-  context.restore()
-  drawDesignAsset('searchRoomTimerWarning', layout, { x: 1297, y: 75, width: 109, height: 99 })
-  text(`倒计时 ${timerState.seconds}s`, layout.offsetX + 1574 * layout.scale, layout.offsetY + 122 * layout.scale, Math.max(10, 27 * layout.scale), timerState.seconds <= 10 ? '#ffb0a4' : '#fff1c1', 'center', 'bold')
+  drawRoomTimer(layout)
 
   drawDesignAsset('searchRoomLeaveButton', layout, { x: 1371, y: 889, width: 292, height: 104 })
   drawDesignAsset('searchRoomLeaveIcon', layout, { x: 1429, y: 911, width: 46, height: 60 })
   text('离开房间', layout.offsetX + 1548 * layout.scale, layout.offsetY + 938 * layout.scale, Math.max(12, 29 * layout.scale), '#fff1c1', 'center', 'bold')
   ui.hotspots.push({ id: searchVisitState && !searchRequestPending ? 'room_leave' : 'room_leave_disabled', rect: layout.leave })
-
-  ui.roomAreaRects = layout.areas
-  if (searchVisitState && searchVisitState.visit.status === 'ACTIVE' && !searchRequestPending) {
-    layout.areas.forEach(area => ui.hotspots.push({ id: 'room_area', rect: area, data: area.areaId }))
+  if (searchAuthority === 'ACCOUNT' && node === C.EXTRACTION_NODE_ID) {
+    button('request_extraction', '呼叫白鸽 · 撤离', { x: viewWidth / 2 - 90, y: viewHeight - 44, width: 180, height: 33 }, { top: '#2c966b', bottom: '#174c3a', size: 12 })
   }
+
   if (!searchVisitState) text('正在同步房间物资…', viewWidth / 2, viewHeight / 2, Math.max(12, 24 * layout.scale), '#ffe7b0', 'center', 'bold')
 }
 
-function drawMagnifier(centerX, centerY) {
-  const pulse = 1 + Math.sin(Date.now() / 240) * 0.08
+function drawSearchRipple(slot, now) {
+  const state = searchRippleState(slot, now, searchRippleStartedAt)
   context.save()
-  context.translate(centerX, centerY)
-  context.scale(pulse, pulse)
-  context.beginPath()
-  context.arc(-5, -5, 18, 0, Math.PI * 2)
-  context.strokeStyle = '#ffe08a'
-  context.lineWidth = 5
-  context.shadowColor = '#ff9f43'
-  context.shadowBlur = 12
-  context.stroke()
-  context.beginPath()
-  context.moveTo(8, 8)
-  context.lineTo(25, 25)
-  context.stroke()
+  context.strokeStyle = '#ffde8f'
+  context.lineWidth = Math.max(1.2, Math.min(slot.width, slot.height) * 0.035)
+  for (const ring of state.rings) {
+    context.globalAlpha = ring.alpha
+    context.beginPath()
+    context.arc(state.x, state.y, ring.radius, 0, Math.PI * 2)
+    context.stroke()
+  }
   context.restore()
-}
-
-function drawMagnifierSprite(state, size, alpha = 1) {
-  if (!assets.searchMagnifier || state.scale <= 0 || alpha <= 0) return
-  context.save()
-  context.globalAlpha = Math.max(0, Math.min(1, alpha * state.alpha))
-  context.translate(state.x, state.y)
-  context.rotate(state.rotation)
-  context.scale(state.scale, state.scale)
-  context.shadowColor = 'rgba(255, 190, 72, .72)'
-  context.shadowBlur = size * 0.18
-  context.drawImage(
-    assets.searchMagnifier,
-    SEARCH_ASSET_CROPS.magnifier.x,
-    SEARCH_ASSET_CROPS.magnifier.y,
-    SEARCH_ASSET_CROPS.magnifier.width,
-    SEARCH_ASSET_CROPS.magnifier.height,
-    -size / 2,
-    -size / 2,
-    size,
-    size
-  )
-  context.restore()
-}
-
-function drawSearchMagnifierOrbit(slot, startedAt) {
-  const now = Date.now()
-  const state = magnifierOrbitState(slot, now, startedAt)
-  context.save()
-  context.beginPath()
-  context.arc(state.centerX, state.centerY, state.radius, 0, Math.PI * 2)
-  context.strokeStyle = `rgba(255, 215, 116, ${0.12 + state.alpha * 0.16})`
-  context.lineWidth = Math.max(1, slot.width * 0.012)
-  if (context.setLineDash) context.setLineDash([Math.max(3, slot.width * 0.045), Math.max(5, slot.width * 0.075)])
-  context.stroke()
-  if (context.setLineDash) context.setLineDash([])
-  context.restore()
-
-  const size = Math.min(slot.width, slot.height) * 0.42
-  ;[150, 100, 55].forEach((delay, index) => {
-    const trail = magnifierOrbitState(slot, now - delay, startedAt)
-    drawMagnifierSprite(trail, size * (0.82 + index * 0.05), 0.08 + index * 0.05)
-  })
-  drawMagnifierSprite(state, size, 1)
 }
 
 function drawSearchInventoryPanel(rect) {
@@ -1974,6 +2114,7 @@ function drawSearchInventoryPanel(rect) {
     const item = searchVisitState && searchVisitState.inventory[index]
     if (item) {
       drawCardArt(cardById(item.cardId), fitAspectRect(slot, CARD_ASPECT_RATIO), { radius: 7, inset: 1, stroke: 'rgba(255,226,157,.72)', lineWidth: 1 })
+      drawQuantity(slot, item.quantity || 1)
       ui.searchInventoryRects.push({ ...slot, instanceId: item.instanceId, cardId: item.cardId })
     } else {
       if (assets.searchSlotPattern) drawImageSourceInRect(assets.searchSlotPattern, SEARCH_ASSET_CROPS.slotPattern, { x: slot.x + slot.width * 0.35, y: slot.y + slot.height * 0.32, width: slot.width * 0.3, height: slot.height * 0.36 })
@@ -2003,13 +2144,15 @@ function drawSearchRoomPanel(rect) {
   ui.searchItemRects = []
   const slotCount = Math.min(C.SEARCH_AREA_CAPACITY, Math.max(10, Math.ceil(Math.max(itemCount, visible.length) / 5) * 5))
   const observation = searchVisitState && searchVisitState.visit.observation
-  const elapsed = observation ? Date.now() - observation.startedAt : 0
-  const magnifierIndex = nextSearchMagnifierIndex(visible.length, itemCount, elapsed, C.SEARCH_REVEAL_INTERVAL_MS)
+  const now = Date.now()
+  const elapsed = observation ? now - observation.startedAt : 0
+  const rippleIndex = observation && observation.active && activeArea && now < searchVisitState.visit.deadlineAt
+    ? nextSearchRippleIndex(visible.length, itemCount, elapsed, C.SEARCH_REVEAL_INTERVAL_MS) : null
   let grid = createVerticalCardGrid({ viewport: gridViewport, count: slotCount, columns: 5, gap: slotGap, padding: slotPadding, scrollY: searchRoomScrollY })
-  if (magnifierIndex !== searchMagnifierSlotIndex) {
-    searchMagnifierSlotIndex = magnifierIndex
-    searchMagnifierChangedAt = Date.now()
-    const targetSlot = magnifierIndex === null ? null : grid.rects[magnifierIndex]
+  if (rippleIndex !== searchRippleSlotIndex) {
+    searchRippleSlotIndex = rippleIndex
+    searchRippleStartedAt = now
+    const targetSlot = rippleIndex === null ? null : grid.rects[rippleIndex]
     if (targetSlot) {
       let nextScroll = grid.scrollY
       if (targetSlot.y < gridViewport.y) nextScroll -= gridViewport.y - targetSlot.y
@@ -2038,14 +2181,10 @@ function drawSearchRoomPanel(rect) {
       drawImageSourceInRect(assets.searchSlotPattern, SEARCH_ASSET_CROPS.slotPattern, { x: slot.x + slot.width * 0.35, y: slot.y + slot.height * 0.32, width: slot.width * 0.3, height: slot.height * 0.36 })
     }
   })
+  const targetSlot = rippleIndex === null ? null : grid.rects[rippleIndex]
+  if (targetSlot && rectsIntersect(targetSlot, gridViewport)) drawSearchRipple(targetSlot, now)
   context.restore()
   drawScrollIndicator(gridViewport, grid.contentHeight, searchRoomScrollY)
-
-  const targetSlot = magnifierIndex === null ? null : grid.rects[magnifierIndex]
-  if (targetSlot && rectsIntersect(targetSlot, gridViewport)) {
-    if (assets.searchMagnifier) drawSearchMagnifierOrbit(targetSlot, searchMagnifierChangedAt)
-    else drawMagnifier(targetSlot.x + targetSlot.width / 2, targetSlot.y + targetSlot.height / 2)
-  }
   const emptyResolved = itemCount === 0 && elapsed >= C.SEARCH_REVEAL_INTERVAL_MS
   if (emptyResolved) text('该区域未发现物品', rect.x + rect.width / 2, rect.y + rect.height / 2, Math.max(11, 26 * scale), '#e2c7b2', 'center', 'bold')
 }
@@ -2083,7 +2222,7 @@ function drawRoundResult(state) {
   state.log.slice(0, 4).forEach((entry, index) => text(`• ${entry}`, x + 28, y + 68 + index * 24, 10, index === 0 ? '#fff2d3' : '#bfb2c1'))
   const atExit = positionKey(local.position) === C.EXTRACTION_NODE_ID
   if (atExit) {
-    text('已到达白鸽撤离点，撤离将消耗 1 个回合', viewWidth / 2, y + height - 62, 10, '#9ce8c5', 'center', 'bold')
+    text(`已到达${roomTypeAt(local.position.x, local.position.y)}，撤离将消耗 1 个回合`, viewWidth / 2, y + height - 62, 10, '#9ce8c5', 'center', 'bold')
     button('request_extraction', '呼叫白鸽 · 撤离', { x: viewWidth / 2 - 92, y: y + height - 47, width: 184, height: 34 }, { top: '#2d9c71', bottom: '#175842', stroke: '#b5ffe0', size: 12 })
   } else {
     button('next_turn', '进入下一回合', { x: viewWidth / 2 - 82, y: y + height - 50, width: 164, height: 35 }, { size: 12 })
@@ -2093,7 +2232,7 @@ function drawRoundResult(state) {
 function drawSettlement(state) {
   drawCover(assets.loading)
   darken(0.58, '15, 6, 25')
-  const settlement = engine.settlementFor('P1')
+  const settlement = accountSettlement || engine.settlementFor('P1')
   const width = Math.min(520, viewWidth * 0.62)
   const height = Math.min(310, viewHeight * 0.78)
   const x = (viewWidth - width) / 2
@@ -2118,7 +2257,7 @@ function drawSettlement(state) {
     text(metric[1], cx, y + 154, 15, index === 3 ? PALETTE.gold : '#fff0dc', 'center', 'bold')
   })
   panel(x + 34, y + 178, width - 68, 50, { fill: 'rgba(255,255,255,.04)', stroke: 'rgba(255,255,255,.14)', radius: 9 })
-  text(settlement.success ? '物资已送回离岸码头仓库。本次收益将在正式服务端接入后持久化。' : '未撤离资产进入损失区。点击再来一局可重新参加匹配。', viewWidth / 2, y + 203, 10, '#c9bccb', 'center')
+  text(settlement.success ? '带出物品已存入云端仓库，展示价值不兑换金币。' : '本局携带资产已损失，仓库中未携带资产保留。', viewWidth / 2, y + 203, 10, '#c9bccb', 'center')
   button('settlement_home', '返回码头', { x: x + 48, y: y + height - 54, width: 128, height: 36 }, { top: '#514455', bottom: '#2c2330', stroke: '#a995a9', size: 11 })
   button('settlement_replay', '再来一局', { x: x + width - 176, y: y + height - 54, width: 128, height: 36 }, { top: '#d49635', bottom: '#81351f', stroke: '#ffe095', size: 11 })
 }
@@ -2133,9 +2272,21 @@ function drawGame() {
   if (presentation === 'SEARCH') drawSearch(state)
   if (presentation === 'ROUND_RESULT') drawRoundResult(state)
   if (presentation === 'SETTLEMENT') drawSettlement(state)
+  if (accountGame && presentation !== 'SETTLEMENT') {
+    button('account_abandon', '放弃对局', { x: 10, y: viewHeight - 30, width: 86, height: 24 }, { size: 9, top: '#46303d', bottom: '#281d2a' })
+  }
 }
 
 function update() {
+  if (accountGame && scene === 'GAME') {
+    const deadline = presentation === 'MAP' ? engine.moveDeadlineAt : searchVisitState && searchVisitState.visit.deadlineAt
+    const nearDeadline = Number.isFinite(deadline) && deadline - Date.now() < 1200
+    const interval = presentation === 'SEARCH' || nearDeadline ? 1000 : 5000
+    if (Date.now() - accountLastHeartbeat > interval) {
+      accountLastHeartbeat = Date.now()
+      heartbeatAccount()
+    }
+  }
   if (scene === 'MATCHING') {
     const elapsed = Date.now() - sceneEnteredAt
     if (elapsed > 1800 && simulatedJoinStep === 0) {
@@ -2157,21 +2308,6 @@ function update() {
     }
   }
   if (scene === 'MATCH_FOUND' && Date.now() - matchReadyAt > 2550) startGame()
-  if (scene === 'GAME' && engine && ['ROOM', 'SEARCH'].includes(presentation)) {
-    if (searchAuthority === 'LOCAL' && searchVisitState) {
-      const snapshot = refreshLocalVisit()
-      if (snapshot && snapshot.visit.status === 'TIMED_OUT') completeTimedOutSearch(snapshot.visit.visitId)
-    }
-    if (searchAuthority === 'REMOTE' && searchVisitState && Date.now() - searchLastRefreshAt >= 500) {
-      searchLastRefreshAt = Date.now()
-      refreshRemoteVisit()
-    }
-  } else if (scene === 'GAME' && engine && presentation !== 'SETTLEMENT') {
-    const before = engine.phase
-    const result = engine.tick(Date.now())
-    if (result && before === 'MOVE_SELECTION') decidePostMove()
-    if (engine.phase === 'GAME_OVER') presentation = 'SETTLEMENT'
-  }
 }
 
 function draw() {
@@ -2194,6 +2330,7 @@ function draw() {
   ui.warehouseMaxScroll = 0
   ui.discardRect = null
   if (scene === 'LOADING') drawLoading()
+  if (scene === 'LOGIN' || scene === 'PROFILE') drawAccountSetup()
   if (scene === 'HOME') drawHome()
   if (scene === 'WAREHOUSE') drawWarehouse()
   if (scene === 'LOADOUT') drawLoadout()
@@ -2201,6 +2338,65 @@ function draw() {
   if (scene === 'MATCH_FOUND') drawMatchmaking(true)
   if (scene === 'GAME') drawGame()
   drawToast()
+  drawPendingRequest()
+}
+
+function drawPendingRequest() {
+  if (!accountBusy || Date.now() - accountBusySince < 180) return
+  const width = Math.min(240, viewWidth - 40), x = (viewWidth - width) / 2, y = viewHeight - 78
+  panel(x, y, width, 26, { fill: 'rgba(24,15,29,.88)', stroke: 'rgba(247,201,92,.4)', radius: 13 })
+  const dots = '.'.repeat(1 + Math.floor(Date.now() / 350) % 3)
+  text(`${accountBusyLabel}${dots}`, viewWidth / 2, y + 13, 10, '#ead8b3', 'center')
+}
+
+function drawTapFeedback(samples) {
+  context.save()
+  context.lineWidth = 2.1
+  context.strokeStyle = '#ffe5a0'
+  for (const tap of samples) {
+    context.globalAlpha = tap.alpha
+    context.beginPath()
+    context.arc(tap.x, tap.y, tap.radius, 0, Math.PI * 2)
+    context.stroke()
+    context.globalAlpha = tap.alpha * 0.5
+    context.fillStyle = '#fff1c6'
+    context.beginPath()
+    context.arc(tap.x, tap.y, 1.8, 0, Math.PI * 2)
+    context.fill()
+  }
+  context.restore()
+}
+
+function renderVisualKey(now) {
+  let tick = ''
+  if (scene === 'GAME' && presentation !== 'SETTLEMENT') {
+    const animated = presentation === 'SEARCH' || movementPinTransition || searchDragging
+    tick = Math.floor(now / (animated ? 1000 / 30 : presentation === 'ROOM' ? 100 : 1000))
+  } else if (scene === 'MATCHING' || scene === 'MATCH_FOUND') tick = Math.floor(now / 250)
+  const pending = accountBusy ? Math.floor(now / 180) : ''
+  const toastVisible = !!toast && now < toastUntil
+  const retry = Object.values(cardImages).some(record => record.failed && record.attempts < 3) ? Math.floor(now / 1000) : ''
+  return `${scene}:${presentation}:${tick}:${pending}:${toastVisible}:${retry}`
+}
+
+function renderFrame(now) {
+  const samples = tapFeedback.sample(now)
+  const frame = frameScheduler.frame(now, renderVisualKey(now), samples.length > 0)
+  if (!frame) return
+  if (frame.sceneChanged || !cachedFrameReady || !frameCacheContext) {
+    draw()
+    if (frameCacheContext) {
+      try {
+        frameCacheContext.clearRect(0, 0, canvas.width, canvas.height)
+        frameCacheContext.drawImage(canvas, 0, 0)
+        cachedFrameReady = true
+      } catch (_) { frameCacheContext = null; frameCache = null }
+    }
+  } else {
+    try { context.drawImage(frameCache, 0, 0, viewWidth, viewHeight) }
+    catch (_) { frameCache = null; frameCacheContext = null; cachedFrameReady = false; draw() }
+  }
+  drawTapFeedback(samples)
 }
 
 function pointInRect(point, rect) {
@@ -2213,133 +2409,45 @@ function touchPoint(event, changed = true) {
   return touch ? { x: touch.clientX, y: touch.clientY } : { x: 0, y: 0 }
 }
 
-function nextTurn() {
-  const result = engine.finishTurn()
-  selectedMove = null
-  movementPinPosition = { ...engine.getPlayer('P1').position }
-  movementPinTransition = null
-  activeBattle = null
-  searchVisitState = null
-  searchRequestPending = false
-  searchDragging = null
-  searchDragPoint = null
-  searchRoomScrollY = 0
-  searchMagnifierSlotIndex = null
-  searchMagnifierChangedAt = 0
-  searchGesture = null
-  presentation = result.gameOver || engine.phase === 'GAME_OVER' ? 'SETTLEMENT' : 'MAP'
+async function nextTurn() {
+  await accountAction('leave')
 }
 
 async function openSearchObservation(areaId) {
-  if (!searchVisitState || searchRequestPending || !searchVisitState.room.canObserve) return
-  if (!C.SEARCH_ROOM_AREA_IDS.includes(areaId)) return
-  searchRequestPending = true
-  try {
-    if (searchAuthority === 'REMOTE') {
-      applySearchSnapshot(await observeSearch({ gameId: searchGameId, visitId: searchVisitState.visit.visitId, playerId: 'P1', areaId }))
-    } else {
-      const visibleItemIds = localSearchItems(areaId).filter(item => ['REVEALED', 'DROPPED'].includes(item.state)).slice(0, C.SEARCH_VISIBLE_LIMIT).map(item => item.instanceId)
-      searchVisitState.visit.observation = { areaId, startedAt: Date.now(), initialVisibleCount: visibleItemIds.length, visibleItemIds, active: true }
-      searchVisitState = localVisitSnapshot()
-    }
+  if (await accountAction('observe', { areaId })) {
     searchRoomScrollY = 0
-    searchMagnifierSlotIndex = null
-    searchMagnifierChangedAt = Date.now()
-    searchGesture = null
+    searchRippleSlotIndex = null
     presentation = 'SEARCH'
-  } catch (requestError) {
-    addToast(requestError.code === 'SEARCH_TIMEOUT' ? '搜索时间已经结束。' : '暂时无法搜索该区域。')
-  } finally {
-    searchRequestPending = false
   }
 }
 
 async function finishSearchOverlay() {
-  if (!searchVisitState || searchRequestPending) return
-  searchRequestPending = true
-  try {
-    if (searchAuthority === 'REMOTE') {
-      applySearchSnapshot(await finishSearchObservation({ gameId: searchGameId, visitId: searchVisitState.visit.visitId, playerId: 'P1' }))
-    } else {
-      if (searchVisitState.visit.observation) searchVisitState.visit.observation.active = false
-      searchVisitState = localVisitSnapshot()
-    }
-    presentation = 'ROOM'
-    searchRoomScrollY = 0
-    searchMagnifierSlotIndex = null
-    searchMagnifierChangedAt = 0
-    searchGesture = null
-  } catch (requestError) {
-    addToast('完成搜索失败，请重试。')
-  } finally {
-    searchRequestPending = false
-  }
+  if (await accountAction('finish-observation')) presentation = 'ROOM'
 }
 
 async function leaveCurrentRoom() {
-  if (!searchVisitState || searchRequestPending) return
-  searchRequestPending = true
-  try {
-    if (searchAuthority === 'REMOTE') {
-      applySearchSnapshot(await leaveSearchRoom({ gameId: searchGameId, visitId: searchVisitState.visit.visitId, playerId: 'P1' }))
-    } else {
-      searchVisitState.visit.status = 'LEFT'
-      searchVisitState.visit.finishReason = 'PLAYER_LEFT'
-      if (searchVisitState.visit.observation) searchVisitState.visit.observation.active = false
-    }
-    nextTurn()
-  } catch (requestError) {
-    addToast('离开房间失败，请重试。')
-    searchRequestPending = false
-  }
+  await accountAction('leave')
 }
 
 async function pickupDraggedSearchItem(instanceId) {
-  if (!searchVisitState || searchRequestPending) return
-  searchRequestPending = true
-  try {
-    if (searchAuthority === 'REMOTE') {
-      applySearchSnapshot(await pickupSearchItem({ gameId: searchGameId, visitId: searchVisitState.visit.visitId, playerId: 'P1', instanceId }))
-    } else {
-      const result = engine.interactWithItem('P1', instanceId)
-      if (!result.ok) throw Object.assign(new Error(result.reason), { code: result.reason })
-      if (searchVisitState.visit.observation) searchVisitState.visit.observation.visibleItemIds = searchVisitState.visit.observation.visibleItemIds.filter(id => id !== instanceId)
-      searchVisitState = localVisitSnapshot()
-    }
-    addToast('物资已收入背包。')
-  } catch (requestError) {
-    addToast(requestError.code === 'BACKPACK_FULL' ? '背包已满，物资仍留在房间。' : '物资拾取失败。')
-  } finally {
-    searchRequestPending = false
-  }
+  if (await accountAction('pickup', { instanceId })) addToast('物资已收入背包。')
 }
 
 async function dropDraggedInventoryItem(instanceId) {
-  if (!searchVisitState || searchRequestPending) return
-  searchRequestPending = true
-  try {
-    if (searchAuthority === 'REMOTE') {
-      applySearchSnapshot(await dropSearchItem({ gameId: searchGameId, visitId: searchVisitState.visit.visitId, playerId: 'P1', instanceId }))
-    } else {
-      const activeArea = searchVisitState.room.activeArea
-      if (!activeArea || activeArea.itemCount >= C.SEARCH_AREA_CAPACITY) throw Object.assign(new Error('AREA_FULL'), { code: 'AREA_FULL' })
-      const result = engine.dropItem('P1', instanceId, activeArea.areaId)
-      if (!result.ok) throw Object.assign(new Error(result.reason), { code: result.reason })
-      const dropped = engine.items.find(item => item.instanceId === instanceId)
-      engine.grantSearch('P1', [dropped])
-      if (searchVisitState.visit.observation && !searchVisitState.visit.observation.visibleItemIds.includes(instanceId)) searchVisitState.visit.observation.visibleItemIds.push(instanceId)
-      searchVisitState = localVisitSnapshot()
-    }
-    addToast('物品已留在当前房间。')
-  } catch (requestError) {
-    addToast(requestError.code === 'AREA_FULL' ? '该区域已满，最多容纳 30 件物品。' : '无法丢弃该物品。')
-  } finally {
-    searchRequestPending = false
-  }
+  if (await accountAction('drop', { instanceId })) addToast('已丢弃 1 张卡牌，留在当前区域。')
 }
 
 function handleAction(action) {
   if (!action) return
+  if (action.id === 'account_diagnostics') { showConnectionDiagnostics(); return }
+  if (action.id === 'account_retry') { connectAccount(); return }
+  if (action.id === 'profile_name') { inputNickname(); return }
+  if (action.id === 'profile_save') { saveProfile(); return }
+  if (action.id === 'account_abandon') {
+    wx.showModal({ title: '放弃本局？', content: '本局带入及搜到的物品将全部损失，仓库中未携带的资产不受影响。', success(result) { if (result.confirm) accountAction('abandon') } })
+    return
+  }
+  if (accountBusy) { addToast('上一操作处理中，请稍候。', 900); return }
   if (action.id === 'home_start') enterLoadout()
   if (action.id === 'home_shop') addToast('商店暂未开放。')
   if (action.id === 'home_warehouse') enterWarehouse()
@@ -2387,16 +2495,7 @@ function handleAction(action) {
   }
   if (action.id === 'map_node') selectMovementTarget(action.data)
   if (action.id === 'confirm_move') {
-    const local = engine.getPlayer('P1')
-    const target = selectedMove || { ...local.position }
-    const result = engine.submitMove('P1', target)
-    if (!result.ok) {
-      addToast('该节点当前不可到达。')
-      return
-    }
-    engine.submitBotMoves()
-    engine.resolveMoves()
-    decidePostMove()
+    accountAction('move', { target: selectedMove || engine.getPlayer('P1').position })
   }
   if (action.id === 'battle_continue') {
     const local = engine.getPlayer('P1')
@@ -2408,23 +2507,20 @@ function handleAction(action) {
   if (action.id === 'search_finish') finishSearchOverlay()
   if (action.id === 'next_turn') nextTurn()
   if (action.id === 'request_extraction') {
-    const result = engine.requestExtraction('P1')
-    if (!result.ok) {
-      addToast('当前无法撤离。')
-      return
-    }
-    addToast('白鸽接应中，正在消耗 1 个回合。')
-    nextTurn()
+    accountAction('extract')
   }
   if (action.id === 'settlement_home') {
+    accountApi.command('acknowledge').catch(() => {})
+    pendingResume = false
     engine = null
     setScene('HOME')
   }
-  if (action.id === 'settlement_replay') enterLoadout()
+  if (action.id === 'settlement_replay') { accountApi.command('acknowledge').catch(() => {}); pendingResume = false; enterLoadout() }
 }
 
 wx.onTouchStart(event => {
   const point = touchPoint(event, false)
+  tapFeedback.add(point, Date.now())
   if (scene === 'WAREHOUSE') {
     warehouseGesture = { start: point, last: point, mode: warehousePreviewCardId ? 'PREVIEW' : 'PENDING' }
     return
@@ -2465,6 +2561,7 @@ wx.onTouchStart(event => {
 })
 
 wx.onTouchMove(event => {
+  invalidateFrame()
   const point = touchPoint(event, false)
   if (scene === 'WAREHOUSE' && warehouseGesture && warehouseGesture.mode !== 'PREVIEW') {
     if (warehouseGesture.mode === 'PENDING' && Math.hypot(point.x - warehouseGesture.start.x, point.y - warehouseGesture.start.y) >= 7) warehouseGesture.mode = 'SCROLL'
@@ -2512,6 +2609,7 @@ wx.onTouchMove(event => {
 })
 
 wx.onTouchEnd(event => {
+  invalidateFrame()
   const point = touchPoint(event)
   if (scene === 'WAREHOUSE' && warehousePreviewCardId) {
     warehousePreviewCardId = null
@@ -2568,8 +2666,7 @@ wx.onTouchEnd(event => {
     }
   }
   if (draggingItemId && ui.discardRect && pointInRect(point, ui.discardRect) && engine) {
-    const result = engine.dropItem('P1', draggingItemId)
-    addToast(result.ok ? '物品已丢弃并保留在当前房间。' : '无法丢弃该物品。')
+    dropDraggedInventoryItem(draggingItemId)
     draggingItemId = null
     return
   }
@@ -2578,11 +2675,51 @@ wx.onTouchEnd(event => {
   handleAction(action)
 })
 
+// Desktop runtimes may emit mouse events without synthesizing mobile touches.
+// Limit this fallback to account forms; their busy/input guards coalesce runtimes
+// that emit both. Inventory drags continue to use the existing touch gestures.
+if (typeof wx.onMouseUp === 'function') wx.onMouseUp(event => {
+  if (event.button === 0) {
+    tapFeedback.add({ x: event.x, y: event.y }, Date.now(), 'mouse')
+  }
+  if (!['LOGIN', 'PROFILE'].includes(scene) || accountBusy || nicknameInput.active || profileConfirmationOpen || event.button !== 0) return
+  const point = { x: event.x, y: event.y }
+  if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) return
+  const action = ui.hotspots.slice().reverse().find(candidate => pointInRect(point, candidate.rect))
+  handleAction(action)
+})
+
+function cancelInputGesture() {
+  warehouseGesture = null
+  loadoutGesture = null
+  loadoutDragging = null
+  loadoutDragPoint = null
+  searchGesture = null
+  searchDragging = null
+  searchDragPoint = null
+  draggingItemId = null
+  invalidateFrame()
+}
+if (wx.onTouchCancel) wx.onTouchCancel(cancelInputGesture)
+
 function loop() {
-  update()
-  draw()
+  if (!accountBackground) { update(); renderFrame(Date.now()) }
   requestAnimationFrame(loop)
 }
+
+if (wx.onHide) wx.onHide(() => {
+  accountBackground = true
+  tapFeedback.clear()
+  cancelInputGesture()
+  if (accountGame) accountApi.command('suspend').catch(() => {})
+})
+if (wx.onShow) wx.onShow(() => {
+  accountBackground = false
+  invalidateFrame()
+  if (accountProfile && accountGame) {
+    accountApi.command('resume').then(response => { applyAccountResponse(response); resumeAccountGame() }).catch(() => addToast('恢复失败，正在重试。'))
+  }
+})
 
 loadAssets()
 loadCardCatalog()

@@ -4,6 +4,16 @@
   "functionRoot": "functions",
   "functions": [
     {
+      "name": "heisino-account",
+      "runtime": "Nodejs20.19",
+      "type": "HTTP",
+      "gatewayPath": "/api/account",
+      "installDependency": true,
+      "timeout": 20,
+      "memorySize": 256,
+      "description": "大劫卡西诺微信账号、权威对局与资产结算"
+    },
+    {
       "name": "heisino-cards",
       "runtime": "Nodejs20.19",
       "handler": "index.main",

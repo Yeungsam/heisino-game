@@ -1,6 +1,7 @@
 const C = require('./constants')
 const { randomInt, shuffled } = require('./rng')
 const { resolveBattle } = require('./combat')
+const { canAddItem } = require('./inventory')
 
 function nodeId(x, y) {
   return `n_${x}_${y}`
@@ -80,7 +81,6 @@ class GameEngine {
       nodeId: ownerId ? null : roomNodeId,
       areaId: ownerId ? null : areaId,
       ownerId,
-      durability: this.cardById[cardId].maxDurability || 0,
       revealedBy: null,
       createdTurn: this.turn
     }
@@ -112,11 +112,6 @@ class GameEngine {
     const localPlayer = this.getPlayer(this.localPlayerId)
     if (localPlayer && localPlayer.status !== 'ACTIVE') {
       this.phase = 'GAME_OVER'
-      return
-    }
-    if (this.activePlayers().length <= 1) {
-      this.phase = 'GAME_OVER'
-      this.addLog('场上仅剩一名玩家，对局结束。')
       return
     }
     this.phase = 'MOVE_SELECTION'
@@ -254,8 +249,6 @@ class GameEngine {
     const result = resolveBattle(leftStats, rightStats, this.rng)
     left.hp = result.leftHp
     right.hp = result.rightHp
-    this.consumeWeaponDurability(left)
-    this.consumeWeaponDurability(right)
     if (result.loserId) {
       const loser = this.getPlayer(result.loserId)
       loser.status = 'DEFEATED'
@@ -277,18 +270,6 @@ class GameEngine {
       hp: player.hp,
       attackMultiplier: weaponCard ? weaponCard.attackMultiplier : C.BASE_ATTACK_MULTIPLIER,
       defenseMultiplier: C.BASE_DEFENSE_MULTIPLIER
-    }
-  }
-
-  consumeWeaponDurability(player) {
-    const weapon = this.items.find(item => item.instanceId === player.equippedWeaponId)
-    if (!weapon) return
-    weapon.durability = Math.max(0, weapon.durability - 1)
-    if (weapon.durability === 0) {
-      weapon.state = 'DESTROYED'
-      player.inventory = player.inventory.filter(id => id !== weapon.instanceId)
-      player.equippedWeaponId = null
-      this.addLog(`${player.name}的武器耐久耗尽。`)
     }
   }
 
@@ -319,7 +300,7 @@ class GameEngine {
       item.revealedBy = playerId
       return { ok: true, action: 'REVEALED', item: clone(item) }
     }
-    if (player.inventory.length >= C.BACKPACK_SLOTS) return { ok: false, reason: 'BACKPACK_FULL' }
+    if (!canAddItem(player.inventory.map(id => this.items.find(unit => unit.instanceId === id)), item.cardId, C.BACKPACK_SLOTS)) return { ok: false, reason: 'BACKPACK_FULL' }
     item.state = 'IN_INVENTORY'
     item.ownerId = playerId
     item.nodeId = null
@@ -438,7 +419,8 @@ class GameEngine {
       searchAccess: this.searchAccess,
       log: this.log,
       moveDeadlineAt: this.moveDeadlineAt,
-      turnDeadlineAt: this.turnDeadlineAt
+      turnDeadlineAt: this.turnDeadlineAt,
+      nextItemSequence: this.nextItemSequence
     })
   }
 }

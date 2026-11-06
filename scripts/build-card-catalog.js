@@ -94,7 +94,6 @@ function baseCard({ id, file, kind, category, name, rarity, description }) {
     rarity,
     attack_multiplier: null,
     defense_multiplier: null,
-    durability: { mode: 'NONE', max: 0, loss_per_battle: 0 },
     economy: { currency: 'GOLD', value_source: 'NONE', purchase_price: null, fixed_value: null },
     inventory: { slot_cost: 1, can_pickup: true, can_drop: true, can_steal: true },
     rules: { requires_equipped: false, usable_phases: ['NONE'], effects: [] },
@@ -117,17 +116,15 @@ function baseCard({ id, file, kind, category, name, rarity, description }) {
 const cards = []
 
 weapons.forEach(([id, file, name, rarity, multiplier]) => {
-  const card = baseCard({ id, file, kind: 'EQUIPMENT', category: 'WEAPON', name, rarity, description: `武器卡，攻击倍率${Math.round(multiplier * 100)}%，耐久2/2。` })
+  const card = baseCard({ id, file, kind: 'EQUIPMENT', category: 'WEAPON', name, rarity, description: `武器卡，攻击倍率${Math.round(multiplier * 100)}%。` })
   card.attack_multiplier = multiplier
-  card.durability = { mode: 'PER_BATTLE', max: 2, loss_per_battle: 1 }
   card.economy.value_source = 'PURCHASE_PRICE'
   card.rules.requires_equipped = true
   cards.push(card)
 })
 
 armors.forEach(([id, file, name, rarity]) => {
-  const card = baseCard({ id, file, kind: 'EQUIPMENT', category: 'ARMOR', name, rarity, description: '防具卡，卡面耐久2/2；防御倍率等待玩法数值确认。' })
-  card.durability = { mode: 'PER_BATTLE', max: 2, loss_per_battle: 1 }
+  const card = baseCard({ id, file, kind: 'EQUIPMENT', category: 'ARMOR', name, rarity, description: '防具卡，防御倍率等待玩法数值确认。' })
   card.economy.value_source = 'PURCHASE_PRICE'
   card.rules.requires_equipped = true
   card.data_status = 'DRAFT'
@@ -173,7 +170,6 @@ const projection = cards.map(card => ({
   attackMultiplier: card.attack_multiplier,
   defenseMultiplier: card.defense_multiplier,
   value: card.economy.fixed_value ?? card.economy.purchase_price,
-  maxDurability: card.durability.max,
   assetPath: card.assets.card_art_path,
   dataStatus: card.data_status
 }))

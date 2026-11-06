@@ -1,0 +1,8 @@
+{
+  "name": "heisino-account",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.js",
+  "dependencies": { "@cloudbase/node-sdk": "^3.18.3" },
+  "overrides": { "@cloudbase/database": "1.5.1", "axios": "1.20.0" }
+}

@@ -4,7 +4,11 @@
   "title": "大劫卡西诺卡牌配置",
   "description": "静态卡牌定义。运行时的拾取、丢弃、装备和掠夺状态由 item-instance.schema.json 表示。",
   "type": "object",
-  "required": ["schema_version", "generated_at", "cards"],
+  "required": [
+    "schema_version",
+    "generated_at",
+    "cards"
+  ],
   "properties": {
     "schema_version": {
       "type": "string",
@@ -35,7 +39,6 @@
         "rarity",
         "attack_multiplier",
         "defense_multiplier",
-        "durability",
         "economy",
         "inventory",
         "rules",
@@ -50,11 +53,20 @@
         },
         "kind": {
           "type": "string",
-          "enum": ["EQUIPMENT", "LOOT", "SKILL"]
+          "enum": [
+            "EQUIPMENT",
+            "LOOT",
+            "SKILL"
+          ]
         },
         "category": {
           "type": "string",
-          "enum": ["WEAPON", "ARMOR", "SKILL", "LOOT"]
+          "enum": [
+            "WEAPON",
+            "ARMOR",
+            "SKILL",
+            "LOOT"
+          ]
         },
         "name": {
           "type": "string",
@@ -68,40 +80,38 @@
         },
         "rarity": {
           "type": "string",
-          "enum": ["GREEN", "BLUE", "PURPLE", "RED", "SPECIAL"]
+          "enum": [
+            "GREEN",
+            "BLUE",
+            "PURPLE",
+            "RED",
+            "SPECIAL"
+          ]
         },
         "attack_multiplier": {
-          "type": ["number", "null"],
+          "type": [
+            "number",
+            "null"
+          ],
           "minimum": 0,
           "maximum": 2
         },
         "defense_multiplier": {
-          "type": ["number", "null"],
+          "type": [
+            "number",
+            "null"
+          ],
           "minimum": 0,
           "maximum": 2
         },
-        "durability": {
-          "type": "object",
-          "required": ["mode", "max", "loss_per_battle"],
-          "properties": {
-            "mode": {
-              "type": "string",
-              "enum": ["PER_BATTLE", "NONE"]
-            },
-            "max": {
-              "type": "integer",
-              "minimum": 0
-            },
-            "loss_per_battle": {
-              "type": "integer",
-              "minimum": 0
-            }
-          },
-          "additionalProperties": false
-        },
         "economy": {
           "type": "object",
-          "required": ["currency", "value_source", "purchase_price", "fixed_value"],
+          "required": [
+            "currency",
+            "value_source",
+            "purchase_price",
+            "fixed_value"
+          ],
           "properties": {
             "currency": {
               "type": "string",
@@ -109,14 +119,24 @@
             },
             "value_source": {
               "type": "string",
-              "enum": ["PURCHASE_PRICE", "FIXED_LOOT_VALUE", "NONE"]
+              "enum": [
+                "PURCHASE_PRICE",
+                "FIXED_LOOT_VALUE",
+                "NONE"
+              ]
             },
             "purchase_price": {
-              "type": ["integer", "null"],
+              "type": [
+                "integer",
+                "null"
+              ],
               "minimum": 0
             },
             "fixed_value": {
-              "type": ["integer", "null"],
+              "type": [
+                "integer",
+                "null"
+              ],
               "minimum": 0
             }
           },
@@ -124,7 +144,12 @@
         },
         "inventory": {
           "type": "object",
-          "required": ["slot_cost", "can_pickup", "can_drop", "can_steal"],
+          "required": [
+            "slot_cost",
+            "can_pickup",
+            "can_drop",
+            "can_steal"
+          ],
           "properties": {
             "slot_cost": {
               "type": "integer",
@@ -144,7 +169,11 @@
         },
         "rules": {
           "type": "object",
-          "required": ["requires_equipped", "usable_phases", "effects"],
+          "required": [
+            "requires_equipped",
+            "usable_phases",
+            "effects"
+          ],
           "properties": {
             "requires_equipped": {
               "type": "boolean"
@@ -153,7 +182,12 @@
               "type": "array",
               "items": {
                 "type": "string",
-                "enum": ["BEFORE_ROLL", "DICE_ALLOCATION", "RESOLUTION", "NONE"]
+                "enum": [
+                  "BEFORE_ROLL",
+                  "DICE_ALLOCATION",
+                  "RESOLUTION",
+                  "NONE"
+                ]
               },
               "uniqueItems": true
             },
@@ -168,13 +202,25 @@
         },
         "assets": {
           "type": "object",
-          "required": ["icon_key", "card_art_key", "card_art_path", "source_file", "sha256"],
+          "required": [
+            "icon_key",
+            "card_art_key",
+            "card_art_path",
+            "source_file",
+            "sha256"
+          ],
           "properties": {
             "icon_key": {
-              "type": ["string", "null"]
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "card_art_key": {
-              "type": ["string", "null"]
+              "type": [
+                "string",
+                "null"
+              ]
             },
             "card_art_path": {
               "type": "string",
@@ -193,11 +239,19 @@
         },
         "data_status": {
           "type": "string",
-          "enum": ["DRAFT", "ACTIVE", "BLOCKED"]
+          "enum": [
+            "DRAFT",
+            "ACTIVE",
+            "BLOCKED"
+          ]
         },
         "source": {
           "type": "object",
-          "required": ["document", "notes", "ocr_text"],
+          "required": [
+            "document",
+            "notes",
+            "ocr_text"
+          ],
           "properties": {
             "document": {
               "type": "string",
@@ -208,7 +262,9 @@
             },
             "ocr_text": {
               "type": "array",
-              "items": { "type": "string" }
+              "items": {
+                "type": "string"
+              }
             }
           },
           "additionalProperties": false
@@ -218,7 +274,12 @@
     },
     "effect": {
       "type": "object",
-      "required": ["effect_id", "effect_type", "duration", "parameters"],
+      "required": [
+        "effect_id",
+        "effect_type",
+        "duration",
+        "parameters"
+      ],
       "properties": {
         "effect_id": {
           "type": "string",
@@ -234,19 +295,25 @@
             "REROLL_DICE",
             "LOCK_DICE_MINIMUM",
             "DISABLE_EQUIPMENT_EFFECT",
-            "MODIFY_LOOT"
-            ,"DOUBLE_DAMAGE_ON_MATCHING_DICE"
-            ,"ADD_DIE"
-            ,"REMOVE_OPPONENT_DIE"
-            ,"MASK_OPPONENT_HAND"
-            ,"RISK_REWARD_HP"
-            ,"MODIFY_FINAL_SCORE"
-            ,"SWAP_DICE"
+            "MODIFY_LOOT",
+            "DOUBLE_DAMAGE_ON_MATCHING_DICE",
+            "ADD_DIE",
+            "REMOVE_OPPONENT_DIE",
+            "MASK_OPPONENT_HAND",
+            "RISK_REWARD_HP",
+            "MODIFY_FINAL_SCORE",
+            "SWAP_DICE"
           ]
         },
         "duration": {
           "type": "string",
-          "enum": ["NONE", "SUB_ROUND", "BATTLE", "TURN", "INSTANCE"]
+          "enum": [
+            "NONE",
+            "SUB_ROUND",
+            "BATTLE",
+            "TURN",
+            "INSTANCE"
+          ]
         },
         "parameters": {
           "type": "object"

@@ -4,6 +4,10 @@ const path = require('node:path')
 const searchCards = require('../functions/heisino-game/catalog')
 const { SearchGameService, MemorySearchStore } = require('../functions/heisino-game/search-domain')
 const { createSearchHttpHandler } = require('../functions/heisino-game/http-handler')
+const { AccountService } = require('../functions/heisino-account/service')
+const { MemoryAccountStore } = require('../functions/heisino-account/store')
+const { WechatIdentity } = require('../functions/heisino-account/wechat')
+const { createAccountHandler } = require('../functions/heisino-account/http-handler')
 
 const root = path.resolve(__dirname, '..')
 const publicRoot = path.join(__dirname, 'public')
@@ -11,6 +15,8 @@ const catalogPath = path.join(root, 'data', 'cards.json')
 const port = Number(process.env.PORT || 3000)
 const searchService = new SearchGameService({ cards: searchCards, store: new MemorySearchStore() })
 const handleSearchRequest = createSearchHttpHandler(searchService)
+const accountService = new AccountService({ store: new MemoryAccountStore(), identity: new WechatIdentity() })
+const handleAccountRequest = createAccountHandler(accountService)
 
 function readCatalog() {
   return JSON.parse(fs.readFileSync(catalogPath, 'utf8'))
@@ -59,6 +65,10 @@ function serveAsset(response, pathname) {
 
 const server = http.createServer(async (request, response) => {
   const url = new URL(request.url, originFor(request))
+  if (url.pathname.startsWith('/api/account/')) {
+    await handleAccountRequest(request, response)
+    return
+  }
   if (url.pathname.includes('/api/search/')) {
     await handleSearchRequest(request, response, url)
     return

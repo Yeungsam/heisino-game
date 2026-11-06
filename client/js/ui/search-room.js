@@ -1,14 +1,14 @@
-const SEARCH_DURATION_MS = 50000
-const MAGNIFIER_ORBIT_PERIOD_MS = 1600
+const { SEARCH_DURATION_MS } = require('../core/constants')
+const SEARCH_RIPPLE_PERIOD_MS = 1200
 const SEARCH_DESIGN_WIDTH = 1920
 const SEARCH_DESIGN_HEIGHT = 1080
 const SEARCH_PANEL_NINE_SLICE = Object.freeze({ left: 80, right: 80, top: 110, bottom: 78 })
 const SEARCH_ASSET_CROPS = Object.freeze({
+  roomTimerFill: Object.freeze({ x: 198, y: 85, width: 304, height: 62 }),
   slot: Object.freeze({ x: 58, y: 64, width: 240, height: 290 }),
   slotPattern: Object.freeze({ x: 85, y: 31, width: 249, height: 354 }),
   bagIcon: Object.freeze({ x: 51, y: 22, width: 158, height: 170 }),
-  briefcaseIcon: Object.freeze({ x: 31, y: 39, width: 198, height: 157 }),
-  magnifier: Object.freeze({ x: 118, y: 73, width: 212, height: 212 })
+  briefcaseIcon: Object.freeze({ x: 31, y: 39, width: 198, height: 157 })
 })
 const ROOM_AREA_TEMPLATE = Object.freeze([
   { areaId: 'LEFT_CABINET', x: 43, y: 196, width: 306, height: 289 },
@@ -24,6 +24,13 @@ function searchTimerState(deadlineAt, now = Date.now()) {
     progress: Math.max(0, Math.min(1, remainingMs / SEARCH_DURATION_MS)),
     expired: remainingMs === 0
   }
+}
+
+// Keep an unchanged server deadline on the same local timeline across polls.
+// A resumed visit with a new server deadline is anchored again.
+function syncSearchDeadline(previous, visit, serverNow, receivedAt) {
+  if (previous && previous.visitId === visit.visitId && previous.deadlineAt === visit.deadlineAt) return previous
+  return { visitId: visit.visitId, deadlineAt: visit.deadlineAt, localDeadlineAt: visit.deadlineAt + receivedAt - serverNow }
 }
 
 function createSearchLayout(viewWidth, viewHeight) {
@@ -58,21 +65,37 @@ function createRoomLayout(viewWidth, viewHeight) {
     width: source.width * scale,
     height: source.height * scale
   })
+  // Room art covers the screen; HUD stays inside the contained design safe area.
+  const artworkScale = Math.max(viewWidth / SEARCH_DESIGN_WIDTH, viewHeight / SEARCH_DESIGN_HEIGHT)
+  const artworkWidth = SEARCH_DESIGN_WIDTH * artworkScale
+  const artworkHeight = SEARCH_DESIGN_HEIGHT * artworkScale
+  const artwork = { scale: artworkScale, offsetX: (viewWidth - artworkWidth) / 2, offsetY: (viewHeight - artworkHeight) / 2 }
+  const areas = ROOM_AREA_TEMPLATE.flatMap(area => {
+    const left = Math.max(0, artwork.offsetX + area.x * artwork.scale)
+    const top = Math.max(0, artwork.offsetY + area.y * artwork.scale)
+    const right = Math.min(viewWidth, artwork.offsetX + (area.x + area.width) * artwork.scale)
+    const bottom = Math.min(viewHeight, artwork.offsetY + (area.y + area.height) * artwork.scale)
+    return right > left && bottom > top ? [{ areaId: area.areaId, x: left, y: top, width: right - left, height: bottom - top }] : []
+  })
   return {
     scale,
     offsetX,
     offsetY,
     designWidth: SEARCH_DESIGN_WIDTH,
     designHeight: SEARCH_DESIGN_HEIGHT,
+    artwork,
     contentRect: {
-      x: offsetX,
-      y: offsetY,
-      width: SEARCH_DESIGN_WIDTH * scale,
-      height: SEARCH_DESIGN_HEIGHT * scale
+      x: artwork.offsetX,
+      y: artwork.offsetY,
+      width: artworkWidth,
+      height: artworkHeight
     },
-    areas: ROOM_AREA_TEMPLATE.map(convert),
+    areas,
     title: convert({ x: 133, y: 58, width: 515, height: 163 }),
     timer: convert({ x: 1297, y: 36, width: 459, height: 178 }),
+    timerTrack: convert({ x: 1370, y: 36, width: 386, height: 178 }),
+    timerFill: convert({ x: 1400, y: 113, width: 326, height: 18 }),
+    timerIcon: convert({ x: 1314, y: 87, width: 75, height: 75 }),
     leave: convert({ x: 1371, y: 889, width: 292, height: 104 })
   }
 }
@@ -94,9 +117,19 @@ function createHudSafeLayout(viewWidth, menuButtonRect) {
   const defaultRight = Math.min(viewWidth - 18, viewWidth * 0.8)
   const menuLeft = menuButtonRect && Number(menuButtonRect.left)
   const resourceRight = Number.isFinite(menuLeft) && menuLeft > viewWidth * 0.5
-    ? Math.min(defaultRight, menuLeft - 16)
+    ? Math.min(defaultRight, menuLeft - Math.max(16, viewWidth * 0.055))
     : defaultRight
-  return { resourceRight }
+  const left = Math.min(16, viewWidth * 0.02)
+  const gap = Math.min(12, viewWidth * 0.015)
+  const available = Math.max(0, resourceRight - left - gap * 4)
+  const fields = {}
+  let x = left
+  for (const [key, fraction] of [['title', 0.26], ['round', 0.19], ['hp', 0.15], ['alert', 0.19], ['resource', 0.21]]) {
+    const width = available * fraction
+    fields[key] = { x, width }
+    x += width + gap
+  }
+  return { resourceRight, ...fields }
 }
 
 function createSearchPanelContentLayout(rect, scale) {
@@ -145,50 +178,46 @@ function createNineSliceGeometry(sourceWidth, sourceHeight, rect, slices, destin
   return segments
 }
 
-function nextSearchMagnifierIndex(visibleCount, itemCount, elapsedMs, revealIntervalMs = 2000) {
+function nextSearchRippleIndex(visibleCount, itemCount, elapsedMs, revealIntervalMs = 2000) {
   const visible = Math.max(0, Number(visibleCount) || 0)
   const total = Math.max(0, Number(itemCount) || 0)
   if (total === 0) return elapsedMs < revealIntervalMs ? 0 : null
   return visible < total ? visible : null
 }
 
-function magnifierOrbitState(slot, now, startedAt, periodMs = MAGNIFIER_ORBIT_PERIOD_MS) {
+function searchRippleState(slot, now, startedAt) {
   const elapsed = Math.max(0, now - startedAt)
-  const phase = periodMs > 0 ? (elapsed % periodMs) / periodMs : 0
-  const angle = phase * Math.PI * 2 - Math.PI / 2
-  const centerX = slot.x + slot.width / 2
-  const centerY = slot.y + slot.height / 2
-  const radius = Math.min(slot.width, slot.height) * 0.24
-  const entrance = Math.min(1, elapsed / 220)
-  const easedEntrance = 1 - Math.pow(1 - entrance, 3)
+  const size = Math.min(slot.width, slot.height)
+  const rings = []
+  for (const delay of [0, SEARCH_RIPPLE_PERIOD_MS / 2]) {
+    if (elapsed < delay) continue
+    const phase = ((elapsed - delay) % SEARCH_RIPPLE_PERIOD_MS) / SEARCH_RIPPLE_PERIOD_MS
+    const fade = (1 - phase) ** 2
+    rings.push({ radius: size * (0.09 + 0.34 * (1 - fade)), alpha: 0.68 * fade })
+  }
   return {
-    x: centerX + Math.cos(angle) * radius,
-    y: centerY + Math.sin(angle) * radius,
-    centerX,
-    centerY,
-    radius,
-    angle,
-    rotation: angle + Math.PI / 2 + Math.sin(angle * 2) * 0.08,
-    scale: (0.92 + Math.sin(angle + Math.PI / 3) * 0.05) * easedEntrance,
-    alpha: easedEntrance
+    x: slot.x + slot.width / 2,
+    y: slot.y + slot.height / 2,
+    rings
   }
 }
 
 module.exports = {
   SEARCH_DURATION_MS,
-  MAGNIFIER_ORBIT_PERIOD_MS,
+  SEARCH_RIPPLE_PERIOD_MS,
   SEARCH_DESIGN_WIDTH,
   SEARCH_DESIGN_HEIGHT,
   SEARCH_PANEL_NINE_SLICE,
   SEARCH_ASSET_CROPS,
   ROOM_AREA_TEMPLATE,
   searchTimerState,
+  syncSearchDeadline,
   createSearchLayout,
   createRoomLayout,
   fitAspectRect,
   createHudSafeLayout,
   createSearchPanelContentLayout,
   createNineSliceGeometry,
-  nextSearchMagnifierIndex,
-  magnifierOrbitState
+  nextSearchRippleIndex,
+  searchRippleState
 }

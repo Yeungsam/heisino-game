@@ -7,15 +7,10 @@
       "kind": "EQUIPMENT",
       "category": "WEAPON",
       "name": "黄金钢笔",
-      "description": "武器卡，攻击倍率100%，耐久2/2。",
+      "description": "武器卡，攻击倍率100%。",
       "rarity": "RED",
       "attack_multiplier": 1,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "PER_BATTLE",
-        "max": 2,
-        "loss_per_battle": 1
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "PURCHASE_PRICE",
@@ -57,15 +52,10 @@
       "kind": "EQUIPMENT",
       "category": "WEAPON",
       "name": "左轮手枪",
-      "description": "武器卡，攻击倍率90%，耐久2/2。",
+      "description": "武器卡，攻击倍率90%。",
       "rarity": "PURPLE",
       "attack_multiplier": 0.9,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "PER_BATTLE",
-        "max": 2,
-        "loss_per_battle": 1
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "PURCHASE_PRICE",
@@ -107,15 +97,10 @@
       "kind": "EQUIPMENT",
       "category": "WEAPON",
       "name": "打火机",
-      "description": "武器卡，攻击倍率90%，耐久2/2。",
+      "description": "武器卡，攻击倍率90%。",
       "rarity": "PURPLE",
       "attack_multiplier": 0.9,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "PER_BATTLE",
-        "max": 2,
-        "loss_per_battle": 1
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "PURCHASE_PRICE",
@@ -157,15 +142,10 @@
       "kind": "EQUIPMENT",
       "category": "WEAPON",
       "name": "手提包",
-      "description": "武器卡，攻击倍率80%，耐久2/2。",
+      "description": "武器卡，攻击倍率80%。",
       "rarity": "BLUE",
       "attack_multiplier": 0.8,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "PER_BATTLE",
-        "max": 2,
-        "loss_per_battle": 1
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "PURCHASE_PRICE",
@@ -207,15 +187,10 @@
       "kind": "EQUIPMENT",
       "category": "WEAPON",
       "name": "拳套",
-      "description": "武器卡，攻击倍率80%，耐久2/2。",
+      "description": "武器卡，攻击倍率80%。",
       "rarity": "BLUE",
       "attack_multiplier": 0.8,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "PER_BATTLE",
-        "max": 2,
-        "loss_per_battle": 1
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "PURCHASE_PRICE",
@@ -257,15 +232,10 @@
       "kind": "EQUIPMENT",
       "category": "WEAPON",
       "name": "礼宾伞",
-      "description": "武器卡，攻击倍率60%，耐久2/2。",
+      "description": "武器卡，攻击倍率60%。",
       "rarity": "GREEN",
       "attack_multiplier": 0.6,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "PER_BATTLE",
-        "max": 2,
-        "loss_per_battle": 1
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "PURCHASE_PRICE",
@@ -307,15 +277,10 @@
       "kind": "EQUIPMENT",
       "category": "WEAPON",
       "name": "旅行箱",
-      "description": "武器卡，攻击倍率60%，耐久2/2。",
+      "description": "武器卡，攻击倍率60%。",
       "rarity": "GREEN",
       "attack_multiplier": 0.6,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "PER_BATTLE",
-        "max": 2,
-        "loss_per_battle": 1
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "PURCHASE_PRICE",
@@ -357,15 +322,10 @@
       "kind": "EQUIPMENT",
       "category": "ARMOR",
       "name": "急救腰包",
-      "description": "防具卡，卡面耐久2/2；防御倍率等待玩法数值确认。",
+      "description": "防具卡，防御倍率等待玩法数值确认。",
       "rarity": "RED",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "PER_BATTLE",
-        "max": 2,
-        "loss_per_battle": 1
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "PURCHASE_PRICE",
@@ -407,15 +367,10 @@
       "kind": "EQUIPMENT",
       "category": "ARMOR",
       "name": "安全帽",
-      "description": "防具卡，卡面耐久2/2；防御倍率等待玩法数值确认。",
+      "description": "防具卡，防御倍率等待玩法数值确认。",
       "rarity": "GREEN",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "PER_BATTLE",
-        "max": 2,
-        "loss_per_battle": 1
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "PURCHASE_PRICE",
@@ -458,15 +413,10 @@
       "kind": "EQUIPMENT",
       "category": "ARMOR",
       "name": "泡泡防护罩",
-      "description": "防具卡，卡面耐久2/2；防御倍率等待玩法数值确认。",
+      "description": "防具卡，防御倍率等待玩法数值确认。",
       "rarity": "RED",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "PER_BATTLE",
-        "max": 2,
-        "loss_per_battle": 1
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "PURCHASE_PRICE",
@@ -508,15 +458,10 @@
       "kind": "EQUIPMENT",
       "category": "ARMOR",
       "name": "堆叠抱枕",
-      "description": "防具卡，卡面耐久2/2；防御倍率等待玩法数值确认。",
+      "description": "防具卡，防御倍率等待玩法数值确认。",
       "rarity": "RED",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "PER_BATTLE",
-        "max": 2,
-        "loss_per_battle": 1
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "PURCHASE_PRICE",
@@ -558,15 +503,10 @@
       "kind": "EQUIPMENT",
       "category": "ARMOR",
       "name": "赌场圆盾",
-      "description": "防具卡，卡面耐久2/2；防御倍率等待玩法数值确认。",
+      "description": "防具卡，防御倍率等待玩法数值确认。",
       "rarity": "GREEN",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "PER_BATTLE",
-        "max": 2,
-        "loss_per_battle": 1
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "PURCHASE_PRICE",
@@ -608,15 +548,10 @@
       "kind": "EQUIPMENT",
       "category": "ARMOR",
       "name": "废筹码垫板",
-      "description": "防具卡，卡面耐久2/2；防御倍率等待玩法数值确认。",
+      "description": "防具卡，防御倍率等待玩法数值确认。",
       "rarity": "GREEN",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "PER_BATTLE",
-        "max": 2,
-        "loss_per_battle": 1
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "PURCHASE_PRICE",
@@ -658,15 +593,10 @@
       "kind": "EQUIPMENT",
       "category": "ARMOR",
       "name": "地毯披风",
-      "description": "防具卡，卡面耐久2/2；防御倍率等待玩法数值确认。",
+      "description": "防具卡，防御倍率等待玩法数值确认。",
       "rarity": "GREEN",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "PER_BATTLE",
-        "max": 2,
-        "loss_per_battle": 1
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "PURCHASE_PRICE",
@@ -708,15 +638,10 @@
       "kind": "EQUIPMENT",
       "category": "ARMOR",
       "name": "旧扑克护片",
-      "description": "防具卡，卡面耐久2/2；防御倍率等待玩法数值确认。",
+      "description": "防具卡，防御倍率等待玩法数值确认。",
       "rarity": "GREEN",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "PER_BATTLE",
-        "max": 2,
-        "loss_per_battle": 1
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "PURCHASE_PRICE",
@@ -758,15 +683,10 @@
       "kind": "EQUIPMENT",
       "category": "ARMOR",
       "name": "蒙面眼罩",
-      "description": "防具卡，卡面耐久2/2；防御倍率等待玩法数值确认。",
+      "description": "防具卡，防御倍率等待玩法数值确认。",
       "rarity": "GREEN",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "PER_BATTLE",
-        "max": 2,
-        "loss_per_battle": 1
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "PURCHASE_PRICE",
@@ -808,15 +728,10 @@
       "kind": "EQUIPMENT",
       "category": "ARMOR",
       "name": "纸杯头盔",
-      "description": "防具卡，卡面耐久2/2；防御倍率等待玩法数值确认。",
+      "description": "防具卡，防御倍率等待玩法数值确认。",
       "rarity": "GREEN",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "PER_BATTLE",
-        "max": 2,
-        "loss_per_battle": 1
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "PURCHASE_PRICE",
@@ -858,15 +773,10 @@
       "kind": "EQUIPMENT",
       "category": "ARMOR",
       "name": "纸箱护甲",
-      "description": "防具卡，卡面耐久2/2；防御倍率等待玩法数值确认。",
+      "description": "防具卡，防御倍率等待玩法数值确认。",
       "rarity": "GREEN",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "PER_BATTLE",
-        "max": 2,
-        "loss_per_battle": 1
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "PURCHASE_PRICE",
@@ -908,15 +818,10 @@
       "kind": "EQUIPMENT",
       "category": "ARMOR",
       "name": "雨伞护罩",
-      "description": "防具卡，卡面耐久2/2；防御倍率等待玩法数值确认。",
+      "description": "防具卡，防御倍率等待玩法数值确认。",
       "rarity": "RED",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "PER_BATTLE",
-        "max": 2,
-        "loss_per_battle": 1
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "PURCHASE_PRICE",
@@ -962,11 +867,6 @@
       "rarity": "RED",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "NONE",
-        "max": 0,
-        "loss_per_battle": 0
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "FIXED_LOOT_VALUE",
@@ -1012,11 +912,6 @@
       "rarity": "RED",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "NONE",
-        "max": 0,
-        "loss_per_battle": 0
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "FIXED_LOOT_VALUE",
@@ -1063,11 +958,6 @@
       "rarity": "RED",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "NONE",
-        "max": 0,
-        "loss_per_battle": 0
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "FIXED_LOOT_VALUE",
@@ -1113,11 +1003,6 @@
       "rarity": "RED",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "NONE",
-        "max": 0,
-        "loss_per_battle": 0
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "FIXED_LOOT_VALUE",
@@ -1164,11 +1049,6 @@
       "rarity": "RED",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "NONE",
-        "max": 0,
-        "loss_per_battle": 0
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "FIXED_LOOT_VALUE",
@@ -1213,11 +1093,6 @@
       "rarity": "RED",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "NONE",
-        "max": 0,
-        "loss_per_battle": 0
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "FIXED_LOOT_VALUE",
@@ -1265,11 +1140,6 @@
       "rarity": "RED",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "NONE",
-        "max": 0,
-        "loss_per_battle": 0
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "FIXED_LOOT_VALUE",
@@ -1316,11 +1186,6 @@
       "rarity": "RED",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "NONE",
-        "max": 0,
-        "loss_per_battle": 0
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "FIXED_LOOT_VALUE",
@@ -1368,11 +1233,6 @@
       "rarity": "RED",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "NONE",
-        "max": 0,
-        "loss_per_battle": 0
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "FIXED_LOOT_VALUE",
@@ -1418,11 +1278,6 @@
       "rarity": "GREEN",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "NONE",
-        "max": 0,
-        "loss_per_battle": 0
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "FIXED_LOOT_VALUE",
@@ -1468,11 +1323,6 @@
       "rarity": "GREEN",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "NONE",
-        "max": 0,
-        "loss_per_battle": 0
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "FIXED_LOOT_VALUE",
@@ -1518,11 +1368,6 @@
       "rarity": "GREEN",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "NONE",
-        "max": 0,
-        "loss_per_battle": 0
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "FIXED_LOOT_VALUE",
@@ -1569,11 +1414,6 @@
       "rarity": "GREEN",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "NONE",
-        "max": 0,
-        "loss_per_battle": 0
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "FIXED_LOOT_VALUE",
@@ -1619,11 +1459,6 @@
       "rarity": "GREEN",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "NONE",
-        "max": 0,
-        "loss_per_battle": 0
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "FIXED_LOOT_VALUE",
@@ -1669,11 +1504,6 @@
       "rarity": "GREEN",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "NONE",
-        "max": 0,
-        "loss_per_battle": 0
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "FIXED_LOOT_VALUE",
@@ -1719,11 +1549,6 @@
       "rarity": "GREEN",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "NONE",
-        "max": 0,
-        "loss_per_battle": 0
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "FIXED_LOOT_VALUE",
@@ -1781,11 +1606,6 @@
       "rarity": "GREEN",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "NONE",
-        "max": 0,
-        "loss_per_battle": 0
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "FIXED_LOOT_VALUE",
@@ -1835,11 +1655,6 @@
       "rarity": "GREEN",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "NONE",
-        "max": 0,
-        "loss_per_battle": 0
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "FIXED_LOOT_VALUE",
@@ -1885,11 +1700,6 @@
       "rarity": "BLUE",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "NONE",
-        "max": 0,
-        "loss_per_battle": 0
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "FIXED_LOOT_VALUE",
@@ -1935,11 +1745,6 @@
       "rarity": "BLUE",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "NONE",
-        "max": 0,
-        "loss_per_battle": 0
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "FIXED_LOOT_VALUE",
@@ -1985,11 +1790,6 @@
       "rarity": "BLUE",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "NONE",
-        "max": 0,
-        "loss_per_battle": 0
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "FIXED_LOOT_VALUE",
@@ -2036,11 +1836,6 @@
       "rarity": "PURPLE",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "NONE",
-        "max": 0,
-        "loss_per_battle": 0
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "FIXED_LOOT_VALUE",
@@ -2086,11 +1881,6 @@
       "rarity": "PURPLE",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "NONE",
-        "max": 0,
-        "loss_per_battle": 0
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "FIXED_LOOT_VALUE",
@@ -2136,11 +1926,6 @@
       "rarity": "PURPLE",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "NONE",
-        "max": 0,
-        "loss_per_battle": 0
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "NONE",
@@ -2196,11 +1981,6 @@
       "rarity": "PURPLE",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "NONE",
-        "max": 0,
-        "loss_per_battle": 0
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "NONE",
@@ -2263,11 +2043,6 @@
       "rarity": "PURPLE",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "NONE",
-        "max": 0,
-        "loss_per_battle": 0
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "NONE",
@@ -2323,11 +2098,6 @@
       "rarity": "PURPLE",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "NONE",
-        "max": 0,
-        "loss_per_battle": 0
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "NONE",
@@ -2383,11 +2153,6 @@
       "rarity": "PURPLE",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "NONE",
-        "max": 0,
-        "loss_per_battle": 0
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "NONE",
@@ -2440,11 +2205,6 @@
       "rarity": "PURPLE",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "NONE",
-        "max": 0,
-        "loss_per_battle": 0
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "NONE",
@@ -2508,11 +2268,6 @@
       "rarity": "PURPLE",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "NONE",
-        "max": 0,
-        "loss_per_battle": 0
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "NONE",
@@ -2569,11 +2324,6 @@
       "rarity": "PURPLE",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "NONE",
-        "max": 0,
-        "loss_per_battle": 0
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "NONE",
@@ -2630,11 +2380,6 @@
       "rarity": "PURPLE",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "NONE",
-        "max": 0,
-        "loss_per_battle": 0
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "NONE",
@@ -2689,11 +2434,6 @@
       "rarity": "PURPLE",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "durability": {
-        "mode": "NONE",
-        "max": 0,
-        "loss_per_battle": 0
-      },
       "economy": {
         "currency": "GOLD",
         "value_source": "NONE",

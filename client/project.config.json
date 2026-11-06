@@ -9,7 +9,7 @@
     "enhance": false,
     "postcss": true,
     "minified": false,
-    "urlCheck": false,
+    "urlCheck": true,
     "compileHotReLoad": true,
     "compileWorklet": false,
     "uglifyFileName": false,
