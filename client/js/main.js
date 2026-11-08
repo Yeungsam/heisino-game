@@ -204,6 +204,7 @@ let searchRoomScrollY = 0
 let searchRippleSlotIndex = null
 let searchRippleStartedAt = 0
 let searchGesture = null
+let cancelledSearchTouch = false
 
 const ui = {
   hotspots: [],
@@ -379,6 +380,7 @@ function applyAccountResponse(response) {
   accountLastHeartbeat = Date.now()
   accountRevision = response.revision
   const previousGame = accountGame
+  const previousVisit = searchVisitState?.visit
   if ('lobbyRoom' in response) {
     lobbyRoom = response.lobbyRoom
     lobbyDeadlineAt = lobbyRoom ? Date.now() + lobbyRoom.expiresAt - response.serverNow : 0
@@ -434,6 +436,9 @@ function applyAccountResponse(response) {
     roomTimerAnchor = null
     presentation = 'SETTLEMENT'
   }
+  const visit = searchVisitState?.visit
+  if (searchGesture && (visit?.visitId !== previousVisit?.visitId || !visit?.observation?.active ||
+      visit.observation.areaId !== previousVisit?.observation?.areaId)) cancelInputGesture()
 }
 
 function resumeAccountGame() {
@@ -1678,9 +1683,13 @@ function drawHudPlate(rect, options = {}) {
   context.restore()
 }
 
+function canSelectMovement(state) {
+  return state.phase === 'MOVE_SELECTION' && !accountGame?.waiting && Date.now() < state.moveDeadlineAt
+}
+
 function drawMovementRooms(state, layout) {
   const local = state.players.find(player => player.id === 'P1')
-  const selecting = state.phase === 'MOVE_SELECTION' && !accountGame?.waiting
+  const selecting = canSelectMovement(state)
   const legalKeys = new Set(selecting ? engine.legalMoves('P1').map(position => `${position.x},${position.y}`) : [])
   const scale = layout.transform.scale
 
@@ -1926,11 +1935,11 @@ function drawMovementHud(state, layout) {
   const target = selectedMove || local.position
   const deadline = state.phase === 'MOVE_SELECTION' ? state.moveDeadlineAt : state.turnDeadlineAt
   const seconds = Math.max(0, Math.ceil((deadline - Date.now()) / 1000))
-  if (accountGame?.waiting) {
+  if (accountGame?.waiting && seconds > 0) {
     drawHudPlate(layout.action, { stroke: '#c2a475', inner: '#584332' })
     text(`等待其他玩家  ${seconds}s`, layout.action.x + layout.action.width / 2, layout.action.y + layout.action.height / 2,
       Math.max(9, 16 * scale), '#eadfc9', 'center', 'bold', layout.action.width - 8 * scale)
-  } else if (state.phase === 'MOVE_SELECTION') {
+  } else if (canSelectMovement(state)) {
     button('confirm_move', selectedMove ? `确认移动  ${seconds}s` : `原地停留  ${seconds}s`, layout.action, {
       top: selectedMove ? '#c43b32' : '#78552e',
       bottom: selectedMove ? '#6d1423' : '#372519',
@@ -1940,7 +1949,7 @@ function drawMovementHud(state, layout) {
     })
   } else {
     drawHudPlate(layout.action, { stroke: '#a99470', inner: '#584332' })
-    text('行动结算中', layout.action.x + layout.action.width / 2, layout.action.y + layout.action.height / 2, Math.max(9, 17 * scale), '#eadfc9', 'center', 'bold')
+    text(seconds === 0 ? '同步回合中…' : '行动结算中', layout.action.x + layout.action.width / 2, layout.action.y + layout.action.height / 2, Math.max(9, 17 * scale), '#eadfc9', 'center', 'bold')
   }
   context.save()
   context.shadowColor = '#281720'
@@ -2602,10 +2611,7 @@ function handleAction(action) {
   }
   if (action.id === 'lobby_back') setScene('LOADOUT')
   if (action.id === 'lobby_create') lobbyAction('create')
-  if (action.id === 'lobby_join') {
-    if (action.data.playerCount >= action.data.capacity) addToast('房间人数已满，无法加入。')
-    else lobbyAction('join', action.data.roomId)
-  }
+  if (action.id === 'lobby_join') lobbyAction('join', action.data.roomId)
   if (action.id === 'lobby_leave') lobbyAction('leave', lobbyRoom?.roomId)
   if (action.id === 'lobby_start') lobbyAction('start', lobbyRoom?.roomId)
   if (action.id === 'lobby_single') startGame()
@@ -2614,8 +2620,8 @@ function handleAction(action) {
     lobbyShowPlaying = !lobbyShowPlaying
     lobbyPage = lobbyShowPlaying ? action.data : 0
   }
-  if (action.id === 'map_node') selectMovementTarget(action.data)
-  if (action.id === 'confirm_move') {
+  if (action.id === 'map_node' && canSelectMovement(engine)) selectMovementTarget(action.data)
+  if (action.id === 'confirm_move' && canSelectMovement(engine)) {
     accountAction('move', { target: selectedMove || engine.getPlayer('P1').position })
   }
   if (action.id === 'battle_continue') {
@@ -2630,16 +2636,16 @@ function handleAction(action) {
   if (action.id === 'request_extraction') {
     accountAction('extract')
   }
-  if (action.id === 'settlement_home') {
-    accountApi.command('acknowledge').catch(() => {})
+  if (action.id === 'settlement_home' || action.id === 'settlement_replay') {
+    if (accountSettlement) accountApi.command('acknowledge', { settlementId: accountSettlement.settlementId }).catch(() => {})
     pendingResume = false
-    engine = null
-    setScene('HOME')
+    if (action.id === 'settlement_replay') enterLoadout()
+    else { engine = null; setScene('HOME') }
   }
-  if (action.id === 'settlement_replay') { accountApi.command('acknowledge').catch(() => {}); pendingResume = false; enterLoadout() }
 }
 
 wx.onTouchStart(event => {
+  cancelledSearchTouch = false
   const point = touchPoint(event, false)
   tapFeedback.add(point, Date.now())
   if (scene === 'WAREHOUSE') {
@@ -2731,6 +2737,10 @@ wx.onTouchMove(event => {
 
 wx.onTouchEnd(event => {
   invalidateFrame()
+  if (cancelledSearchTouch) {
+    cancelledSearchTouch = false
+    return
+  }
   const point = touchPoint(event)
   if (scene === 'WAREHOUSE' && warehousePreviewCardId) {
     warehousePreviewCardId = null
@@ -2815,6 +2825,7 @@ function cancelInputGesture() {
   loadoutGesture = null
   loadoutDragging = null
   loadoutDragPoint = null
+  if (searchGesture) cancelledSearchTouch = true
   searchGesture = null
   searchDragging = null
   searchDragPoint = null
@@ -2838,7 +2849,13 @@ if (wx.onShow) wx.onShow(() => {
   accountBackground = false
   invalidateFrame()
   if (accountProfile && accountGame) {
-    accountApi.command('resume').then(response => { applyAccountResponse(response); resumeAccountGame() }).catch(() => addToast('恢复失败，正在重试。'))
+    const gameId = accountGame.gameId
+    const stillOnGame = () => !accountBackground && scene === 'GAME' && (accountGame?.gameId || accountSettlement?.gameId) === gameId
+    accountApi.command('resume').then(response => {
+      if (!stillOnGame()) return
+      applyAccountResponse(response)
+      resumeAccountGame()
+    }).catch(() => { if (stillOnGame()) addToast('恢复失败，正在重试。') })
   } else if (scene === 'LOBBY') refreshLobby()
 })
 

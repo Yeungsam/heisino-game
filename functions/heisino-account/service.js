@@ -109,7 +109,7 @@ class AccountService {
         if (document.profileComplete && (document.nickname !== checkedProfile.nickname || document.avatarUrl !== checkedProfile.avatarUrl)) throw fault('PROFILE_ALREADY_CREATED', 409)
         Object.assign(document, checkedProfile, { profileComplete: true })
       } else if (action === 'acknowledge') {
-        if (document.lastSettlement) document.lastSettlement.acknowledged = true
+        this.acknowledge(document, input.settlementId)
       } else if (action === 'start') this.start(document, input)
       else if (action === 'game') this.gameAction(document, input)
       else if (!['me', 'resume', 'heartbeat', 'suspend'].includes(action)) throw fault('NOT_FOUND', 404)
@@ -122,6 +122,15 @@ class AccountService {
       if (error === SHARED_GAME) return this.multiplayer.sync(accountId, token, action, input)
       throw error
     })
+  }
+
+  acknowledge(document, settlementId) {
+    const settlement = document.lastSettlement
+    if (!settlement || settlement.acknowledged) return false
+    const legacyRequest = settlementId === undefined && !['MULTIPLAYER', 'SINGLE'].includes(settlement.mode)
+    if (!legacyRequest && settlementId !== (settlement.settlementId || settlement.gameId)) return false
+    settlement.acknowledged = true
+    return true
   }
 
   restore(game) {

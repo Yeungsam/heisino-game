@@ -189,8 +189,7 @@ class Multiplayer {
         this.account.start(document, input)
         this.saveAccount(tx, document)
       }
-      if (action === 'acknowledge' && document.lastSettlement) {
-        document.lastSettlement.acknowledged = true
+      if (action === 'acknowledge' && this.account.acknowledge(document, input.settlementId)) {
         this.saveAccount(tx, document)
       }
       return document.activeGame ? this.account.response(document, document.version) : this.response(document, null, roomView(room, accountId))
