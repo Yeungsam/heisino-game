@@ -21,7 +21,8 @@ class GameEngine {
     this.cardById = Object.fromEntries(this.cards.map(card => [card.cardId, card]))
     this.rng = options.rng || Math.random
     this.now = options.now || (() => Date.now())
-    this.localPlayerId = options.localPlayerId || 'P1'
+    this.localPlayerId = options.localPlayerId === undefined ? 'P1' : options.localPlayerId
+    this.battleResolver = options.battleResolver || resolveBattle
     this.localLoadoutCardIds = Array.isArray(options.localLoadoutCardIds)
       ? options.localLoadoutCardIds.slice(0, C.LOADOUT_CARD_LIMIT)
       : ['wp_006']
@@ -36,8 +37,8 @@ class GameEngine {
     this.nextItemSequence = 1
   }
 
-  start() {
-    this.players = [
+  start(participants) {
+    this.players = participants ? participants.map(({ id, name, x, y, cardIds }) => this.createPlayer(id, name, x, y, cardIds)) : [
       this.createPlayer('P1', '玩家', 0, 0, this.localLoadoutCardIds),
       this.createPlayer('P2', '黑桃客', 0, 4, ['wp_005']),
       this.createPlayer('P3', '红心客', 4, 0, ['wp_002'])
@@ -110,7 +111,7 @@ class GameEngine {
     if (this.turn >= C.ALERT_START_TURN) this.applyAlertDamage()
     this.completeExtractions()
     const localPlayer = this.getPlayer(this.localPlayerId)
-    if (localPlayer && localPlayer.status !== 'ACTIVE') {
+    if ((localPlayer && localPlayer.status !== 'ACTIVE') || this.activePlayers().length === 0) {
       this.phase = 'GAME_OVER'
       return
     }
@@ -232,7 +233,11 @@ class GameEngine {
     const searchItems = randomizedItems.slice(battleCount)
     this.grantSearch(searcher.id, searchItems)
     const battle = this.runBattle(fighters[0], fighters[1], roomNodeId)
-    if (battle.winnerId) this.grantSearch(battle.winnerId, battleItems.concat(this.droppedItemsAt(roomNodeId)))
+    if (battle.winnerId) {
+      const existingItems = new Set(roomItems.map(item => item.instanceId))
+      const battleDrops = this.droppedItemsAt(roomNodeId).filter(item => !existingItems.has(item.instanceId))
+      this.grantSearch(battle.winnerId, battleItems.concat(battleDrops))
+    }
     this.encounters.push({
       type: 'THREE_PLAYER_SPLIT',
       nodeId: roomNodeId,
@@ -246,7 +251,7 @@ class GameEngine {
   runBattle(left, right, roomNodeId) {
     const leftStats = this.combatStats(left)
     const rightStats = this.combatStats(right)
-    const result = resolveBattle(leftStats, rightStats, this.rng)
+    const result = this.battleResolver(leftStats, rightStats, this.rng)
     left.hp = result.leftHp
     right.hp = result.rightHp
     if (result.loserId) {

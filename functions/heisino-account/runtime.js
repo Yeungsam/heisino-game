@@ -7,8 +7,9 @@ const core = local ? require('../../client/js/core/game-engine') : require('./ru
 const bundled = path.join(__dirname, 'runtime/cards.json')
 const raw = JSON.parse(fs.readFileSync(local ? path.join(__dirname, '../../data/cards.json') : bundled, 'utf8'))
 const cards = raw.cards.map(card => ({
-  cardId: card.card_id, name: card.name, kind: card.kind, category: card.category,
+  cardId: card.card_id, name: card.name, kind: card.kind, category: card.category, rarity: card.rarity,
   attackMultiplier: card.attack_multiplier, defenseMultiplier: card.defense_multiplier,
   value: card.economy.fixed_value ?? card.economy.purchase_price ?? 0
 }))
-module.exports = { ...core, cards }
+const constants = local ? require('../../client/js/core/constants') : require('./runtime/core/constants')
+module.exports = { ...core, cards, constants }

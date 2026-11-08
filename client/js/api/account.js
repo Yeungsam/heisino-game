@@ -8,7 +8,7 @@ function recordPerformance(action, queuedAt, startedAt, response) {
   const headers = response && response.header || {}
   const timingKey = Object.keys(headers).find(key => key.toLowerCase() === 'server-timing')
   const match = String(timingKey && headers[timingKey] || '').match(/app;dur=([\d.]+)/)
-  const publicAction = ['login', 'profile', 'me', 'start', 'game', 'heartbeat', 'suspend', 'resume', 'acknowledge'].includes(action) ? action : 'OTHER'
+  const publicAction = ['login', 'profile', 'me', 'start', 'game', 'heartbeat', 'suspend', 'resume', 'acknowledge', 'lobby'].includes(action) ? action : 'OTHER'
   const sample = { action: publicAction, queueMs: Math.max(0, startedAt - queuedAt), requestMs: Math.max(0, Date.now() - startedAt),
     serverMs: match ? Number(match[1]) : null, status: response && response.statusCode || 0 }
   performanceSamples.push(sample)
@@ -21,9 +21,10 @@ try { session = wx.getStorageSync(TOKEN_KEY) || null } catch (_) {}
 function requestId() { return `req-${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}` }
 function request(action, data, method = 'POST', queuedAt = Date.now()) {
   const startedAt = Date.now()
+  const background = action === 'heartbeat' || (action === 'lobby' && data.op === 'list')
   return new Promise((resolve, reject) => wx.request({
     url: `${config.gameApiBaseUrl}/api/account/${action}`, method, data,
-    timeout: action === 'heartbeat' ? 4000 : 18000,
+    timeout: background ? 4000 : 18000,
     header: { 'Content-Type': 'application/json', Authorization: session ? `Bearer ${session.token}` : '' },
     success(response) {
       recordPerformance(action, queuedAt, startedAt, response)
@@ -56,9 +57,10 @@ function command(action, data = {}) {
   // Retries reuse the exact payload and id. Mutations are serialized across UI and lifecycle events.
   const input = { ...data, requestId: data.requestId || requestId() }
   const queuedAt = Date.now()
+  const background = action === 'heartbeat' || (action === 'lobby' && input.op === 'list')
   const run = async () => {
     try { return await request(action, input, 'POST', queuedAt) } catch (error) {
-      if (error.code === 'NETWORK_ERROR' && action !== 'heartbeat') return request(action, input)
+      if (error.code === 'NETWORK_ERROR' && !background) return request(action, input)
       if (error.statusCode === 401) {
         session = null
         await login()

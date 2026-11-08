@@ -1,7 +1,6 @@
 const bundledCards = require('../data/cards')
 const C = require('./core/constants')
 const { GameEngine, positionKey } = require('./core/game-engine')
-const { MatchmakingSession } = require('./core/matchmaking')
 const { LoadoutSession } = require('./core/loadout')
 const { stackItems, quantitySlots } = require('./core/inventory')
 const accountApi = require('./api/account')
@@ -166,7 +165,14 @@ let cardCatalogSource = 'LOADING'
 let pendingCardCatalog = null
 let scene = 'LOADING'
 let sceneEnteredAt = Date.now()
-let matchmaking = new MatchmakingSession()
+let lobbyRoom = null
+let lobbyRooms = []
+let lobbyPage = 0
+let lobbyShowPlaying = false
+let lobbyLastRefresh = -Infinity
+let lobbyPollInFlight = false
+let lobbyDeadlineAt = 0
+let lobbyError = ''
 let cards = bundledCards
 let cardsById = createCardCatalogIndex(cards)
 let loadout = new LoadoutSession({ cards })
@@ -176,8 +182,6 @@ let selectedMove = null
 let movementPinPosition = null
 let movementPinTransition = null
 let activeBattle = null
-let matchReadyAt = null
-let simulatedJoinStep = 0
 let toast = ''
 let toastUntil = 0
 let draggingItemId = null
@@ -311,7 +315,16 @@ function accountError(error) {
     STALE_TURN: '回合已推进，已刷新最新状态。',
     BACKPACK_FULL: '背包已满，物品仍留在房间。',
     AREA_FULL: '该搜索区域已满。',
-    ACTIVE_GAME_EXISTS: '有未完成的对局，请先恢复。'
+    ACTIVE_GAME_EXISTS: '有未完成的对局，请先恢复。',
+    ALREADY_IN_ROOM: '请先退出当前房间。',
+    ROOM_NOT_FOUND: '房间已关闭或不存在。',
+    ROOM_IN_GAME: '该房间已开局，无法加入。',
+    ROOM_FULL: '房间人数已满，无法加入。',
+    ROOM_CHANGED: '房间成员有变动，请刷新后重试。',
+    HOST_REQUIRED: '只有房主可以开始游戏。',
+    NOT_ENOUGH_PLAYERS: '至少需要 2 名玩家才能开局。',
+    MOVE_ALREADY_SUBMITTED: '已提交移动，正在等待其他玩家。',
+    INVALID_PHASE: '当前行动阶段已结束，正在同步对局。'
   }
   return messages[error.code] || '连接失败，请检查网络后重试。'
 }
@@ -327,6 +340,7 @@ async function connectAccount() {
     if (response.profile.profileComplete) loadSearchAssets()
     if (!accountProfile.profileComplete) setScene('PROFILE')
     else if (response.activeGame) resumeAccountGame()
+    else if (lobbyRoom) enterLobby()
     else if (response.lastSettlement && !response.lastSettlement.acknowledged) { pendingResume = true; applyAccountResponse(response); setScene('GAME'); presentation = 'SETTLEMENT' }
     else setScene('HOME')
     profileMessage = ''
@@ -365,6 +379,11 @@ function applyAccountResponse(response) {
   accountLastHeartbeat = Date.now()
   accountRevision = response.revision
   const previousGame = accountGame
+  if ('lobbyRoom' in response) {
+    lobbyRoom = response.lobbyRoom
+    lobbyDeadlineAt = lobbyRoom ? Date.now() + lobbyRoom.expiresAt - response.serverNow : 0
+  }
+  if (Array.isArray(response.rooms)) lobbyRooms = response.rooms
   const changedAssets = !accountProfile || JSON.stringify(accountProfile.quantities) !== JSON.stringify(response.profile.quantities)
   accountProfile = response.profile
   if (!profileAvatarImage && accountProfile.avatarUrl) {
@@ -397,9 +416,15 @@ function applyAccountResponse(response) {
     if (previousGame && previousGame.state.turn !== accountGame.state.turn) {
       selectedMove = null
       activeBattle = null
+      movementPinPosition = { ...engine.getPlayer('P1').position }
+      movementPinTransition = null
       presentation = 'MAP'
       searchRippleSlotIndex = null
       searchRoomScrollY = 0
+      if (engine.phase !== 'MOVE_SELECTION' && !accountGame.waiting) decidePostMove()
+    } else if (accountGame.waiting) {
+      activeBattle = null
+      presentation = 'MAP'
     } else if (previousGame && previousGame.state.phase === 'MOVE_SELECTION' && engine.phase !== 'MOVE_SELECTION') decidePostMove()
   } else if (accountSettlement && (scene === 'GAME' || pendingResume)) {
     engine = new GameEngine({ cards })
@@ -417,8 +442,12 @@ function resumeAccountGame() {
   setScene('GAME')
   if (!accountGame) { presentation = 'SETTLEMENT'; return }
   movementPinPosition = { ...engine.getPlayer('P1').position }
-  if (engine.phase === 'MOVE_SELECTION') presentation = 'MAP'
-  else presentation = searchVisitState && searchVisitState.visit.observation && searchVisitState.visit.observation.active ? 'SEARCH' : 'ROOM'
+  movementPinTransition = null
+  selectedMove = null
+  activeBattle = null
+  if (engine.phase === 'MOVE_SELECTION' || accountGame.waiting) presentation = 'MAP'
+  else if (searchVisitState?.visit.observation?.active) presentation = 'SEARCH'
+  else decidePostMove()
 }
 
 async function accountAction(action, extra = {}) {
@@ -583,7 +612,7 @@ function loadCardCatalog() {
   fetchCardCatalog()
     .then(catalog => {
       if (JSON.stringify(catalog.cards) === JSON.stringify(cards)) { cardCatalogSource = 'SERVER'; invalidateFrame(); return }
-      if (accountGame || ['LOADOUT', 'MATCHING', 'MATCH_FOUND', 'GAME'].includes(scene)) pendingCardCatalog = catalog.cards
+      if (accountGame || ['LOADOUT', 'LOBBY', 'GAME'].includes(scene)) pendingCardCatalog = catalog.cards
       else applyCardCatalog(catalog.cards, 'SERVER')
     })
     .catch(() => {})
@@ -1280,94 +1309,151 @@ function drawLoadout() {
   context.stroke()
   button('loadout_home', '返回首页', { x: 14, y: viewHeight - 45, width: 124, height: 32 }, { top: '#554653', bottom: '#2a222c', stroke: '#a692a4', size: 11 })
   text('可空手出发 · 推荐至少携带 1 张武器卡', viewWidth / 2, viewHeight - 28, 9, '#b9a9b8', 'center')
-  button('loadout_match', '开始匹配', { x: viewWidth - 154, y: viewHeight - 47, width: 140, height: 35 }, { top: '#dc9f3a', bottom: '#882e25', stroke: '#ffe19a', size: 12 })
+  button('loadout_match', '前往码头', { x: viewWidth - 154, y: viewHeight - 47, width: 140, height: 35 }, { top: '#dc9f3a', bottom: '#882e25', stroke: '#ffe19a', size: 12 })
   if (loadoutDragging) drawFloatingCard(cardById(loadoutDragging.cardId), loadoutDragPoint)
 }
 
-function beginMatchmaking() {
-  matchmaking = new MatchmakingSession()
-  matchmaking.start({ id: 'P1', name: '码头新人', isBot: false })
-  simulatedJoinStep = 0
-  matchReadyAt = null
-  setScene('MATCHING')
+function enterLobby() {
+  lobbyPage = 0
+  lobbyShowPlaying = false
+  lobbyLastRefresh = -Infinity
+  lobbyError = ''
+  setScene('LOBBY')
+  refreshLobby()
 }
 
-function drawMatchBackground() {
-  drawCover(assets.map)
-  darken(0.56, '18, 9, 32')
-  const topGradient = context.createLinearGradient(0, 0, 0, viewHeight * 0.35)
-  topGradient.addColorStop(0, 'rgba(73,20,30,.82)')
-  topGradient.addColorStop(1, 'rgba(25,14,35,0)')
-  context.fillStyle = topGradient
-  context.fillRect(0, 0, viewWidth, viewHeight * 0.4)
+function consumeLobbyResponse(response) {
+  if (lobbyRoom && response.lastSettlement?.gameId === lobbyRoom.roomId && !response.lastSettlement.acknowledged) pendingResume = true
+  applyAccountResponse(response)
+  if (accountGame || (pendingResume && presentation === 'SETTLEMENT')) resumeAccountGame()
 }
 
-function drawMatchmaking(found = false) {
-  drawMatchBackground()
-  const state = matchmaking.snapshot()
-  const panelWidth = Math.min(620, viewWidth * 0.72)
-  const panelHeight = Math.min(310, viewHeight * 0.76)
-  const x = (viewWidth - panelWidth) / 2
-  const y = (viewHeight - panelHeight) / 2
-  panel(x, y, panelWidth, panelHeight, { fill: 'rgba(28,15,33,.92)', stroke: PALETTE.gold, lineWidth: 2, radius: 20 })
-  text(found ? '牌 局 集 结 完 成' : '正 在 寻 找 同 行 者', viewWidth / 2, y + 34, 22, PALETTE.paleGold, 'center', 'bold')
-  text(found ? '三名劫匪已登船，准备登陆卡西诺岛' : '白鸽接应队正在为你安排同局玩家', viewWidth / 2, y + 62, 11, '#d8c8dc', 'center')
-  text(`本次战备 ${loadout.selectedCardIds.length}/${C.LOADOUT_CARD_LIMIT}`, x + panelWidth - 18, y + 34, 9, '#bcaac2', 'right', 'bold')
+async function refreshLobby() {
+  if (lobbyPollInFlight || accountBusy || accountBackground || scene !== 'LOBBY') return
+  lobbyPollInFlight = true
+  lobbyLastRefresh = Date.now()
+  try {
+    const response = await accountApi.command('lobby', { op: 'list' })
+    if (scene !== 'LOBBY') return
+    const previousRoom = lobbyRoom
+    consumeLobbyResponse(response)
+    lobbyError = ''
+    if (previousRoom && !lobbyRoom && !accountGame) addToast('等待时间已到，房间已关闭。', 2400)
+  } catch (_) {
+    lobbyError = '大厅连接中断，正在重试…'
+  } finally {
+    lobbyPollInFlight = false
+    invalidateFrame()
+  }
+}
 
-  const suits = ['♠', '♥', '♣']
-  const colors = [PALETTE.gold, '#ef6975', '#9f7ee8']
-  const names = ['码头新人', '黑桃客', '红心客']
-  for (let index = 0; index < C.PLAYER_LIMIT; index += 1) {
-    const centerX = x + panelWidth * (0.22 + index * 0.28)
-    const centerY = y + 132
-    const joined = index < state.participants.length
-    context.beginPath()
-    context.arc(centerX, centerY, 31, 0, Math.PI * 2)
-    context.fillStyle = joined ? 'rgba(75,43,45,.98)' : 'rgba(255,255,255,.05)'
-    context.fill()
-    context.strokeStyle = joined ? colors[index] : 'rgba(255,255,255,.18)'
-    context.lineWidth = 2
-    context.stroke()
-    text(joined ? suits[index] : '…', centerX, centerY, 29, joined ? colors[index] : '#766d7d', 'center', 'bold')
-    text(joined ? names[index] : '等待加入', centerX, centerY + 48, 11, joined ? '#fff2da' : '#8c8190', 'center')
-    if (joined) text(index === 0 ? '真人玩家' : '测试玩家', centerX, centerY + 66, 8, '#a99cad', 'center')
+async function lobbyAction(op, roomId) {
+  if (accountBusy) return
+  beginAccountRequest(op === 'start' ? '正在确认开局…' : '正在同步房间…')
+  try {
+    const input = { op, roomId }
+    if (op === 'create' || op === 'join') input.cardIds = loadout.snapshot().selectedCardIds
+    consumeLobbyResponse(await accountApi.command('lobby', input))
+  } catch (error) { addToast(accountError(error), 2600) }
+  finally { endAccountRequest() }
+  refreshLobby()
+}
+
+function drawLobby() {
+  drawCover(assets.homeBackground || assets.map)
+  darken(0.54, '18,9,32')
+  const margin = 16
+  const top = 50
+  const bottom = viewHeight - 55
+  const height = bottom - top
+  const gap = 10
+  const listWidth = Math.floor((viewWidth - margin * 2 - gap) * 0.62)
+  const detailX = margin + listWidth + gap
+  const detailWidth = viewWidth - detailX - margin
+  const small = { size: 10, radius: 7, top: '#54404e', bottom: '#2a1a30', stroke: '#b29676' }
+
+  text('♠ 码头匹配大厅', margin, 24, 21, PALETTE.paleGold, 'left', 'bold')
+  text(lobbyError || '选择房间与其他玩家登船，也可单独出发。', margin + 182, 25, 11, '#e9d5c5')
+  panel(margin, top, listWidth, height, { fill: 'rgba(25,14,33,.92)', stroke: '#c6a36c', radius: 12 })
+  panel(detailX, top, detailWidth, height, { fill: 'rgba(31,17,37,.94)', stroke: '#c6a36c', radius: 12 })
+
+  const waiting = lobbyRooms.filter(room => room.status === 'WAITING')
+  const playing = lobbyRooms.filter(room => room.status === 'PLAYING')
+  const rows = lobbyShowPlaying ? waiting.concat(playing) : waiting
+  const rowHeight = 27
+  const perPage = Math.max(1, Math.floor((height - 68) / rowHeight))
+  const pageCount = Math.max(1, Math.ceil(rows.length / perPage))
+  lobbyPage = Math.max(0, Math.min(lobbyPage, pageCount - 1))
+  text(`待开始（${waiting.length}）`, margin + 13, top + 18, 12, PALETTE.paleGold, 'left', 'bold')
+  button('lobby_toggle_playing', `游戏中（${playing.length}） ${lobbyShowPlaying ? '▴' : '▾'}`,
+    { x: margin + listWidth - 130, y: top + 7, width: 120, height: 22 }, { ...small, data: Math.floor(waiting.length / perPage) })
+  if (!rows.length) text('暂无可加入的房间', margin + listWidth / 2, top + height / 2, 12, '#c3aec6', 'center')
+  rows.slice(lobbyPage * perPage, (lobbyPage + 1) * perPage).forEach((room, index) => {
+    const rect = { x: margin + 10, y: top + 34 + index * rowHeight, width: listWidth - 20, height: 24 }
+    const inGame = room.status === 'PLAYING'
+    const ownRoom = lobbyRoom?.roomId === room.roomId
+    panel(rect.x, rect.y, rect.width, rect.height, { fill: inGame ? '#231f35' : ownRoom ? '#623c36' : '#3b243d',
+      stroke: ownRoom ? '#ffd781' : 'rgba(209,170,110,.36)', radius: 6 })
+    text(room.name, rect.x + 9, rect.y + 12, 11, inGame ? '#c0b6d4' : '#fff0d4', 'left', 'bold', rect.width - 113)
+    text(`${room.playerCount}/${room.capacity}  ${inGame ? '游戏中' : ownRoom ? '我的房间' : '待开始'}`,
+      rect.x + rect.width - 9, rect.y + 12, 10, inGame ? '#b4a6e8' : '#ffe29c', 'right')
+    if (!inGame && !ownRoom && !lobbyRoom) ui.hotspots.push({ id: 'lobby_join', rect, data: room })
+  })
+  if (pageCount > 1) {
+    const pageY = bottom - 26
+    if (lobbyPage > 0) button('lobby_page', '上一页', { x: margin + 12, y: pageY, width: 66, height: 21 }, { ...small, data: -1 })
+    text(`${lobbyPage + 1}/${pageCount}`, margin + listWidth / 2, pageY + 11, 10, '#d6bfa8', 'center')
+    if (lobbyPage + 1 < pageCount) button('lobby_page', '下一页', { x: margin + listWidth - 78, y: pageY, width: 66, height: 21 }, { ...small, data: 1 })
   }
 
-  if (found) {
-    const countdown = Math.max(1, 3 - Math.floor((Date.now() - matchReadyAt) / 850))
-    text(`${countdown}`, viewWidth / 2, y + panelHeight - 46, 30, PALETTE.gold, 'center', 'bold')
-    text('秒后进入赌场', viewWidth / 2 + 42, y + panelHeight - 45, 10, '#d8c8dc')
-    return
+  if (lobbyRoom) {
+    const time = Math.max(0, Math.ceil((lobbyDeadlineAt - Date.now()) / 1000))
+    text(lobbyRoom.name, detailX + 12, top + 20, 14, PALETTE.paleGold, 'left', 'bold', detailWidth - 24)
+    text(`等待登船 · ${String(Math.floor(time / 60)).padStart(2, '0')}:${String(time % 60).padStart(2, '0')}`,
+      detailX + 12, top + 44, 11, '#dcc6ac')
+    for (let index = 0; index < C.PLAYER_LIMIT; index += 1) {
+      const member = lobbyRoom.members[index]
+      const y = top + 69 + index * 22
+      const role = member ? `${member.isHost ? ' · 房主' : ''}${member.isSelf ? ' · 你' : ''}` : ''
+      text(member ? `${member.nickname}${role}` : '等待加入', detailX + 12, y, 11,
+        member ? '#fff0d5' : '#9e88a5', 'left', 'normal', detailWidth - 24)
+    }
+    text(lobbyRoom.isHost ? '满 2 人可开局' : '等待房主开局', detailX + 12, bottom - 17, 10, '#dec4ab')
+  } else {
+    text('登 船 准 备', detailX + 12, top + 20, 14, PALETTE.paleGold, 'left', 'bold')
+    text(`本次战备 ${loadout.selectedCardIds.length}/${C.LOADOUT_CARD_LIMIT}`, detailX + 12, top + 46, 11, '#ffe7bf')
+    text('多人房间支持 2–3 人开局', detailX + 12, top + 70, 11, '#d8c4d6', 'left', 'normal', detailWidth - 24)
+    text('正式开局后扣除带入战备', detailX + 12, top + 91, 11, '#d8c4d6', 'left', 'normal', detailWidth - 24)
   }
 
-  const remaining = matchmaking.remainingMs()
-  text(`最长等待 05:00 · 剩余 ${String(Math.floor(remaining / 60000)).padStart(2, '0')}:${String(Math.floor((remaining % 60000) / 1000)).padStart(2, '0')}`, viewWidth / 2, y + panelHeight - 75, 10, '#bfb1c3', 'center')
-  button('match_cancel', '取消匹配', { x: x + 24, y: y + panelHeight - 52, width: 132, height: 34 }, { top: '#594958', bottom: '#2b222d', stroke: '#aa94aa', size: 12 })
-  button('match_single', '单人测试 · 立即开始', { x: x + panelWidth - 212, y: y + panelHeight - 52, width: 188, height: 34 }, { top: '#d79c39', bottom: '#8b3b23', stroke: '#ffe19a', size: 12 })
+  const actionY = viewHeight - 43
+  const actionWidth = Math.min(124, (viewWidth - margin * 2 - 16) / 3)
+  const actionRect = (fromRight, width = actionWidth) => ({ x: viewWidth - margin - width - fromRight, y: actionY, width, height: 32 })
+  button(lobbyRoom ? 'lobby_leave' : 'lobby_back', lobbyRoom ? '退出房间' : '返回战备',
+    { x: margin, y: actionY, width: actionWidth, height: 32 }, small)
+  if (!lobbyRoom) {
+    button('lobby_create', '创建房间', actionRect(actionWidth + 8), { ...small, size: 12 })
+    button('lobby_single', '单人模式', actionRect(0), { size: 12 })
+  } else if (lobbyRoom.isHost && lobbyRoom.playerCount >= 2 && lobbyDeadlineAt > Date.now()) {
+    button('lobby_start', '开始游戏', actionRect(0), { size: 12 })
+  }
 }
 
 async function startGame() {
   if (accountBusy) return
   beginAccountRequest('正在建立对局…')
   try {
-    const response = await accountApi.command('start', { cardIds: loadout.snapshot().selectedCardIds, mode: matchmaking.mode })
+    const response = await accountApi.command('start', { cardIds: loadout.snapshot().selectedCardIds, mode: 'SINGLE' })
     applyAccountResponse(response)
-    selectedMove = null
-    activeBattle = null
-    movementPinPosition = { ...engine.getPlayer('P1').position }
-    movementPinTransition = null
-    loadSearchAssets()
-    pendingResume = true
-    presentation = 'MAP'
-    setScene('GAME')
+    resumeAccountGame()
   } catch (error) {
     addToast(accountError(error), 3000)
     try {
       const response = await accountApi.command('resume')
       applyAccountResponse(response)
       if (response.activeGame) resumeAccountGame()
-      else setScene('LOADOUT')
-    } catch (_) { setScene('LOADOUT') }
+      else if (scene !== 'LOBBY') setScene('LOADOUT')
+    } catch (_) { if (scene !== 'LOBBY') setScene('LOADOUT') }
   } finally { endAccountRequest() }
 }
 
@@ -1579,7 +1665,7 @@ function drawHudPlate(rect, options = {}) {
 
 function drawMovementRooms(state, layout) {
   const local = state.players.find(player => player.id === 'P1')
-  const selecting = state.phase === 'MOVE_SELECTION'
+  const selecting = state.phase === 'MOVE_SELECTION' && !accountGame?.waiting
   const legalKeys = new Set(selecting ? engine.legalMoves('P1').map(position => `${position.x},${position.y}`) : [])
   const scale = layout.transform.scale
 
@@ -1825,7 +1911,11 @@ function drawMovementHud(state, layout) {
   const target = selectedMove || local.position
   const deadline = state.phase === 'MOVE_SELECTION' ? state.moveDeadlineAt : state.turnDeadlineAt
   const seconds = Math.max(0, Math.ceil((deadline - Date.now()) / 1000))
-  if (state.phase === 'MOVE_SELECTION') {
+  if (accountGame?.waiting) {
+    drawHudPlate(layout.action, { stroke: '#c2a475', inner: '#584332' })
+    text(`等待其他玩家  ${seconds}s`, layout.action.x + layout.action.width / 2, layout.action.y + layout.action.height / 2,
+      Math.max(9, 16 * scale), '#eadfc9', 'center', 'bold', layout.action.width - 8 * scale)
+  } else if (state.phase === 'MOVE_SELECTION') {
     button('confirm_move', selectedMove ? `确认移动  ${seconds}s` : `原地停留  ${seconds}s`, layout.action, {
       top: selectedMove ? '#c43b32' : '#78552e',
       bottom: selectedMove ? '#6d1423' : '#372519',
@@ -2312,35 +2402,15 @@ function drawGame() {
 
 function update() {
   if (accountGame && scene === 'GAME') {
-    const deadline = presentation === 'MAP' ? engine.moveDeadlineAt : searchVisitState && searchVisitState.visit.deadlineAt
+    const deadline = engine.phase === 'MOVE_SELECTION' ? engine.moveDeadlineAt : engine.turnDeadlineAt
     const nearDeadline = Number.isFinite(deadline) && deadline - Date.now() < 1200
-    const interval = presentation === 'SEARCH' || nearDeadline ? 1000 : 5000
+    const interval = presentation === 'SEARCH' || nearDeadline ? 1000 : accountGame.mode === 'MULTIPLAYER' ? 2000 : 5000
     if (Date.now() - accountLastHeartbeat > interval) {
       accountLastHeartbeat = Date.now()
       heartbeatAccount()
     }
   }
-  if (scene === 'MATCHING') {
-    const elapsed = Date.now() - sceneEnteredAt
-    if (elapsed > 1800 && simulatedJoinStep === 0) {
-      matchmaking.addParticipant({ id: 'P2', name: '黑桃客', isBot: true })
-      simulatedJoinStep = 1
-    }
-    if (elapsed > 3600 && simulatedJoinStep === 1) {
-      matchmaking.addParticipant({ id: 'P3', name: '红心客', isBot: true })
-      simulatedJoinStep = 2
-    }
-    matchmaking.tick()
-    if (matchmaking.state === 'READY') {
-      matchReadyAt = Date.now()
-      setScene('MATCH_FOUND')
-    }
-    if (matchmaking.state === 'TIMED_OUT') {
-      addToast('匹配超时，房间已解散。')
-      setScene('HOME')
-    }
-  }
-  if (scene === 'MATCH_FOUND' && Date.now() - matchReadyAt > 2550) startGame()
+  if (scene === 'LOBBY' && Date.now() - lobbyLastRefresh >= 2000) refreshLobby()
 }
 
 function draw() {
@@ -2367,8 +2437,7 @@ function draw() {
   if (scene === 'HOME') drawHome()
   if (scene === 'WAREHOUSE') drawWarehouse()
   if (scene === 'LOADOUT') drawLoadout()
-  if (scene === 'MATCHING') drawMatchmaking(false)
-  if (scene === 'MATCH_FOUND') drawMatchmaking(true)
+  if (scene === 'LOBBY') drawLobby()
   if (scene === 'GAME') drawGame()
   drawToast()
   drawPendingRequest()
@@ -2405,7 +2474,7 @@ function renderVisualKey(now) {
   if (scene === 'GAME' && presentation !== 'SETTLEMENT') {
     const animated = presentation === 'SEARCH' || movementPinTransition || searchDragging
     tick = Math.floor(now / (animated ? 1000 / 30 : presentation === 'ROOM' ? 100 : 1000))
-  } else if (scene === 'MATCHING' || scene === 'MATCH_FOUND') tick = Math.floor(now / 250)
+  } else if (scene === 'LOBBY' && lobbyRoom) tick = Math.floor(now / 1000)
   const pending = accountBusy ? Math.floor(now / 180) : ''
   const toastVisible = !!toast && now < toastUntil
   const retry = Object.values(cardImages).some(record => record.failed && record.attempts < 3) ? Math.floor(now / 1000) : ''
@@ -2447,7 +2516,7 @@ async function nextTurn() {
 }
 
 async function openSearchObservation(areaId) {
-  if (await accountAction('observe', { areaId })) {
+  if (await accountAction('observe', { areaId }) && searchVisitState?.visit.observation?.active) {
     searchRoomScrollY = 0
     searchRippleSlotIndex = null
     presentation = 'SEARCH'
@@ -2455,7 +2524,7 @@ async function openSearchObservation(areaId) {
 }
 
 async function finishSearchOverlay() {
-  if (await accountAction('finish-observation')) presentation = 'ROOM'
+  if (await accountAction('finish-observation') && searchVisitState) presentation = 'ROOM'
 }
 
 async function leaveCurrentRoom() {
@@ -2507,7 +2576,7 @@ function handleAction(action) {
   }
   if (action.id === 'warehouse_card') warehousePreviewCardId = action.data
   if (action.id === 'loadout_home') setScene('HOME')
-  if (action.id === 'loadout_match') beginMatchmaking()
+  if (action.id === 'loadout_match') enterLobby()
   if (action.id === 'loadout_warehouse_card') {
     if (loadoutSelection && loadoutSelection.cardId === action.data && loadoutSelection.source === 'WAREHOUSE') addLoadoutCard(action.data)
     else loadoutSelection = { cardId: action.data, source: 'WAREHOUSE' }
@@ -2516,15 +2585,19 @@ function handleAction(action) {
     if (loadoutSelection && loadoutSelection.cardId === action.data && loadoutSelection.source === 'BACKPACK') removeLoadoutCard(action.data)
     else loadoutSelection = { cardId: action.data, source: 'BACKPACK' }
   }
-  if (action.id === 'match_cancel') {
-    matchmaking.cancel('P1')
-    addToast('已取消匹配，空房间已销毁。')
-    setScene('HOME')
+  if (action.id === 'lobby_back') setScene('LOADOUT')
+  if (action.id === 'lobby_create') lobbyAction('create')
+  if (action.id === 'lobby_join') {
+    if (action.data.playerCount >= action.data.capacity) addToast('房间人数已满，无法加入。')
+    else lobbyAction('join', action.data.roomId)
   }
-  if (action.id === 'match_single') {
-    matchmaking.startSingleTest()
-    matchReadyAt = Date.now()
-    setScene('MATCH_FOUND')
+  if (action.id === 'lobby_leave') lobbyAction('leave', lobbyRoom?.roomId)
+  if (action.id === 'lobby_start') lobbyAction('start', lobbyRoom?.roomId)
+  if (action.id === 'lobby_single') startGame()
+  if (action.id === 'lobby_page') lobbyPage += action.data
+  if (action.id === 'lobby_toggle_playing') {
+    lobbyShowPlaying = !lobbyShowPlaying
+    lobbyPage = lobbyShowPlaying ? action.data : 0
   }
   if (action.id === 'map_node') selectMovementTarget(action.data)
   if (action.id === 'confirm_move') {
@@ -2751,7 +2824,7 @@ if (wx.onShow) wx.onShow(() => {
   invalidateFrame()
   if (accountProfile && accountGame) {
     accountApi.command('resume').then(response => { applyAccountResponse(response); resumeAccountGame() }).catch(() => addToast('恢复失败，正在重试。'))
-  }
+  } else if (scene === 'LOBBY') refreshLobby()
 })
 
 loadAssets()

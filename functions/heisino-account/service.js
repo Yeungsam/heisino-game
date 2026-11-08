@@ -1,12 +1,21 @@
 const crypto = require('node:crypto')
-const { GameEngine, positionKey, cards } = require('./runtime')
+const { GameEngine, positionKey, cards, constants: C } = require('./runtime')
 const { fault, accountIdFor, validateNickname, validateAvatar } = require('./wechat')
+const { Multiplayer } = require('./multiplayer')
 const starter = require('./starter.json')
 const RESUME_MS = 10 * 60 * 1000
 const SESSION_MS = 7 * 24 * 60 * 60 * 1000
 const AREAS = ['LEFT_CABINET', 'MAIN_TABLE', 'RIGHT_TABLE']
 const clone = value => JSON.parse(JSON.stringify(value))
 const digest = value => crypto.createHash('sha256').update(value).digest('hex')
+const SPAWNS = Object.freeze([{ x: 0, y: 0 }, { x: 0, y: 4 }, { x: 4, y: 0 }])
+const SHARED_GAME = Symbol('shared-game')
+
+function automaticWinner(left, right, rng, forceLeft) {
+  const leftWins = forceLeft || rng() < 0.5
+  return { winnerId: leftWins ? left.id : right.id, loserId: leftWins ? right.id : left.id,
+    leftHp: leftWins ? left.hp : 0, rightHp: leftWins ? 0 : right.hp, rounds: [] }
+}
 
 function slots(items) {
   const counts = {}
@@ -27,6 +36,8 @@ class AccountService {
     this.now = options.now || Date.now
     this.cards = options.cards || cards
     this.cardMap = Object.fromEntries(this.cards.map(card => [card.cardId, card]))
+    this.blueBotEquipment = ['WEAPON', 'ARMOR'].map(category => this.cards.find(card => card.rarity === 'BLUE' && card.category === category)?.cardId).filter(Boolean)
+    this.multiplayer = new Multiplayer(this)
   }
 
   async mutate(accountId, callback) {
@@ -59,13 +70,16 @@ class AccountService {
     const secret = crypto.randomBytes(32).toString('base64url')
     const token = `${accountId}.${secret}`
     const expiresAt = this.now() + SESSION_MS
-    return this.mutate(accountId, document => {
+    const response = await this.mutate(accountId, document => {
       document.sessions = document.sessions.filter(session => session.expiresAt > this.now()).slice(-4)
       document.sessions.push({ hash: digest(token), expiresAt })
       document.lastLoginAt = this.now()
+      if (document.activeGame?.mode === 'MULTIPLAYER' || document.lobbyRoomId) return null
       this.advance(document, true)
-      return { token, expiresAt, ...this.response(document) }
+      return this.response(document)
     })
+    const state = response || await this.execute(token, 'resume')
+    return { token, expiresAt, ...state }
   }
 
   authenticate(document, token) {
@@ -75,6 +89,7 @@ class AccountService {
   async execute(token, action, input = {}) {
     if (typeof token !== 'string' || !/^[a-f0-9]{64}\.[A-Za-z0-9_-]{43}$/.test(token)) throw fault('UNAUTHENTICATED', 401)
     const accountId = token.split('.')[0]
+    if (action === 'lobby') return this.multiplayer.lobby(accountId, token, input)
     // Moderation is done before the transaction, but still requires a valid session.
     let checkedProfile = null
     if (action === 'profile') {
@@ -88,6 +103,7 @@ class AccountService {
     }
     return this.mutate(accountId, document => {
       this.authenticate(document, token)
+      if (document.activeGame?.mode === 'MULTIPLAYER' || (document.lobbyRoomId && ['resume', 'me', 'start'].includes(action))) throw SHARED_GAME
       this.advance(document, action === 'resume' || action === 'me')
       if (action === 'profile') {
         if (document.profileComplete && (document.nickname !== checkedProfile.nickname || document.avatarUrl !== checkedProfile.avatarUrl)) throw fault('PROFILE_ALREADY_CREATED', 409)
@@ -102,14 +118,20 @@ class AccountService {
         if (action === 'suspend') document.activeGame.suspendedAt = this.now()
       }
       return this.response(document)
+    }).catch(error => {
+      if (error === SHARED_GAME) return this.multiplayer.sync(accountId, token, action, input)
+      throw error
     })
   }
 
   restore(game) {
-    const engine = new GameEngine({ cards: this.cards, now: this.now, rng: () => {
-      game.rngState = (Math.imul(game.rngState, 1664525) + 1013904223) >>> 0
-      return game.rngState / 0x100000000
-    } })
+    const engine = new GameEngine({ cards: this.cards, now: this.now,
+      localPlayerId: game.mode === 'MULTIPLAYER' ? null : 'P1',
+      battleResolver: ['SINGLE', 'MULTIPLAYER'].includes(game.mode) ? (left, right, rng) => automaticWinner(left, right, rng, game.mode === 'SINGLE') : undefined,
+      rng: () => {
+        game.rngState = (Math.imul(game.rngState, 1664525) + 1013904223) >>> 0
+        return game.rngState / 0x100000000
+      } })
     if (game.state) Object.assign(engine, clone(game.state))
     return engine
   }
@@ -118,7 +140,7 @@ class AccountService {
     if (!document.profileComplete) throw fault('PROFILE_REQUIRED', 409)
     const requestId = this.requestId(input)
     const cardIds = input.cardIds
-    if (!Array.isArray(cardIds) || cardIds.length > 4 || cardIds.some(id => typeof id !== 'string' || !this.cardMap[id] || !['WEAPON', 'ARMOR', 'SKILL'].includes(this.cardMap[id].category))) throw fault('LOADOUT_INVALID')
+    const counts = this.loadoutCounts(cardIds)
     const fingerprint = digest(JSON.stringify({ cardIds, mode: input.mode || 'STANDARD' }))
     const prior = document.startRequests.find(request => request.id === requestId)
     if (prior) {
@@ -126,25 +148,42 @@ class AccountService {
       return
     }
     if (document.activeGame) throw fault('ACTIVE_GAME_EXISTS', 409)
-    const counts = {}
-    cardIds.forEach(id => { counts[id] = (counts[id] || 0) + 1 })
-    Object.entries(counts).forEach(([id, count]) => { if ((document.quantities[id] || 0) < count) throw fault('NOT_OWNED', 409) })
-    Object.entries(counts).forEach(([id, count]) => { document.quantities[id] -= count })
-    if (!['STANDARD', 'SINGLE_TEST'].includes(input.mode || 'STANDARD')) throw fault('MODE_INVALID')
+    if (document.lobbyRoomId) throw fault('ALREADY_IN_ROOM', 409)
+    if (!['STANDARD', 'SINGLE_TEST', 'SINGLE'].includes(input.mode || 'STANDARD')) throw fault('MODE_INVALID')
     const game = {
       gameId: crypto.randomUUID(), mode: input.mode || 'STANDARD', createdAt: this.now(), lastSeenAt: this.now(),
       rngState: crypto.randomBytes(4).readUInt32BE(), requests: {}, state: null, visit: null
     }
     const engine = this.restore(game)
     engine.localLoadoutCardIds = cardIds.slice()
-    engine.start()
+    if (game.mode === 'SINGLE') {
+      game.botCheckedRooms = []
+      engine.start([{ id: 'P1', name: document.nickname, ...SPAWNS[0], cardIds }])
+    } else engine.start()
     engine.getPlayer('P1').name = document.nickname
     game.state = engine.snapshot()
-    document.activeGame = game
-    document.lastSettlement = null
+    this.deploy(document, game, counts)
     document.startRequests.push({ id: requestId, fingerprint, gameId: game.gameId })
     document.startRequests = document.startRequests.slice(-100)
-    this.ledger(document, { type: 'DEPLOY', gameId: game.gameId, quantities: Object.fromEntries(Object.entries(counts).map(([id, count]) => [id, -count])) })
+  }
+
+  loadoutCounts(cardIds) {
+    if (!Array.isArray(cardIds) || cardIds.length > C.LOADOUT_CARD_LIMIT || cardIds.some(id => typeof id !== 'string' || !this.cardMap[id] || !['WEAPON', 'ARMOR', 'SKILL'].includes(this.cardMap[id].category))) throw fault('LOADOUT_INVALID')
+    const counts = {}
+    cardIds.forEach(id => { counts[id] = (counts[id] || 0) + 1 })
+    return counts
+  }
+
+  assertOwned(document, counts) {
+    Object.entries(counts).forEach(([id, count]) => { if ((document.quantities[id] || 0) < count) throw fault('NOT_OWNED', 409) })
+  }
+
+  deploy(document, game, counts) {
+    this.assertOwned(document, counts)
+    Object.entries(counts).forEach(([id, count]) => { document.quantities[id] -= count })
+    document.activeGame = game
+    document.lastSettlement = null
+    this.ledger(document, { type: 'DEPLOY', gameId: game.gameId, mode: game.mode, quantities: Object.fromEntries(Object.entries(counts).map(([id, count]) => [id, -count])) })
   }
 
   requestId(input) {
@@ -187,6 +226,7 @@ class AccountService {
   }
 
   move(engine, game, target) {
+    if (game.mode === 'SINGLE') engine.players = engine.players.filter(player => !player.isBot)
     must(engine.submitMove('P1', target))
     engine.submitBotMoves()
     must(engine.resolveMoves())
@@ -194,23 +234,42 @@ class AccountService {
       engine.phase = 'GAME_OVER'
       return
     }
+    if (game.mode === 'SINGLE') this.singleEncounter(engine, game)
     engine.phase = 'SEARCH'
-    engine.turnDeadlineAt = this.now() + 50000
-    game.visit = { visitId: `${game.gameId}-${engine.turn}`, turn: engine.turn, roomNodeId: positionKey(engine.getPlayer('P1').position),
+    engine.turnDeadlineAt = this.now() + C.SEARCH_DURATION_MS
+    game.visit = this.createVisit(game, engine, 'P1')
+  }
+
+  createVisit(game, engine, playerId) {
+    return { visitId: `${game.gameId}-${engine.turn}`, turn: engine.turn, roomNodeId: positionKey(engine.getPlayer(playerId).position),
       startedAt: this.now(), deadlineAt: engine.turnDeadlineAt, status: 'ACTIVE', observation: null }
   }
 
-  reveal(engine, visit) {
+  singleEncounter(engine, game) {
+    const player = engine.getPlayer('P1')
+    const roomId = positionKey(player.position)
+    if (roomId === C.EXTRACTION_NODE_ID || SPAWNS.some(spawn => positionKey(spawn) === roomId) || game.botCheckedRooms.includes(roomId)) return
+    game.botCheckedRooms.push(roomId)
+    if (engine.rng() >= 0.3) return
+    const bot = engine.createPlayer('P2', '赌场守卫', player.position.x, player.position.y, this.blueBotEquipment)
+    bot.isBot = true
+    bot.diceMode = 'ATTACK'
+    engine.players.push(bot)
+    engine.runBattle(player, bot, roomId)
+    engine.grantSearch(player.id, engine.droppedItemsAt(roomId))
+  }
+
+  reveal(engine, visit, playerId = 'P1') {
     const observation = visit && visit.observation
     if (!observation || !observation.active) return
-    const allowed = engine.searchItemsFor('P1').filter(item => item.nodeId === visit.roomNodeId && item.areaId === observation.areaId)
-    const count = Math.floor((Math.min(this.now(), visit.deadlineAt) - observation.startedAt) / 2000)
+    const allowed = engine.searchItemsFor(playerId).filter(item => item.nodeId === visit.roomNodeId && item.areaId === observation.areaId)
+    const count = Math.max(0, Math.floor((Math.min(this.now(), visit.deadlineAt) - observation.startedAt) / C.SEARCH_REVEAL_INTERVAL_MS))
     const newlyVisible = observation.hiddenIds.slice(0, count)
     newlyVisible.forEach(id => {
       const item = allowed.find(unit => unit.instanceId === id)
-      if (item && item.state === 'HIDDEN') { item.state = 'REVEALED'; item.revealedBy = 'P1' }
+      if (item && item.state === 'HIDDEN') { item.state = 'REVEALED'; item.revealedBy = playerId }
     })
-    observation.visibleItemIds = allowed.filter(item => item.state === 'DROPPED' || item.revealedBy === 'P1').map(item => item.instanceId)
+    observation.visibleItemIds = allowed.filter(item => ['REVEALED', 'DROPPED'].includes(item.state)).map(item => item.instanceId)
   }
 
   gameAction(document, input) {
@@ -234,32 +293,11 @@ class AccountService {
     else if (input.action === 'abandon') { engine.getPlayer('P1').status = 'ABANDONED'; engine.phase = 'GAME_OVER' }
     else {
       if (!visit || engine.phase !== 'SEARCH') throw fault('INVALID_PHASE', 409)
-      const observation = visit.observation
-      if (input.action === 'observe') {
-        if (!AREAS.includes(input.areaId)) throw fault('AREA_NOT_FOUND', 404)
-        const items = engine.searchItemsFor('P1').filter(item => item.nodeId === visit.roomNodeId && item.areaId === input.areaId)
-        visit.observation = { areaId: input.areaId, startedAt: this.now(), active: true,
-          hiddenIds: items.filter(item => item.state === 'HIDDEN').map(item => item.instanceId),
-          visibleItemIds: items.filter(item => item.state !== 'HIDDEN').map(item => item.instanceId) }
-      } else if (input.action === 'pickup') {
-        if (!observation || !observation.active || !observation.visibleItemIds.includes(input.instanceId)) throw fault('ITEM_NOT_VISIBLE', 409)
-        must(engine.interactWithItem('P1', input.instanceId))
-        observation.visibleItemIds = observation.visibleItemIds.filter(id => id !== input.instanceId)
-      } else if (input.action === 'drop') {
-        if (!observation || !observation.active) throw fault('NOT_OBSERVING', 409)
-        const inArea = engine.items.filter(item => item.nodeId === visit.roomNodeId && item.areaId === observation.areaId)
-        if (inArea.length >= 30) throw fault('AREA_FULL', 409)
-        must(engine.dropItem('P1', input.instanceId, observation.areaId))
-        const item = engine.items.find(unit => unit.instanceId === input.instanceId)
-        engine.grantSearch('P1', [item])
-        observation.visibleItemIds.push(input.instanceId)
-      } else if (input.action === 'finish-observation') {
-        if (observation) observation.active = false
-      } else if (input.action === 'leave' || input.action === 'extract') {
+      if (input.action === 'leave' || input.action === 'extract') {
         if (input.action === 'extract') must(engine.requestExtraction('P1'))
         must(engine.finishTurn())
         game.visit = null
-      } else throw fault('INVALID_ACTION')
+      } else this.searchAction(engine, visit, 'P1', input)
     }
     game.requests[requestId] = fingerprint
     if (Object.keys(game.requests).length > 200) delete game.requests[Object.keys(game.requests)[0]]
@@ -267,25 +305,51 @@ class AccountService {
     if (engine.phase === 'GAME_OVER') this.settle(document, engine)
   }
 
+  searchAction(engine, visit, playerId, input) {
+    const observation = visit.observation
+    if (input.action === 'observe') {
+      if (!AREAS.includes(input.areaId)) throw fault('AREA_NOT_FOUND', 404)
+      const items = engine.searchItemsFor(playerId).filter(item => item.nodeId === visit.roomNodeId && item.areaId === input.areaId)
+      visit.observation = { areaId: input.areaId, startedAt: this.now(), active: true,
+        hiddenIds: items.filter(item => item.state === 'HIDDEN').map(item => item.instanceId),
+        visibleItemIds: items.filter(item => item.state !== 'HIDDEN').map(item => item.instanceId) }
+    } else if (input.action === 'pickup') {
+      if (!observation || !observation.active || !observation.visibleItemIds.includes(input.instanceId)) throw fault('ITEM_NOT_VISIBLE', 409)
+      must(engine.interactWithItem(playerId, input.instanceId))
+      observation.visibleItemIds = observation.visibleItemIds.filter(id => id !== input.instanceId)
+    } else if (input.action === 'drop') {
+      if (!observation || !observation.active) throw fault('NOT_OBSERVING', 409)
+      const inArea = engine.items.filter(item => item.nodeId === visit.roomNodeId && item.areaId === observation.areaId)
+      if (inArea.length >= C.SEARCH_AREA_CAPACITY) throw fault('AREA_FULL', 409)
+      must(engine.dropItem(playerId, input.instanceId, observation.areaId))
+      const item = engine.items.find(unit => unit.instanceId === input.instanceId)
+      engine.grantSearch(playerId, [item])
+      observation.visibleItemIds.push(input.instanceId)
+    } else if (input.action === 'finish-observation') {
+      if (observation) observation.active = false
+    } else throw fault('INVALID_ACTION')
+  }
+
   ledger(document, entry) {
-    document.ledger.push({ ...entry, entryId: `${entry.gameId}-${entry.type}`, accountId: document.accountId, at: this.now() })
+    const entryId = entry.mode === 'MULTIPLAYER' ? digest(`${entry.gameId}:${entry.type}:${document.accountId}`) : `${entry.gameId}-${entry.type}`
+    document.ledger.push({ ...entry, entryId, accountId: document.accountId, at: this.now() })
     document.ledger = document.ledger.slice(-100)
   }
 
-  settle(document, engine, endedAt = this.now()) {
+  settle(document, engine, endedAt = this.now(), playerId = 'P1', state = this.publicState(engine)) {
     const game = document.activeGame
     if (!game) return
-    const result = engine.settlementFor('P1')
+    const result = engine.settlementFor(playerId)
     const returned = {}
-    if (result.success) engine.getPlayer('P1').inventory.forEach(id => {
+    if (result.success) engine.getPlayer(playerId).inventory.forEach(id => {
       const item = engine.items.find(unit => unit.instanceId === id)
       if (!item || !this.cardMap[item.cardId]) throw fault('ASSET_STATE_INVALID', 500)
       returned[item.cardId] = (returned[item.cardId] || 0) + 1
     })
     Object.entries(returned).forEach(([id, quantity]) => { document.quantities[id] = (document.quantities[id] || 0) + quantity })
     const reasons = { DISCONNECTED: '中断超过 10 分钟，对局失败', ABANDONED: '已放弃对局' }
-    document.lastSettlement = { ...result, reason: reasons[result.status] || result.reason, gameId: game.gameId, mode: game.mode, returned,
-      endedAt, settledAt: this.now(), goldDelta: 0, state: this.publicState(engine), settlementId: game.gameId }
+    document.lastSettlement = { ...result, playerId: 'P1', reason: reasons[result.status] || result.reason, gameId: game.gameId, mode: game.mode, returned,
+      endedAt, settledAt: this.now(), goldDelta: 0, state, settlementId: game.gameId }
     this.ledger(document, { type: 'SETTLEMENT', gameId: game.gameId, mode: game.mode, status: result.status, turn: result.turn, endedAt, success: result.success, quantities: returned, goldDelta: 0 })
     document.activeGame = null
   }
@@ -298,7 +362,27 @@ class AccountService {
     return state
   }
 
-  response(document) {
+  searchView(engine, sourceVisit, playerId) {
+    if (!sourceVisit) return null
+    const visit = clone(sourceVisit)
+    if (visit.observation) delete visit.observation.hiddenIds
+    const available = engine.searchItemsFor(playerId).filter(item => item.nodeId === visit.roomNodeId)
+    const visibleArea = visit.observation && visit.observation.active ? visit.observation : null
+    const areas = AREAS.map(areaId => {
+      const units = available.filter(item => item.areaId === areaId)
+      const visibleIds = visibleArea && visibleArea.areaId === areaId ? visibleArea.visibleItemIds : []
+      return { areaId, itemCount: units.length, visibleItems: units.filter(item => visibleIds.includes(item.instanceId)) }
+    })
+    const inventory = engine.getPlayer(playerId).inventory.map(id => engine.items.find(item => item.instanceId === id))
+    return { visit, inventory: slots(inventory), room: { nodeId: visit.roomNodeId, canObserve: true, areas, unpickedCount: available.length,
+      activeAreaId: visibleArea ? visibleArea.areaId : null, activeArea: visibleArea ? areas.find(area => area.areaId === visibleArea.areaId) : null } }
+  }
+
+  accountResponse(document, activeGame = null, lobbyRoom = null, revision = document.version + 1) {
+    return { profile: this.profile(document), activeGame, lobbyRoom, lastSettlement: document.lastSettlement, serverNow: this.now(), revision }
+  }
+
+  response(document, revision) {
     const game = document.activeGame
     let activeGame = null
     if (game) {
@@ -306,24 +390,10 @@ class AccountService {
       this.reveal(engine, game.visit)
       // Persist reveal progress alongside the account mutation.
       game.state = engine.snapshot()
-      const inventory = engine.getPlayer('P1').inventory.map(id => engine.items.find(item => item.instanceId === id))
-      let search = null
-      if (game.visit) {
-        const visit = clone(game.visit)
-        if (visit.observation) delete visit.observation.hiddenIds
-        const available = engine.searchItemsFor('P1').filter(item => item.nodeId === visit.roomNodeId)
-        const areas = AREAS.map(areaId => {
-          const units = available.filter(item => item.areaId === areaId)
-          const visibleIds = visit.observation && visit.observation.active && visit.observation.areaId === areaId ? visit.observation.visibleItemIds : []
-          return { areaId, itemCount: units.length, visibleItems: units.filter(item => visibleIds.includes(item.instanceId)) }
-        })
-        search = { visit, inventory: slots(inventory), room: { nodeId: visit.roomNodeId, canObserve: true, areas, unpickedCount: available.length,
-          activeAreaId: visit.observation && visit.observation.active ? visit.observation.areaId : null,
-          activeArea: visit.observation && visit.observation.active ? areas.find(area => area.areaId === visit.observation.areaId) : null } }
-      }
+      const search = this.searchView(engine, game.visit, 'P1')
       activeGame = { gameId: game.gameId, mode: game.mode, state: this.publicState(engine), search, resumeUntil: game.lastSeenAt + RESUME_MS }
     }
-    return { profile: this.profile(document), activeGame, lastSettlement: document.lastSettlement, serverNow: this.now(), revision: document.version + 1 }
+    return this.accountResponse(document, activeGame, null, revision)
   }
 }
 

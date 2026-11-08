@@ -1,0 +1,197 @@
+const test = require('node:test')
+const assert = require('node:assert/strict')
+const { AccountService, RESUME_MS } = require('../functions/heisino-account/service')
+const { MemoryAccountStore } = require('../functions/heisino-account/store')
+const { constants: C, cards } = require('../functions/heisino-account/runtime')
+
+async function fixture(size = 3) {
+  const store = new MemoryAccountStore()
+  let now = 2000000
+  let sequence = 0
+  const service = new AccountService({ store, now: () => now, identity: {
+    exchange: async code => ({ appId: 'mode-tests', openid: code }), moderate: async () => {}
+  } })
+  const players = await Promise.all(Array.from({ length: size }, async (_, index) => {
+    const login = await service.login(`player-${index}`)
+    await service.execute(login.token, 'profile', { nickname: `玩家${index + 1}` })
+    return { token: login.token, id: login.profile.accountId }
+  }))
+  const command = (index, action, input) => service.execute(players[index].token, action, input)
+  const lobby = (index, op, data = {}) => command(index, 'lobby', { op, requestId: `lobby-test-${++sequence}`, ...data })
+  const game = (index, roomId, turn, action, data = {}) => command(index, 'game', { gameId: roomId, turn, action, requestId: `game-test-${++sequence}`, ...data })
+  const create = (index = 0, cardIds = ['wp_006']) => lobby(index, 'create', { cardIds })
+  const join = (index, roomId, cardIds = ['wp_006']) => lobby(index, 'join', { roomId, cardIds })
+  async function startRoom(count = size, cardIds) {
+    const { lobbyRoom: { roomId } } = await create(0, cardIds)
+    for (let index = 1; index < count; index++) await join(index, roomId, cardIds)
+    await lobby(0, 'start', { roomId })
+    return roomId
+  }
+  return { store, players, command, lobby, game, create, join, startRoom, tick: ms => { now += ms } }
+}
+
+test('码头房间并发抢位、开局权限与等待期资产', async () => {
+  const f = await fixture(4)
+  const created = await f.create()
+  const roomId = created.lobbyRoom.roomId
+  assert.equal(created.lobbyRoom.name, '玩家1的房间')
+  await assert.rejects(f.lobby(0, 'start', { roomId }), { code: 'NOT_ENOUGH_PLAYERS' })
+  await f.join(1, roomId)
+  const race = await Promise.allSettled([f.join(2, roomId), f.join(3, roomId)])
+  assert.equal(race.filter(result => result.status === 'fulfilled').length, 1)
+  assert.equal(race.find(result => result.status === 'rejected').reason.code, 'ROOM_FULL')
+  await assert.rejects(f.lobby(1, 'start', { roomId }), { code: 'HOST_REQUIRED' })
+  const waiting = await f.lobby(1, 'list')
+  assert.equal(waiting.rooms[0].playerCount, 3)
+  assert.equal(waiting.profile.quantities.wp_006, 1)
+
+  const start = () => f.lobby(0, 'start', { roomId, requestId: 'same-start-001' })
+  const [host, retry] = await Promise.all([start(), start()])
+  assert.equal(host.activeGame.gameId, roomId)
+  assert.equal(retry.activeGame.gameId, roomId)
+  assert.equal(host.activeGame.state.players.length, 3)
+  assert.equal(host.profile.quantities.wp_006, 0)
+  const guest = await f.command(1, 'resume')
+  assert.equal(guest.activeGame.gameId, roomId)
+  assert.equal(guest.activeGame.state.players.find(player => player.id === 'P1').name, '玩家2')
+  assert.equal(guest.activeGame.state.players.find(player => player.id !== 'P1').inventory.length, 0)
+  assert.equal([...f.store.ledger.values()].filter(entry => entry.type === 'DEPLOY').length, 3)
+  const outsider = race[0].status === 'rejected' ? 2 : 3
+  assert.equal((await f.lobby(outsider, 'list')).rooms[0].status, 'PLAYING')
+  await assert.rejects(f.join(outsider, roomId), { code: 'ROOM_IN_GAME' })
+  await assert.rejects(f.game(outsider, roomId, 1, 'move', { target: { x: 0, y: 0 } }), { code: 'NO_ACTIVE_GAME' })
+})
+
+test('退出房主转让、空房关闭、过期房间消失，均不扣仓', async () => {
+  const f = await fixture(3)
+  const { lobbyRoom: { roomId } } = await f.create()
+  await f.join(1, roomId)
+  f.tick(50)
+  const other = await f.create(2)
+  assert.deepEqual((await f.lobby(1, 'list')).rooms.map(room => room.roomId), [roomId, other.lobbyRoom.roomId])
+  await f.lobby(0, 'leave', { roomId })
+  assert.equal((await f.command(1, 'resume')).lobbyRoom.isHost, true)
+  assert.equal((await f.lobby(1, 'list')).lobbyRoom.name, '玩家2的房间')
+  await f.lobby(1, 'leave', { roomId })
+  assert.equal((await f.lobby(0, 'list')).rooms.some(room => room.roomId === roomId), false)
+  f.tick(RESUME_MS)
+  assert.deepEqual((await f.lobby(0, 'list')).rooms, [])
+  assert.equal((await f.command(2, 'resume')).lobbyRoom, null)
+  assert.equal([...f.store.ledger.values()].some(entry => entry.type === 'DEPLOY'), false)
+})
+
+test('多人开局时一人的战备失效，整个开局事务回滚', async () => {
+  const f = await fixture(2)
+  const { lobbyRoom: { roomId } } = await f.create()
+  await f.join(1, roomId)
+  const guest = await f.store.get(f.players[1].id)
+  guest.quantities.wp_006 = 0
+  guest.version += 1
+  await f.store.replace(guest, guest.version - 1)
+  await assert.rejects(f.lobby(0, 'start', { roomId }), { code: 'NOT_OWNED' })
+  const host = await f.lobby(0, 'list')
+  assert.equal(host.lobbyRoom.playerCount, 2)
+  assert.equal(host.activeGame, null)
+  assert.equal(host.profile.quantities.wp_006, 1)
+  assert.equal([...f.store.ledger.values()].some(entry => entry.type === 'DEPLOY'), false)
+})
+
+test('共享回合按所有真人完成或超时推进，一人掉线不阻塞且可恢复', async () => {
+  const f = await fixture(2)
+  const roomId = await f.startRoom()
+  const first = await f.game(0, roomId, 1, 'move', { target: { x: 1, y: 0 } })
+  assert.equal(first.activeGame.waiting, 'MOVES')
+  assert.equal((await f.command(1, 'heartbeat')).activeGame.waiting, null)
+  await assert.rejects(f.game(0, roomId, 1, 'move', { target: { x: 0, y: 0 } }), { code: 'MOVE_ALREADY_SUBMITTED' })
+  f.tick(C.MOVE_SELECTION_MS)
+  const entered = await f.command(0, 'heartbeat')
+  assert.equal(entered.activeGame.search.visit.roomNodeId, 'n_1_0')
+  const done = await f.game(0, roomId, 1, 'leave')
+  assert.equal(done.activeGame.waiting, 'ROUND')
+  f.tick(C.SEARCH_DURATION_MS)
+  const next = await f.command(0, 'heartbeat')
+  assert.equal(next.activeGame.state.turn, 2)
+  const recovered = await f.command(1, 'resume')
+  assert.equal(recovered.activeGame.gameId, roomId)
+  assert.equal(recovered.activeGame.state.turn, 2)
+  assert.deepEqual(recovered.activeGame.state.players.find(player => player.id === 'P1').position, { x: 0, y: 4 })
+})
+
+test('三人同房分流给独立物资，同一张卡只能入一人的背包一次', async () => {
+  const f = await fixture()
+  const roomId = await f.startRoom()
+  const room = f.store.rooms.get(roomId)
+  room.game.state.players.forEach((player, index) => { player.position = [{ x: 0, y: 1 }, { x: 2, y: 1 }, { x: 1, y: 2 }][index] })
+  room.game.state.items.filter(item => item.nodeId === 'n_1_1').forEach(item => { item.state = 'DROPPED' })
+  const move = index => f.game(index, roomId, 1, 'move', { target: { x: 1, y: 1 } })
+  await Promise.all([move(0), move(1), move(2)])
+  const synced = await Promise.all(f.players.map((_, index) => f.command(index, 'heartbeat')))
+  const survivors = synced.map((state, index) => state.activeGame ? index : -1).filter(index => index >= 0)
+  assert.equal(survivors.length, 2)
+  assert.equal(synced.find(state => !state.activeGame).lastSettlement.status, 'DEFEATED')
+  const engine = f.store.rooms.get(roomId).game.state
+  const [first, other] = survivors.map(index => engine.searchAccess[`P${index + 1}`])
+  assert.ok(first.length > 0 && other.length > 0)
+  assert.equal(first.some(id => other.includes(id)), false)
+  const item = engine.items.find(unit => unit.instanceId === first[0])
+  const [owner, guest] = survivors
+  await Promise.all(survivors.map(index => f.game(index, roomId, 1, 'observe', { areaId: item.areaId })))
+  f.tick(C.SEARCH_REVEAL_INTERVAL_MS * 5)
+  const pickup = index => f.game(index, roomId, 1, 'pickup', { instanceId: item.instanceId })
+  const race = await Promise.allSettled([pickup(owner), pickup(guest)])
+  assert.equal(race[0].status, 'fulfilled')
+  assert.equal(race[1].reason.code, 'ITEM_NOT_VISIBLE')
+  await assert.rejects(pickup(owner), { code: 'ITEM_NOT_VISIBLE' })
+  assert.equal(f.store.rooms.get(roomId).game.state.items.find(unit => unit.instanceId === item.instanceId).ownerId, `P${owner + 1}`)
+})
+
+test('一人独立撤离且返仓只发生一次，其他玩家继续对局', async () => {
+  const f = await fixture(2)
+  const roomId = await f.startRoom()
+  f.store.rooms.get(roomId).game.state.players[0].position = { x: 4, y: 3 }
+  await f.game(0, roomId, 1, 'move', { target: { x: 4, y: 4 } })
+  await f.game(1, roomId, 1, 'move', { target: { x: 0, y: 4 } })
+  await f.game(0, roomId, 1, 'extract', { requestId: 'extract-once' })
+  const next = await f.game(1, roomId, 1, 'leave')
+  assert.equal(next.activeGame.state.turn, 2)
+  const extracted = await f.command(0, 'resume')
+  assert.equal(extracted.activeGame, null)
+  assert.equal(extracted.lastSettlement.status, 'EXTRACTED')
+  assert.equal(extracted.profile.quantities.wp_006, 1)
+  await f.game(0, roomId, 1, 'extract', { requestId: 'extract-once' })
+  assert.equal((await f.command(0, 'me')).profile.quantities.wp_006, 1)
+  assert.equal((await f.game(1, roomId, 2, 'abandon')).lastSettlement.status, 'ABANDONED')
+  assert.equal([...f.store.ledger.values()].filter(entry => entry.gameId === roomId && entry.type === 'SETTLEMENT').length, 2)
+})
+
+test('多人中断超出十分钟按个人失败结算', async () => {
+  const f = await fixture(2)
+  const roomId = await f.startRoom()
+  f.tick(RESUME_MS - 10)
+  const online = await f.command(0, 'heartbeat')
+  assert.equal(online.activeGame.gameId, roomId)
+  f.tick(10)
+  const timedOut = await f.command(1, 'resume')
+  assert.equal(timedOut.lastSettlement.status, 'DISCONNECTED')
+  assert.equal(timedOut.profile.quantities.wp_006, 0)
+  assert.equal((await f.command(0, 'heartbeat')).activeGame.gameId, roomId)
+})
+
+test('正式单人只有自己移动，物资房只判定一次守卫且自动胜利掉装备', async () => {
+  const f = await fixture(1)
+  const started = await f.command(0, 'start', { mode: 'SINGLE', cardIds: ['wp_006'], requestId: 'solo-start-01' })
+  const { gameId } = started.activeGame
+  assert.equal(started.activeGame.state.players.length, 1)
+  assert.equal(started.profile.quantities.wp_006, 0)
+  f.store.documents.get(f.players[0].id).activeGame.rngState = 0
+  const room = await f.game(0, gameId, 1, 'move', { target: { x: 1, y: 0 } })
+  const [battle] = room.activeGame.state.encounters.filter(event => event.type === 'BATTLE')
+  assert.equal(battle.winnerId, 'P1')
+  assert.equal(room.activeGame.state.players.find(player => player.isBot).diceMode, 'ATTACK')
+  assert.ok(room.activeGame.state.items.some(item => item.state === 'DROPPED' && cards.some(card => card.cardId === item.cardId && card.rarity === 'BLUE' && card.category === 'WEAPON')))
+  await f.game(0, gameId, 1, 'leave')
+  f.store.documents.get(f.players[0].id).activeGame.rngState = 0
+  const stayed = await f.game(0, gameId, 2, 'move', { target: { x: 1, y: 0 } })
+  assert.equal(stayed.activeGame.state.encounters.some(event => event.type === 'BATTLE'), false)
+  assert.equal((await f.game(0, gameId, 2, 'abandon')).profile.quantities.wp_006, 0)
+})

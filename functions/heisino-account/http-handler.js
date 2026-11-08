@@ -28,7 +28,7 @@ function createAccountHandler(service) {
     const startedAt = Date.now()
     const url = new URL(request.url, 'http://localhost')
     const path = url.pathname.replace(/^\/api\/account(?=\/|$)/, '') || '/'
-    if (!url.pathname.startsWith('/api/account') && !['/login', '/health', '/me', '/profile', '/start', '/game', '/resume', '/heartbeat', '/suspend', '/acknowledge'].includes(path)) return false
+    if (!url.pathname.startsWith('/api/account') && !['/login', '/health', '/me', '/profile', '/start', '/game', '/resume', '/heartbeat', '/suspend', '/acknowledge', '/lobby'].includes(path)) return false
     if (request.method === 'OPTIONS') { send(response, 204, {}); return true }
     if (request.method === 'GET' && path === '/health') { send(response, 200, { ok: true, service: 'heisino-account', schemaVersion: '1.0.0' }); return true }
     try {
