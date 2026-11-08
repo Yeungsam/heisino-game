@@ -144,6 +144,8 @@ npm run cards:build -- "/absolute/path/to/卡牌！"
 
 ## 测试环境
 
+服务端与接口变更按 [CloudBase 发布与验收](docs/CloudBase发布与验收.md)完成部署和公网验证。
+
 - CloudBase 环境名称：`cloud1`
 - CloudBase 环境 ID：`cloud1-d5ghcmrajdca722b5`
 - 微信小游戏 AppID：`wxac0dd152fc261ffd`
@@ -163,7 +165,7 @@ npm run cards:build -- "/absolute/path/to/卡牌！"
 
 `/api/search` 已完成生产冒烟验证，覆盖健康检查、建局、25 房间与 4/10/0 物资数量、进入房间、2 秒曝光、拾取入包和离开房间。每次搜索服务部署后必须运行 `npm run verify:search:production`，不能只以健康检查通过作为发布结论。
 
-2026-11-03 已同步发布账号、卡牌和搜索三个函数。账号集合 `heisino_accounts`、`heisino_asset_ledger` 均为 `ADMINONLY`；云端临时探针验证了事务读写、版本冲突拒绝和流水保存，探针已清理。同日由项目所有者保存 AppSecret 和现有数据库 Key 后，开发工具完成真实微信登录、昵称审核和建号保存；云端账号为“旺旺仙草”、默认头像、礼包三张、金币 0、一次发放流水。补齐域名后，保持严格校验重新登录通过，真机对局仍未验收。`npm run verify:account:production` 仅检查健康、未登录访问拒绝及微信接口响应，不能单独证明真实微信或完整资产闭环通过。后续使用 `npm run account:deploy` 可保留控制台已有环境变量，不在源码中保存密钥。
+2026-11-03 已同步发布账号、卡牌和搜索三个函数。账号集合 `heisino_accounts`、`heisino_asset_ledger` 均为 `ADMINONLY`；云端临时探针验证了事务读写、版本冲突拒绝和流水保存，探针已清理。同日由项目所有者保存 AppSecret 和现有数据库 Key 后，开发工具完成真实微信登录、昵称审核和建号保存；云端账号为“旺旺仙草”、默认头像、礼包三张、金币 0、一次发放流水。补齐域名后，保持严格校验重新登录通过，真机对局仍未验收。`npm run verify:account:production` 检查健康、大厅预检、未登录访问拒绝和微信换码响应。真实微信登录与资产闭环需要单独验收。
 
 密钥、Token、私钥和本地登录凭证不得提交到仓库。
 

@@ -17,6 +17,7 @@
       "name": "heisino-cards",
       "runtime": "Nodejs20.19",
       "handler": "index.main",
+      "installDependency": false,
       "timeout": 10,
       "memorySize": 256,
       "description": "大劫卡西诺卡牌目录 API",
