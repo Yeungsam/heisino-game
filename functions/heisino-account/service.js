@@ -295,7 +295,7 @@ class AccountService {
       return
     }
     const engine = this.restore(game)
-    if (input.turn !== engine.turn) throw fault('STALE_TURN', 409)
+    if (input.action !== 'abandon' && input.turn !== engine.turn) throw fault('STALE_TURN', 409)
     this.reveal(engine, game.visit)
     const visit = game.visit
     if (input.action === 'move') this.move(engine, game, input.target || {})

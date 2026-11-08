@@ -452,6 +452,7 @@ function resumeAccountGame() {
   activeBattle = null
   if (engine.phase === 'MOVE_SELECTION' || accountGame.waiting) presentation = 'MAP'
   else if (searchVisitState?.visit.observation?.active) presentation = 'SEARCH'
+  else if (searchVisitState?.visit.observation) beginRoomVisit()
   else decidePostMove()
 }
 
@@ -1359,7 +1360,17 @@ async function refreshLobby() {
     consumeLobbyResponse(response)
     lobbyError = ''
     if (previousRoom && !lobbyRoom && !accountGame) addToast('等待时间已到，房间已关闭。', 2400)
-  } catch (_) {
+  } catch (error) {
+    if (scene === 'LOBBY' && error.code === 'ACTIVE_GAME_EXISTS') {
+      try {
+        const response = await accountApi.command('resume')
+        if (scene !== 'LOBBY') return
+        if (response.lastSettlement && !response.lastSettlement.acknowledged) pendingResume = true
+        consumeLobbyResponse(response)
+        lobbyError = ''
+        return
+      } catch (_) {}
+    }
     lobbyError = '大厅连接中断，正在重试…'
   } finally {
     lobbyPollInFlight = false
@@ -2072,7 +2083,14 @@ function drawBattle(state) {
   const draw = activeBattle.winnerId === null
   panel(viewWidth * 0.27, viewHeight - 72, viewWidth * 0.46, 54, { fill: 'rgba(24,14,28,.95)', stroke: won ? '#ffd56a' : draw ? '#b8acbd' : '#e0656b', radius: 13 })
   text(draw ? '完全平局 · 双方撤出战斗' : won ? '战斗胜利 · 战利品已开放搜索' : '战斗失败 · 白鸽接应队已出动', viewWidth / 2, viewHeight - 53, 13, won ? '#ffe28b' : '#ffd8d8', 'center', 'bold')
-  button('battle_continue', won ? '查看战利品' : '进入结算', { x: viewWidth / 2 - 70, y: viewHeight - 39, width: 140, height: 30 }, { size: 10, top: won ? '#cc8b2f' : '#8b3546', bottom: won ? '#87421f' : '#4d2335' })
+  if (!searchVisitState || canActInRoom()) {
+    button('battle_continue', won ? '查看战利品' : '进入结算', { x: viewWidth / 2 - 70, y: viewHeight - 39, width: 140, height: 30 }, { size: 10, top: won ? '#cc8b2f' : '#8b3546', bottom: won ? '#87421f' : '#4d2335' })
+  } else text('同步回合中…', viewWidth / 2, viewHeight - 24, 10, '#ffe9bd', 'center', 'bold')
+}
+
+function canActInRoom() {
+  const visit = searchVisitState?.visit
+  return visit?.status === 'ACTIVE' && Date.now() < visit.deadlineAt
 }
 
 function currentSearchProgress() {
@@ -2206,11 +2224,12 @@ function drawAuthorityBadge(x, y) {
 
 function drawRoom(state) {
   const layout = drawRoomArtwork()
+  const visitOpen = canActInRoom()
   const node = searchVisitState ? searchVisitState.room.nodeId : positionKey(engine.getPlayer('P1').position)
   const roomName = roomTypeForNode(node)
   // Hit testing goes from last to first: background regions sit below buttons.
   ui.roomAreaRects = layout.areas
-  if (searchVisitState && searchVisitState.visit.status === 'ACTIVE' && !searchRequestPending) {
+  if (visitOpen && !searchRequestPending) {
     layout.areas.forEach(area => ui.hotspots.push({ id: 'room_area', rect: area, data: area.areaId }))
   }
   drawDesignAsset('searchRoomTitlePanel', layout, { x: 133, y: 58, width: 515, height: 163 })
@@ -2221,9 +2240,9 @@ function drawRoom(state) {
 
   drawDesignAsset('searchRoomLeaveButton', layout, { x: 1371, y: 889, width: 292, height: 104 })
   drawDesignAsset('searchRoomLeaveIcon', layout, { x: 1429, y: 911, width: 46, height: 60 })
-  text('离开房间', layout.offsetX + 1548 * layout.scale, layout.offsetY + 938 * layout.scale, Math.max(12, 29 * layout.scale), '#fff1c1', 'center', 'bold')
-  ui.hotspots.push({ id: searchVisitState && !searchRequestPending ? 'room_leave' : 'room_leave_disabled', rect: layout.leave })
-  if (searchAuthority === 'ACCOUNT' && node === C.EXTRACTION_NODE_ID) {
+  text(searchVisitState && !visitOpen ? '同步回合中…' : '离开房间', layout.offsetX + 1548 * layout.scale, layout.offsetY + 938 * layout.scale, Math.max(12, 29 * layout.scale), '#fff1c1', 'center', 'bold')
+  ui.hotspots.push({ id: visitOpen && !searchRequestPending ? 'room_leave' : 'room_leave_disabled', rect: layout.leave })
+  if (visitOpen && searchAuthority === 'ACCOUNT' && node === C.EXTRACTION_NODE_ID) {
     button('request_extraction', '呼叫白鸽 · 撤离', { x: viewWidth / 2 - 90, y: viewHeight - 44, width: 180, height: 33 }, { top: '#2c966b', bottom: '#174c3a', size: 12 })
   }
 
@@ -2351,9 +2370,12 @@ function drawSearch(state) {
   drawSearchRoomPanel(layout.search)
   if (assets.searchFinishButton) context.drawImage(assets.searchFinishButton, layout.finish.x, layout.finish.y, layout.finish.width, layout.finish.height)
   else panel(layout.finish.x, layout.finish.y, layout.finish.width, layout.finish.height, { fill: '#8b251e', stroke: '#ffe39a', radius: 10 })
-  text('完成搜索', layout.finish.x + layout.finish.width / 2, layout.finish.y + layout.finish.height / 2, Math.max(11, 31 * layout.scale), '#fff1c1', 'center', 'bold')
-  ui.hotspots.push({ id: 'search_finish', rect: layout.finish })
-  drawSearchDrag()
+  const visitOpen = canActInRoom()
+  text(visitOpen ? '完成搜索' : '同步回合中…', layout.finish.x + layout.finish.width / 2, layout.finish.y + layout.finish.height / 2, Math.max(11, 31 * layout.scale), '#fff1c1', 'center', 'bold')
+  if (visitOpen) {
+    ui.hotspots.push({ id: 'search_finish', rect: layout.finish })
+    drawSearchDrag()
+  }
 }
 
 function drawRoundResult(state) {
@@ -2570,7 +2592,9 @@ function handleAction(action) {
   if (action.id === 'profile_name') { inputNickname(); return }
   if (action.id === 'profile_save') { saveProfile(); return }
   if (action.id === 'account_abandon') {
-    wx.showModal({ title: '放弃本局？', content: '本局带入及搜到的物品将全部损失，仓库中未携带的资产不受影响。', success(result) { if (result.confirm) accountAction('abandon') } })
+    const gameId = accountGame?.gameId
+    if (gameId) wx.showModal({ title: '放弃本局？', content: '本局带入及搜到的物品将全部损失，仓库中未携带的资产不受影响。',
+      success(result) { if (result.confirm && accountGame?.gameId === gameId) accountAction('abandon') } })
     return
   }
   if (accountBusy) { addToast('上一操作处理中，请稍候。', 900); return }
@@ -2624,16 +2648,16 @@ function handleAction(action) {
   if (action.id === 'confirm_move' && canSelectMovement(engine)) {
     accountAction('move', { target: selectedMove || engine.getPlayer('P1').position })
   }
-  if (action.id === 'battle_continue') {
+  if (action.id === 'battle_continue' && presentation === 'BATTLE') {
     const local = engine.getPlayer('P1')
     if (local.status !== 'ACTIVE') presentation = 'SETTLEMENT'
-    else beginRoomVisit()
+    else if (canActInRoom()) beginRoomVisit()
   }
-  if (action.id === 'room_area') openSearchObservation(action.data)
-  if (action.id === 'room_leave') leaveCurrentRoom()
-  if (action.id === 'search_finish') finishSearchOverlay()
+  if (action.id === 'room_area' && presentation === 'ROOM' && canActInRoom()) openSearchObservation(action.data)
+  if (action.id === 'room_leave' && presentation === 'ROOM' && canActInRoom()) leaveCurrentRoom()
+  if (action.id === 'search_finish' && presentation === 'SEARCH' && canActInRoom()) finishSearchOverlay()
   if (action.id === 'next_turn') nextTurn()
-  if (action.id === 'request_extraction') {
+  if (action.id === 'request_extraction' && canActInRoom()) {
     accountAction('extract')
   }
   if (action.id === 'settlement_home' || action.id === 'settlement_replay') {
@@ -2668,6 +2692,7 @@ wx.onTouchStart(event => {
     return
   }
   if (scene === 'GAME' && presentation === 'SEARCH') {
+    if (!canActInRoom()) return
     const roomItem = ui.searchItemRects.find(rect => pointInRect(point, rect))
     const inventoryItem = ui.searchInventoryRects.find(rect => pointInRect(point, rect))
     if (roomItem || inventoryItem || pointInRect(point, ui.searchRoomScrollRect)) {
@@ -2787,6 +2812,7 @@ wx.onTouchEnd(event => {
     searchDragging = null
     searchDragPoint = null
     searchGesture = null
+    if (presentation !== 'SEARCH' || !canActInRoom()) return
     if (dragged.source === 'ROOM' && pointInRect(point, ui.searchBackpackRect)) {
       pickupDraggedSearchItem(dragged.instanceId)
       return
