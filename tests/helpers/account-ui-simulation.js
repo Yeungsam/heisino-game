@@ -34,7 +34,7 @@ async function simulation(t, count = 3) {
     return { code, token, id: profile.accountId }
   }))
 
-  async function mount(index, { width = 812, height = 375, blockResponse, showModal = args => args.success({ confirm: true }) } = {}) {
+  async function mount(index, { width = 812, height = 375, blockResponse, loginCode, showModal = args => args.success({ confirm: true }) } = {}) {
     const account = accounts[index]
     const events = {}
     const labels = []
@@ -53,7 +53,7 @@ async function simulation(t, count = 3) {
       createCanvas: () => ({ getContext: () => context }),
       getWindowInfo: () => ({ windowWidth: width, windowHeight: height, pixelRatio: 2 }),
       createImage: () => ({ width: 1280, height: 722, set src(_) { queueMicrotask(() => this.onload?.()) } }),
-      login: args => queueMicrotask(() => args.success({ code: account.code })),
+      login: args => queueMicrotask(() => args.success({ code: loginCode ? loginCode() : account.code })),
       showModal,
       onTouchStart: fn => { events.start = fn },
       onTouchMove: fn => { events.move = fn },
@@ -81,7 +81,7 @@ async function simulation(t, count = 3) {
     const globals = { wx, console, setTimeout, clearTimeout, requestAnimationFrame: noop,
       Date: class extends Date { static now() { return clock.now } } }
     const api = vm.runInNewContext(apiSource + '\nmodule.exports', { ...globals, module: { exports: {} },
-      require: name => name === '../config' ? config : apiRequire(name) })
+      require: name => name === '../config' ? config : apiRequire(name) }, { filename: apiPath })
     const sandbox = vm.createContext({ ...globals, require(name) {
       if (name === './api/account') return api
       if (name === './api/cards') return { fetchCardCatalog: async () => ({ cards }) }

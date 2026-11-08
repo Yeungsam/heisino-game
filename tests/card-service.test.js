@@ -37,3 +37,23 @@ test('卡牌服务支持按分类过滤', async t => {
   assert.equal(catalog.total, 10)
   assert.ok(catalog.cards.every(card => card.category === 'SKILL'))
 })
+
+test('卡牌详情区分缺失和非法编码，错误请求后服务仍可用', async t => {
+  await new Promise((resolve, reject) => { server.once('error', reject); server.listen(0, '127.0.0.1', resolve) })
+  t.after(() => new Promise(resolve => server.close(resolve)))
+  const origin = `http://127.0.0.1:${server.address().port}`
+  const request = route => fetch(origin + route, { signal: AbortSignal.timeout(1000) })
+  const card = await request('/api/cards/ar_013')
+  assert.equal(card.status, 200)
+  assert.equal((await card.json()).card_id, 'ar_013')
+  const missing = await request('/api/cards/does_not_exist')
+  assert.equal(missing.status, 404)
+  assert.deepEqual(await missing.json(), { error: 'CARD_NOT_FOUND' })
+  const asset = await request('/assets/cards/does_not_exist.jpg')
+  assert.equal(asset.status, 404)
+  assert.deepEqual(await asset.json(), { error: 'ASSET_NOT_FOUND' })
+  const malformed = await request('/api/cards/%E0%A4%A')
+  assert.equal(malformed.status, 400)
+  assert.deepEqual(await malformed.json(), { error: 'INVALID_CARD_ID' })
+  assert.equal((await request('/health')).status, 200)
+})

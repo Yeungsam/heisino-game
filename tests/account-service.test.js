@@ -222,3 +222,22 @@ test('重复离开不跨过两轮，回合超时由服务端推进', async () =>
   const timeout = await f.service.execute(f.token, 'heartbeat')
   assert.equal(timeout.activeGame.state.phase, 'SEARCH')
 })
+
+test('微信审核凭证失效时拒绝本次提交，下次重试会获取新凭证', async () => {
+  let refreshes = 0
+  const checkedTokens = []
+  const identity = new WechatIdentity({ secret: 'test-only', fetch: async url => {
+    if (url.pathname === '/cgi-bin/stable_token') {
+      refreshes += 1
+      return { ok: true, json: async () => ({ access_token: `token-${refreshes}`, expires_in: 7200 }) }
+    }
+    const token = url.searchParams.get('access_token')
+    checkedTokens.push(token)
+    return { ok: true, json: async () => token === 'token-1' ? { errcode: 42001 } : { errcode: 0, result: { suggest: 'pass' } } }
+  } })
+  await assert.rejects(identity.moderate('测试玩家', 'fake-openid'), { code: 'MODERATION_UNAVAILABLE' })
+  assert.equal(await identity.moderate('测试玩家', 'fake-openid'), true)
+  assert.equal(await identity.moderate('测试玩家', 'fake-openid'), true)
+  assert.equal(refreshes, 2)
+  assert.deepEqual(checkedTokens, ['token-1', 'token-2', 'token-2'])
+})

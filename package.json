@@ -5,6 +5,7 @@
   "description": "大劫卡西诺微信小游戏完整流程测试包",
   "scripts": {
     "test": "node --test tests/*.test.js",
+    "test:regression": "node scripts/run-regression.js",
     "check": "node scripts/check-syntax.js && node --test tests/*.test.js",
     "benchmark:render": "node scripts/benchmark-render-work.js",
     "account:build": "node scripts/build-account-runtime.js",

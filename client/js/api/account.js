@@ -2,6 +2,7 @@ const config = require('../config')
 const { networkFailure } = require('./connection-diagnostics')
 const TOKEN_KEY = 'heisino.account.session.v1'
 let session = null
+let identityChanged = false
 let queue = Promise.resolve()
 const performanceSamples = []
 function recordPerformance(action, queuedAt, startedAt, response) {
@@ -40,7 +41,15 @@ function request(action, data, method = 'POST', queuedAt = Date.now()) {
   }))
 }
 
-async function login() {
+function sessionAccountId() {
+  return session?.accountId || (/^[a-f0-9]{64}\./.test(session?.token) ? session.token.split('.')[0] : null)
+}
+
+function changedAccountError() {
+  return Object.assign(new Error('ACCOUNT_CHANGED'), { code: 'ACCOUNT_CHANGED' })
+}
+
+async function login(expectedAccountId) {
   // Verify the currently signed-in WeChat identity on every cold launch; a
   // cached game token must not carry an old WeChat user's assets into a new one.
   const code = await new Promise((resolve, reject) => wx.login({
@@ -48,7 +57,14 @@ async function login() {
     fail() { reject(Object.assign(new Error('LOGIN_FAILED'), { code: 'LOGIN_FAILED' })) }
   }))
   const result = await request('login', { code })
-  session = { token: result.token, expiresAt: result.expiresAt }
+  const accountId = result.profile?.accountId
+  if (expectedAccountId && accountId !== expectedAccountId) {
+    session = null
+    identityChanged = true
+    throw changedAccountError()
+  }
+  session = { token: result.token, expiresAt: result.expiresAt, accountId }
+  identityChanged = false
   try { wx.setStorageSync(TOKEN_KEY, session) } catch (_) {}
   return result
 }
@@ -57,13 +73,14 @@ function command(action, data = {}) {
   // Retries reuse the exact payload and id. Mutations are serialized across UI and lifecycle events.
   const input = { ...data, requestId: data.requestId || requestId() }
   const queuedAt = Date.now()
+  const accountId = sessionAccountId()
   const background = action === 'heartbeat' || (action === 'lobby' && input.op === 'list')
   const run = async () => {
+    if (identityChanged || (accountId && accountId !== sessionAccountId())) throw changedAccountError()
     try { return await request(action, input, 'POST', queuedAt) } catch (error) {
       if (error.code === 'NETWORK_ERROR' && !background) return request(action, input)
       if (error.statusCode === 401) {
-        session = null
-        await login()
+        await login(accountId)
         return request(action, input)
       }
       throw error
@@ -74,4 +91,4 @@ function command(action, data = {}) {
   return next
 }
 
-module.exports = { login, command, requestId, getPerformanceSamples: () => performanceSamples.map(sample => ({ ...sample })) }
+module.exports = { login, command, requestId, requiresLogin: () => identityChanged, getPerformanceSamples: () => performanceSamples.map(sample => ({ ...sample })) }

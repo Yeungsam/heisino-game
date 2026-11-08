@@ -1,0 +1,24 @@
+name: Global regression
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - name: Run regression and check the case index
+        run: npm run test:regression -- --rounds ${{ github.event_name == 'workflow_dispatch' && 5 || 1 }}

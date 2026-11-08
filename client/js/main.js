@@ -306,6 +306,7 @@ function finishBoot() {
 function accountError(error) {
   const messages = {
     ACCOUNT_UNAVAILABLE: '游戏账号服务暂不可用，请稍后重试。',
+    ACCOUNT_CHANGED: '微信账号已切换，请重新登录。',
     DOMAIN_NOT_ALLOWED: '微信拦截了账号服务域名，请查看连接诊断。后台已配置时，也需核对当前账号与手机端配置。',
     WECHAT_NOT_CONFIGURED: '微信登录尚未配置，请联系开发者完成服务端配置。',
     MODERATION_UNAVAILABLE: '昵称审核服务暂不可用，请稍后重试。',
@@ -2447,6 +2448,22 @@ function drawGame() {
 }
 
 function update() {
+  if (accountApi.requiresLogin?.()) {
+    if (scene !== 'LOGIN' && !accountBusy) {
+      accountProfile = accountGame = accountSettlement = engine = null
+      lobbyRoom = searchVisitState = roomTimerAnchor = null
+      lobbyRooms = []
+      pendingResume = false
+      accountRevision = 0
+      profileNickname = profileAvatarUrl = ''
+      profileAvatarImage = null
+      PLAYER_ACCOUNT_GOLD = 0
+      accountConnectionError = null
+      profileMessage = accountError({ code: 'ACCOUNT_CHANGED' })
+      setScene('LOGIN')
+    }
+    return
+  }
   if (accountGame && scene === 'GAME') {
     const deadline = engine.phase === 'MOVE_SELECTION' ? engine.moveDeadlineAt : engine.turnDeadlineAt
     const nearDeadline = Number.isFinite(deadline) && deadline - Date.now() < 1200

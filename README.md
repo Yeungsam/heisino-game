@@ -122,6 +122,8 @@ cloudbaserc.json             # CloudBase 环境与函数配置
 npm run check
 ```
 
+使用 Node.js 22 执行 `npm run test:regression -- --rounds 5` 可运行五轮全局回归。功能变更时同步更新[全局回归测试用例](docs/全局回归测试用例.md)并重新生成[自动化用例索引](docs/自动化用例索引.md)。
+
 生产卡牌服务联调检查：
 
 ```bash

@@ -104,7 +104,13 @@ const server = http.createServer(async (request, response) => {
   }
 
   if (request.method === 'GET' && url.pathname.startsWith('/api/cards/')) {
-    const cardId = decodeURIComponent(url.pathname.slice('/api/cards/'.length))
+    let cardId
+    try {
+      cardId = decodeURIComponent(url.pathname.slice('/api/cards/'.length))
+    } catch (_) {
+      sendJson(response, 400, { error: 'INVALID_CARD_ID' })
+      return
+    }
     const card = readCatalog().cards.find(candidate => candidate.card_id === cardId)
     if (!card) {
       sendJson(response, 404, { error: 'CARD_NOT_FOUND' })

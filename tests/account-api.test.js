@@ -16,7 +16,8 @@ function client(perform) {
       request(options) { calls.push(options); perform(options, calls.length) }
     }
   })
-  vm.runInContext(fs.readFileSync(path.join(__dirname, '../client/js/api/account.js'), 'utf8'), context)
+  const filename = path.join(__dirname, '../client/js/api/account.js')
+  vm.runInContext(fs.readFileSync(filename, 'utf8'), context, { filename })
   return { api: context.module.exports, calls, loginCount: () => wxLogins }
 }
 function ok(options, data) { options.success({ statusCode: 200, data: { ok: true, data } }) }
@@ -84,15 +85,17 @@ test('后台心跳超时4秒且不立即重试，避免占住操作队列36秒',
 })
 
 test('过期会话重新微信登录后重发原操作，操作顺序保持串行', async () => {
+  const accountId = 'a'.repeat(64)
   const f = client((options, count) => {
-    if (count === 1) options.success({ statusCode: 401, data: { ok: false, error: 'UNAUTHENTICATED' } })
-    else if (options.url.endsWith('/login')) ok(options, { token: 'refreshed-token', expiresAt: Date.now() + 100000 })
+    if (count === 2) options.success({ statusCode: 401, data: { ok: false, error: 'UNAUTHENTICATED' } })
+    else if (options.url.endsWith('/login')) ok(options, { token: count === 1 ? 'first-token' : 'refreshed-token', expiresAt: Date.now() + 100000, profile: { accountId } })
     else ok(options, { saved: true })
   })
+  await f.api.login()
   await Promise.all([f.api.command('game', { action: 'move' }), f.api.command('heartbeat')])
-  assert.deepEqual(f.calls.map(call => call.url.split('/').pop()), ['game', 'login', 'game', 'heartbeat'])
-  assert.deepEqual(f.calls[0].data, f.calls[2].data)
-  assert.equal(f.calls[2].header.Authorization, 'Bearer refreshed-token')
+  assert.deepEqual(f.calls.map(call => call.url.split('/').pop()), ['login', 'game', 'login', 'game', 'heartbeat'])
+  assert.deepEqual(f.calls[1].data, f.calls[3].data)
+  assert.equal(f.calls[3].header.Authorization, 'Bearer refreshed-token')
 })
 
 test('接口性能采样只保留耗时和状态，区分客户端排队与服务端处理，不保留凭证', async () => {
