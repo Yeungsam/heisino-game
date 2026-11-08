@@ -15,17 +15,23 @@ const {
   pinTransitionOpacity
 } = require('../client/js/ui/movement-map')
 
-test('移动地图按设计稿映射为完整5×5房间网格', () => {
-  const layout = createMovementLayout(SOURCE_SIZE.width, SOURCE_SIZE.height)
-  const first = roomRect(layout, 0, 0)
-  const last = roomRect(layout, 4, 4)
+test('5×5房间边界对齐大厅底图，在宽屏上一起等比缩放和居中', () => {
+  const columns = [240, 395, 562, 730, 902, 1066]
+  const rows = [106, 217, 326, 442, 550, 661]
 
-  assert.equal(layout.cellWidth * 5, layout.grid.width)
-  assert.equal(layout.cellHeight * 5, layout.grid.height)
-  assert.equal(first.x, layout.grid.x)
-  assert.equal(first.y, layout.grid.y)
-  assert.equal(last.x + last.width, layout.grid.x + layout.grid.width)
-  assert.equal(last.y + last.height, layout.grid.y + layout.grid.height)
+  for (const [width, height, scale, offsetX] of [[1280, 722, 1, 0], [800, 361, 0.5, 80]]) {
+    const layout = createMovementLayout(width, height)
+    for (let y = 0; y < 5; y += 1) {
+      for (let x = 0; x < 5; x += 1) {
+        assert.deepEqual(roomRect(layout, x, y), {
+          x: offsetX + columns[x] * scale,
+          y: rows[y] * scale,
+          width: (columns[x + 1] - columns[x]) * scale,
+          height: (rows[y + 1] - rows[y]) * scale
+        })
+      }
+    }
+  }
 })
 
 test('不可移动房间使用50%黑色蒙层', () => {

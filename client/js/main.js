@@ -101,6 +101,7 @@ const assetSources = {
   homeStartButton: 'assets/ui/home/start-button.png',
   home: 'assets/home.jpg',
   movementMap: 'assets/movement-map.jpg',
+  movementLocation: 'assets/movement-location.jpg',
   map: 'assets/map.jpg',
   characters: 'assets/characters.jpg',
   loading: 'assets/loading.jpg'
@@ -1628,7 +1629,7 @@ function drawMovementRooms(state, layout) {
       context.fill()
       text(info.name, rect.x + rect.width / 2, labelY + labelHeight / 2, Math.max(8, 16 * scale), info.color, 'center', 'bold', labelWidth - 6 * scale)
 
-      if (selecting && (current || reachable)) ui.hotspots.push({ id: 'map_node', rect, data: { x, y } })
+      if (selecting && (current || reachable)) ui.hotspots.push({ id: 'map_node', rect: roomRect(layout, x, y), data: { x, y } })
     }
   }
 }
@@ -1836,7 +1837,40 @@ function drawMovementHud(state, layout) {
     drawHudPlate(layout.action, { stroke: '#a99470', inner: '#584332' })
     text('行动结算中', layout.action.x + layout.action.width / 2, layout.action.y + layout.action.height / 2, Math.max(9, 17 * scale), '#eadfc9', 'center', 'bold')
   }
+  context.save()
+  context.shadowColor = '#281720'
+  context.shadowBlur = 4
+  context.shadowOffsetY = 1
   text(`目标：${roomTypeAt(target.x, target.y)}`, layout.action.x + layout.action.width / 2, layout.action.y + layout.action.height + 17 * scale, Math.max(8, 12 * scale), '#fff0c8', 'center', 'bold')
+  context.restore()
+}
+
+// Trace the original title plate so the old background behind it does not show.
+const MOVEMENT_LOCATION_OUTLINE = [
+  [15, 70], [26, 57], [43, 45], [44, 40], [51, 37], [58, 39], [85, 39], [98, 31],
+  [111, 35], [126, 27], [138, 28], [150, 14], [167, 6], [184, 14], [195, 28], [211, 27],
+  [219, 34], [234, 32], [246, 39], [274, 39], [282, 37], [288, 40], [289, 45], [307, 56],
+  [319, 70], [307, 83], [288, 96], [287, 101], [281, 105], [254, 103], [248, 99], [180, 99],
+  [172, 103], [161, 103], [152, 99], [83, 99], [77, 103], [51, 105], [45, 102], [43, 96], [27, 84]
+]
+
+function drawMovementLocation(layout) {
+  const image = assets.movementLocation
+  if (!image) return
+  const { x, y, width, height } = layout.location
+  const { scale } = layout.transform
+  context.save()
+  context.beginPath()
+  MOVEMENT_LOCATION_OUTLINE.forEach(([px, py], index) => {
+    const drawX = x + px * scale
+    const drawY = y + py * scale
+    if (index === 0) context.moveTo(drawX, drawY)
+    else context.lineTo(drawX, drawY)
+  })
+  context.closePath()
+  context.clip()
+  context.drawImage(image, x, y, width, height)
+  context.restore()
 }
 
 function drawMovementLegend(layout) {
@@ -1848,7 +1882,6 @@ function drawMovementLegend(layout) {
     { name: '可前往房间', color: '#4bff9f' },
     { name: '未探索区域', color: '#a8a5b4' }
   ]
-  // The legacy background contains a printed legend; cover it completely.
   context.fillStyle = '#171019'
   context.fillRect(rect.x, rect.y, rect.width, rect.height)
   context.strokeStyle = '#d9ad60'
@@ -1865,13 +1898,13 @@ function drawMovementLegend(layout) {
 }
 
 function drawMapScene(state) {
-  const image = assets.movementMap || assets.map
-  drawContainedBackdrop(image, '#09080b')
-  const layout = createMovementLayout(viewWidth, viewHeight, image ? image.width : 1280, image ? image.height : 722)
+  drawContainedBackdrop(assets.movementMap || assets.map, '#09080b')
+  const layout = createMovementLayout(viewWidth, viewHeight)
   drawMovementRooms(state, layout)
   drawMovementPin(state, layout)
   drawMovementLandmarks(layout)
   drawMovementLegend(layout)
+  drawMovementLocation(layout)
   drawMovementHud(state, layout)
   ui.discardRect = null
 }

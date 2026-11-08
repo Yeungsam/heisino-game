@@ -12,9 +12,12 @@ const LANDMARK_ROOMS = Object.freeze({
   EXIT: Object.freeze({ x: 4, y: 4 })
 })
 
+// The illustrated rooms vary slightly in size. Use the artwork's seams for both rendering and hit testing.
+const ROOM_COLUMNS = Object.freeze([240, 395, 562, 730, 902, 1066])
+const ROOM_ROWS = Object.freeze([106, 217, 326, 442, 550, 661])
+
 const SOURCE_RECTS = Object.freeze({
-  grid: Object.freeze({ x: 52, y: 106, width: 1027, height: 590 }),
-  location: Object.freeze({ x: 16, y: 8, width: 300, height: 98 }),
+  location: Object.freeze({ x: 1, y: 0, width: 345, height: 105 }),
   round: Object.freeze({ x: 434, y: 13, width: 301, height: 45 }),
   vault: Object.freeze({ x: 460, y: 61, width: 300, height: 44 }),
   alert: Object.freeze({ x: 757, y: 10, width: 258, height: 51 }),
@@ -60,14 +63,15 @@ function projectRect(rect, transform) {
   }
 }
 
-function createMovementLayout(viewWidth, viewHeight, imageWidth = SOURCE_SIZE.width, imageHeight = SOURCE_SIZE.height) {
-  const transform = containedTransform(viewWidth, viewHeight, imageWidth, imageHeight)
-  const grid = projectRect(SOURCE_RECTS.grid, transform)
+function createMovementLayout(viewWidth, viewHeight) {
+  const transform = containedTransform(viewWidth, viewHeight)
+  const columns = ROOM_COLUMNS.map(x => transform.offsetX + x * transform.scale)
+  const rows = ROOM_ROWS.map(y => transform.offsetY + y * transform.scale)
   return {
     transform,
-    grid,
-    cellWidth: grid.width / 5,
-    cellHeight: grid.height / 5,
+    columns,
+    rows,
+    grid: { x: columns[0], y: rows[0], width: columns[5] - columns[0], height: rows[5] - rows[0] },
     location: projectRect(SOURCE_RECTS.location, transform),
     round: projectRect(SOURCE_RECTS.round, transform),
     vault: projectRect(SOURCE_RECTS.vault, transform),
@@ -80,10 +84,10 @@ function createMovementLayout(viewWidth, viewHeight, imageWidth = SOURCE_SIZE.wi
 
 function roomRect(layout, x, y, inset = 0) {
   return {
-    x: layout.grid.x + x * layout.cellWidth + inset,
-    y: layout.grid.y + y * layout.cellHeight + inset,
-    width: layout.cellWidth - inset * 2,
-    height: layout.cellHeight - inset * 2
+    x: layout.columns[x] + inset,
+    y: layout.rows[y] + inset,
+    width: layout.columns[x + 1] - layout.columns[x] - inset * 2,
+    height: layout.rows[y + 1] - layout.rows[y] - inset * 2
   }
 }
 
