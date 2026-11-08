@@ -1,6 +1,6 @@
 {
   "schema_version": "0.2.0",
-  "generated_at": "2026-10-25T14:20:04.748Z",
+  "generated_at": "2026-11-08T12:09:17.911Z",
   "cards": [
     {
       "card_id": "wp_001",
@@ -854,6 +854,51 @@
         "notes": "卡名与数值由卡面 OCR 后人工校正。",
         "ocr_text": [
           "雨伞护罩",
+          "2/2"
+        ]
+      }
+    },
+    {
+      "card_id": "ar_013",
+      "kind": "EQUIPMENT",
+      "category": "ARMOR",
+      "name": "守卫圆盾",
+      "description": "防具卡，防御倍率等待玩法数值确认。",
+      "rarity": "BLUE",
+      "attack_multiplier": null,
+      "defense_multiplier": null,
+      "economy": {
+        "currency": "GOLD",
+        "value_source": "PURCHASE_PRICE",
+        "purchase_price": null,
+        "fixed_value": null
+      },
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": true,
+        "usable_phases": [
+          "NONE"
+        ],
+        "effects": []
+      },
+      "assets": {
+        "icon_key": "card_ar_005",
+        "card_art_key": "card_ar_005",
+        "card_art_path": "/assets/cards/ar_005.jpg",
+        "source_file": "export (7).png",
+        "sha256": "f9b396334854dcf79e88239bf5a3ca81ed96ad0fb5720f792665b49cd04dec30"
+      },
+      "data_status": "DRAFT",
+      "source": {
+        "document": "卡牌！美术设计文件夹",
+        "notes": "单人守卫掉落的蓝色防具，复用赌场圆盾卡面。",
+        "ocr_text": [
+          "堵报圆盾",
           "2/2"
         ]
       }

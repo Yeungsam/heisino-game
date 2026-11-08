@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict')
 const { cardApiBaseUrl, cardAssetBaseUrl } = require('../client/js/config')
+const { cards: expectedCards } = require('../data/cards.json')
 
 const REQUIRED_CATEGORIES = ['WEAPON', 'ARMOR', 'LOOT', 'SKILL']
 
@@ -8,8 +9,8 @@ async function verifyProductionCardService() {
   assert.equal(response.status, 200, `卡牌接口返回 HTTP ${response.status}`)
   assert.match(response.headers.get('content-type') || '', /application\/json/)
   const catalog = await response.json()
-  assert.equal(catalog.total, 52)
-  assert.equal(catalog.cards.length, 52)
+  assert.equal(catalog.total, expectedCards.length)
+  assert.equal(catalog.cards.length, expectedCards.length)
 
   const ids = new Set()
   catalog.cards.forEach(card => {
@@ -22,8 +23,13 @@ async function verifyProductionCardService() {
     assert.ok(card.assets.card_art_url.startsWith(`${cardAssetBaseUrl}/assets/cards/`))
   })
 
+  const shield = catalog.cards.find(card => card.card_id === 'ar_013')
+  const original = catalog.cards.find(card => card.card_id === 'ar_005')
+  assert.equal(shield?.rarity, 'BLUE')
+  assert.equal(shield.assets.card_art_url, original?.assets.card_art_url)
+
   for (const category of REQUIRED_CATEGORIES) {
-    const card = catalog.cards.find(candidate => candidate.category === category)
+    const card = category === 'ARMOR' ? shield : catalog.cards.find(candidate => candidate.category === category)
     const artResponse = await fetch(card.assets.card_art_url, { signal: AbortSignal.timeout(10000) })
     assert.equal(artResponse.status, 200, `${category} 卡面返回 HTTP ${artResponse.status}`)
     assert.match(artResponse.headers.get('content-type') || '', /image\/jpeg/)

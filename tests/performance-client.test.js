@@ -8,7 +8,7 @@ const { AccountService } = require('../functions/heisino-account/service')
 const { MemoryAccountStore } = require('../functions/heisino-account/store')
 const cards = require('../client/data/cards')
 
-async function fixture({ active = false, offscreen = true, slowCatalog = false } = {}) {
+async function fixture({ active = false, offscreen = true, slowCatalog = false, remoteCards = cards } = {}) {
   let touchStart, touchEnd, hide, show, releaseHeartbeat, frames = 0, arcs = 0, copies = 0
   const labels = [], clipRects = []
   const gradient = { addColorStop() {} }
@@ -54,7 +54,7 @@ async function fixture({ active = false, offscreen = true, slowCatalog = false }
   const main = path.join(__dirname, '../client/js/main.js'), realRequire = createRequire(main)
   const sandbox = vm.createContext({ wx, console, setTimeout, clearTimeout, requestAnimationFrame() {}, require(name) {
     if (name === './api/account') return api
-    if (name === './api/cards') return { fetchCardCatalog: () => slowCatalog ? new Promise(() => {}) : Promise.resolve({ cards }) }
+    if (name === './api/cards') return { fetchCardCatalog: () => slowCatalog ? new Promise(() => {}) : Promise.resolve({ cards: remoteCards }) }
     return realRequire(name)
   } })
   vm.runInContext(fs.readFileSync(main, 'utf8'), sandbox, { filename: main })
@@ -62,6 +62,14 @@ async function fixture({ active = false, offscreen = true, slowCatalog = false }
   return { sandbox, calls, run: code => vm.runInContext(code, sandbox), touchStart: event => touchStart(event), touchEnd: event => touchEnd(event),
     hide: () => hide(), show: () => show(), releaseHeartbeat: () => releaseHeartbeat(), counts: () => ({ frames, arcs, copies }), labels, clipRects }
 }
+
+test('旧云端目录下守卫圆盾仍可辨认并加入战备', async () => {
+  const f = await fixture({ remoteCards: cards.filter(card => card.cardId !== 'ar_013') })
+  assert.equal(f.run('cardById("ar_013").rarity'), 'BLUE')
+  assert.equal(f.run('new LoadoutSession({ cards, quantities: { ar_013: 1 } }).add("ar_013").ok'), true)
+  f.run('drawCardArt(cardById("ar_013"), { x: 0, y: 0, width: 90, height: 120 })')
+  assert.ok(f.labels.includes('蓝'))
+})
 
 test('静态页不重复绘制，触控立即反馈且不污染下一帧缓存，DPR上限为2', async () => {
   const f = await fixture({ slowCatalog: true })

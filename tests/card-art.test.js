@@ -28,14 +28,23 @@ test('服务端绝对卡面地址优先，本地目录降级到静态资源域�
 
 test('运行时卡牌索引按 cardId 解析全部卡牌', () => {
   const index = createCardCatalogIndex(cards)
-  assert.equal(Object.keys(index).length, 52)
+  assert.equal(Object.keys(index).length, 53)
   cards.forEach(card => assert.equal(index[card.cardId], card))
 })
 
-test('52 张卡牌均有有效且互不重复的发布美术资源', () => {
+test('53 张卡牌使用 52 张有效卡面，守卫圆盾复用赌场圆盾', () => {
   const publishedDigests = new Set()
+  const cardByPath = new Map()
   sourceCards.forEach(card => {
-    const relativePath = card.assets.card_art_path.replace(/^\/assets\//, '')
+    const artPath = card.assets.card_art_path
+    const firstCard = cardByPath.get(artPath)
+    if (firstCard) {
+      assert.deepEqual([firstCard.card_id, card.card_id], ['ar_005', 'ar_013'])
+      assert.deepEqual(firstCard.assets, card.assets)
+      return
+    }
+    cardByPath.set(artPath, card)
+    const relativePath = artPath.replace(/^\/assets\//, '')
     const filePath = path.join(root, 'server', 'public', 'assets', relativePath)
     assert.ok(fs.existsSync(filePath), `缺少卡面文件 ${card.card_id}`)
     const bytes = fs.readFileSync(filePath)

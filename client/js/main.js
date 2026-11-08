@@ -611,6 +611,9 @@ function loadCardCatalog() {
   applyCardCatalog(bundledCards, 'LOCAL_CACHE')
   fetchCardCatalog()
     .then(catalog => {
+      // During a rollout an older cached response may omit newly issued assets.
+      const fetchedIndex = createCardCatalogIndex(catalog.cards)
+      if (!bundledCards.every(card => fetchedIndex[card.cardId])) return
       if (JSON.stringify(catalog.cards) === JSON.stringify(cards)) { cardCatalogSource = 'SERVER'; invalidateFrame(); return }
       if (accountGame || ['LOADOUT', 'LOBBY', 'GAME'].includes(scene)) pendingCardCatalog = catalog.cards
       else applyCardCatalog(catalog.cards, 'SERVER')
@@ -934,6 +937,18 @@ function drawCardArt(card, rect, options = {}) {
   context.strokeStyle = options.stroke || color
   context.lineWidth = options.lineWidth || 1.2
   context.stroke()
+  if (card?.category === 'ARMOR' && card.rarity === 'BLUE') {
+    const size = Math.max(9, Math.min(24, rect.width * 0.19))
+    const x = rect.x + inset + 2
+    const y = rect.y + inset + 2
+    roundedPath(x, y, size, size, 3)
+    context.fillStyle = '#17577f'
+    context.fill()
+    context.strokeStyle = '#9ad9ff'
+    context.lineWidth = 1
+    context.stroke()
+    text('蓝', x + size / 2, y + size / 2, Math.max(7, size * 0.69), '#f1faff', 'center', 'bold')
+  }
   context.restore()
   return art
 }

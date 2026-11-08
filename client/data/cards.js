@@ -248,6 +248,19 @@ module.exports = [
     "dataStatus": "DRAFT"
   },
   {
+    "cardId": "ar_013",
+    "name": "守卫圆盾",
+    "description": "防具卡，防御倍率等待玩法数值确认。",
+    "kind": "EQUIPMENT",
+    "category": "ARMOR",
+    "rarity": "BLUE",
+    "attackMultiplier": null,
+    "defenseMultiplier": null,
+    "value": null,
+    "assetPath": "/assets/cards/ar_005.jpg",
+    "dataStatus": "DRAFT"
+  },
+  {
     "cardId": "loot_001",
     "name": "高级西装",
     "description": "物资卡，撤离结算价值25000 Gold。",

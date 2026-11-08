@@ -1,5 +1,6 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
+const cards = require('../client/data/cards')
 const {
   CARD_ART_WIDTH,
   CARD_ART_HEIGHT,
@@ -13,8 +14,8 @@ const {
 test('仓库纵向网格使用真实卡面宽高比并覆盖全部卡牌', () => {
   assert.deepEqual([CARD_ART_WIDTH, CARD_ART_HEIGHT], [552, 768])
   const viewport = { x: 20, y: 80, width: 1000, height: 480 }
-  const grid = createVerticalCardGrid({ viewport, count: 52, columns: 7, gap: 10, padding: 10, scrollY: 0 })
-  assert.equal(grid.rects.length, 52)
+  const grid = createVerticalCardGrid({ viewport, count: cards.length, columns: 7, gap: 10, padding: 10, scrollY: 0 })
+  assert.equal(grid.rects.length, cards.length)
   assert.ok(Math.abs(grid.cardWidth / grid.cardHeight - CARD_ASPECT_RATIO) < 0.000001)
   assert.ok(grid.maxScroll > 0)
 })

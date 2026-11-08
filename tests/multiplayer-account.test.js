@@ -177,7 +177,7 @@ test('多人中断超出十分钟按个人失败结算', async () => {
   assert.equal((await f.command(0, 'heartbeat')).activeGame.gameId, roomId)
 })
 
-test('正式单人只有自己移动，物资房只判定一次守卫且自动胜利掉装备', async () => {
+test('单人守卫只判定一次，蓝色防具可拾取、撤离返仓并再次带入', async () => {
   const f = await fixture(1)
   const started = await f.command(0, 'start', { mode: 'SINGLE', cardIds: ['wp_006'], requestId: 'solo-start-01' })
   const { gameId } = started.activeGame
@@ -188,10 +188,33 @@ test('正式单人只有自己移动，物资房只判定一次守卫且自动�
   const [battle] = room.activeGame.state.encounters.filter(event => event.type === 'BATTLE')
   assert.equal(battle.winnerId, 'P1')
   assert.equal(room.activeGame.state.players.find(player => player.isBot).diceMode, 'ATTACK')
-  assert.ok(room.activeGame.state.items.some(item => item.state === 'DROPPED' && cards.some(card => card.cardId === item.cardId && card.rarity === 'BLUE' && card.category === 'WEAPON')))
+  const drops = room.activeGame.state.items.filter(item => item.state === 'DROPPED')
+  const gear = drops.map(item => cards.find(card => card.cardId === item.cardId))
+  assert.deepEqual(gear.map(card => [card.category, card.rarity]), [['WEAPON', 'BLUE'], ['ARMOR', 'BLUE']])
+  const shield = drops.find(item => item.cardId === 'ar_013')
+  assert.ok(shield)
+  const observed = await f.game(0, gameId, 1, 'observe', { areaId: shield.areaId })
+  assert.ok(observed.activeGame.search.room.activeArea.visibleItems.some(item => item.instanceId === shield.instanceId))
+  const picked = await f.game(0, gameId, 1, 'pickup', { instanceId: shield.instanceId })
+  assert.ok(picked.activeGame.search.inventory.some(item => item.cardId === 'ar_013' && item.quantity === 1))
   await f.game(0, gameId, 1, 'leave')
   f.store.documents.get(f.players[0].id).activeGame.rngState = 0
   const stayed = await f.game(0, gameId, 2, 'move', { target: { x: 1, y: 0 } })
   assert.equal(stayed.activeGame.state.encounters.some(event => event.type === 'BATTLE'), false)
-  assert.equal((await f.game(0, gameId, 2, 'abandon')).profile.quantities.wp_006, 0)
+  await f.game(0, gameId, 2, 'leave')
+
+  const exitRoute = [{ x: 2, y: 0 }, { x: 3, y: 0 }, { x: 4, y: 0 }, { x: 4, y: 1 }, { x: 4, y: 2 }, { x: 4, y: 3 }, { x: 4, y: 4 }]
+  for (const [step, target] of exitRoute.entries()) {
+    const turn = step + 3
+    await f.game(0, gameId, turn, 'move', { target })
+    if (step < exitRoute.length - 1) await f.game(0, gameId, turn, 'leave')
+  }
+  const extracted = await f.game(0, gameId, 9, 'extract')
+  assert.equal(extracted.lastSettlement.status, 'EXTRACTED')
+  assert.equal(extracted.lastSettlement.returned.ar_013, 1)
+  assert.equal(extracted.profile.quantities.ar_013, 1)
+  assert.equal(extracted.profile.quantities.ar_005, undefined)
+  const next = await f.command(0, 'start', { mode: 'SINGLE', cardIds: ['ar_013'], requestId: 'solo-start-02' })
+  assert.equal(next.profile.quantities.ar_013, 0)
+  assert.ok(next.activeGame.state.items.some(item => item.cardId === 'ar_013' && item.ownerId === 'P1'))
 })

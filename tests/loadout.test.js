@@ -10,7 +10,7 @@ test('账号实际拥有的卡牌中，战备仓库仅展示武器、防具和�
   assert.equal(loadout.snapshot().ownedCardIds.length, cards.length)
   const eligibleCardIds = cards.filter(card => card.category !== 'LOOT').map(card => card.cardId)
   assert.deepEqual(loadout.snapshot().warehouseCardIds, eligibleCardIds)
-  assert.equal(loadout.snapshot().warehouseCardIds.length, 29)
+  assert.ok(loadout.snapshot().warehouseCardIds.includes('ar_013'))
 })
 
 test('物资卡不能通过战备逻辑放入行动背包', () => {

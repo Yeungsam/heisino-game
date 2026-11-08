@@ -15,6 +15,7 @@ test('微信小游戏卡牌投影与主配置保持一致', () => {
     assert.equal(projected.name, source.name)
     assert.equal(projected.kind, source.kind)
     assert.equal(projected.category, source.category)
+    assert.equal(projected.rarity, source.rarity)
     assert.equal(projected.attackMultiplier, source.attack_multiplier)
     assert.equal(Object.hasOwn(projected, 'maxDurability'), false)
     assert.equal(Object.hasOwn(source, 'durability'), false)
@@ -26,14 +27,15 @@ test('微信小游戏卡牌投影与主配置保持一致', () => {
   })
 })
 
-test('完整卡库包含四类52张真实卡牌', () => {
+test('客户端和云端目录包含四类 53 张卡牌', () => {
   const counts = sourceCards.reduce((result, card) => {
     result[card.category] = (result[card.category] || 0) + 1
     return result
   }, {})
 
-  assert.equal(sourceCards.length, 52)
-  assert.deepEqual(counts, { WEAPON: 7, ARMOR: 12, LOOT: 23, SKILL: 10 })
+  assert.equal(sourceCards.length, 53)
+  assert.deepEqual(counts, { WEAPON: 7, ARMOR: 13, LOOT: 23, SKILL: 10 })
+  assert.deepEqual(require('../functions/heisino-cards/cards.json').cards, sourceCards)
   sourceCards.forEach(card => {
     assert.match(card.assets.sha256, /^[a-f0-9]{64}$/)
     assert.match(card.assets.card_art_path, /^\/assets\/cards\/[a-z0-9_]+\.jpg$/)
