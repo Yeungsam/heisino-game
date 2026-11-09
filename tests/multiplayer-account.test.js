@@ -130,6 +130,43 @@ test('多人移动区分真正的重复提交与截止后原地停留，已成�
   assert.equal((await f.command(1, 'resume')).activeGame.search.visit.roomNodeId, 'n_0_4')
 })
 
+test('多人回放共享时刻和权威轨迹，期间禁止搜索，旧版混合房间可立即进房', async () => {
+  for (const guestSupportsReplay of [true, false]) {
+    const f = await fixture(2)
+    const { lobbyRoom: { roomId } } = await f.lobby(0, 'create', { cardIds: [], movementReplay: true })
+    await f.lobby(1, 'join', { roomId, cardIds: [], movementReplay: guestSupportsReplay })
+    await f.lobby(0, 'start', { roomId })
+    const first = await f.game(0, roomId, 1, 'move', { target: { x: 1, y: 0 } })
+    assert.equal(first.activeGame.movementReplay, null)
+    assert.ok(first.activeGame.state.players.slice(1).every(player => !player.position))
+    const second = await f.game(1, roomId, 1, 'move', { target: { x: 0, y: 4 } })
+    const replay = second.activeGame.movementReplay
+    if (guestSupportsReplay) {
+      assert.equal(replay.endsAt - replay.startedAt, C.MOVEMENT_REPLAY_MS)
+      assert.equal(replay.startedAt - second.serverNow, C.MOVEMENT_REPLAY_LEAD_MS)
+      assert.deepEqual(replay.tracks.map(({ from, to, isSelf }) => ({ from, to, isSelf })), [
+        { from: { x: 0, y: 0 }, to: { x: 1, y: 0 }, isSelf: false },
+        { from: { x: 0, y: 4 }, to: { x: 0, y: 4 }, isSelf: true }
+      ])
+      const hostReplay = (await f.command(0, 'resume')).activeGame.movementReplay
+      assert.equal(hostReplay.endsAt, replay.endsAt)
+      assert.equal(hostReplay.tracks[0].isSelf, true)
+      assert.equal(second.activeGame.search.visit.startedAt, replay.endsAt)
+      assert.equal(second.activeGame.search.visit.deadlineAt - replay.endsAt, C.SEARCH_DURATION_MS)
+      f.tick(C.MOVEMENT_REPLAY_LEAD_MS + C.MOVEMENT_REPLAY_MS - 1)
+      await assert.rejects(f.game(0, roomId, 1, 'leave'), { code: 'INVALID_PHASE' })
+      await assert.rejects(f.game(0, roomId, 1, 'observe', { areaId: 'MAIN_TABLE' }), { code: 'INVALID_PHASE' })
+      f.tick(1)
+      assert.equal((await f.command(0, 'resume')).activeGame.movementReplay, null)
+    } else assert.equal(replay, null)
+    await f.game(0, roomId, 1, 'observe', { areaId: 'MAIN_TABLE' })
+    await f.game(0, roomId, 1, 'leave')
+    const next = await f.game(1, roomId, 1, 'leave')
+    assert.equal(next.activeGame.movementReplay, null)
+    assert.equal(next.activeGame.state.turn, 2)
+  }
+})
+
 test('三人同房分流给独立物资，同一张卡只能入一人的背包一次', async () => {
   const f = await fixture()
   const roomId = await f.startRoom()

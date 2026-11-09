@@ -1,6 +1,7 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
 const { simulation, dock, heartbeat, move, center } = require('./helpers/account-ui-simulation')
+const { MOVEMENT_REPLAY_LEAD_MS, MOVEMENT_REPLAY_MS } = require('../client/js/core/constants')
 
 async function refresh(app) {
   await app.run('refreshLobby()')
@@ -62,6 +63,12 @@ async function startTogether(apps) {
   return roomId
 }
 
+async function finishReplay(sim, apps) {
+  sim.tick(MOVEMENT_REPLAY_LEAD_MS + MOVEMENT_REPLAY_MS)
+  apps.forEach(app => app.run('update()'))
+  await Promise.all(apps.map(app => app.idle()))
+}
+
 test('第2轮：三端移动截止、等待界面与回合超时', async t => {
   const sim = await simulation(t)
   const [host, late, third] = sim.client
@@ -85,6 +92,9 @@ test('第2轮：三端移动截止、等待界面与回合超时', async t => {
   assert.match(late.draw().join('\n'), /同步回合/)
 
   await Promise.all(sim.client.map(heartbeat))
+  assert.ok(sim.client.every(app => app.run('presentation') === 'REPLAY'))
+  assert.equal(late.read('movementReplay.tracks').filter(track => track.isSelf)[0].to.y, 4)
+  await finishReplay(sim, sim.client)
   assert.ok(sim.client.every(app => app.run('presentation') === 'ROOM'))
   assert.deepEqual(late.read('engine.getPlayer("P1").position'), { x: 0, y: 4 })
   assert.equal(host.run('searchVisitState.visit.roomNodeId'), 'n_1_0')
@@ -140,9 +150,10 @@ test('多人移动优先于慢心跳，重按只提交一次且旧回包不能�
     releaseHeartbeat.resolve()
     await pendingHeartbeat
   }
-  assert.equal(guest.run('presentation'), 'ROOM')
+  assert.equal(guest.run('presentation'), 'REPLAY')
   assert.equal(guest.run('searchVisitState.visit.roomNodeId'), 'n_1_4')
   await heartbeat(host)
+  await finishReplay(sim, [host, guest])
   await host.tap('room_leave')
   await guest.tap('room_leave')
   assert.equal(guest.run('engine.turn'), 2)
@@ -171,6 +182,7 @@ test('多人移动晚到明确提示原地停留，成功回包丢失则原请�
   assert.match(guest.run('toast'), /移动超时，本回合原地停留/)
   assert.equal(guest.run('searchVisitState.visit.roomNodeId'), 'n_0_4')
   await heartbeat(host)
+  await finishReplay(sim, [host, guest])
   await host.tap('room_leave')
   await guest.tap('room_leave')
   assert.equal(guest.run('engine.turn'), 2)
@@ -189,6 +201,49 @@ test('多人移动晚到明确提示原地停留，成功回包丢失则原请�
   assert.equal(guest.run('searchVisitState.visit.roomNodeId'), 'n_1_4')
 })
 
+test('所有玩家同屏回放，较晚恢复只播放剩余时间，结束时同步开放房间', async t => {
+  const sim = await simulation(t, 2)
+  const [host, guest] = sim.client
+  await startTogether(sim.client)
+  await move(host, 1, 0)
+  assert.equal(host.run('movementReplay'), null)
+  await guest.tap('confirm_move')
+  await heartbeat(host)
+  const end = host.run('movementReplay.endsAt')
+  assert.equal(guest.run('movementReplay.endsAt'), end)
+  assert.ok(host.draw().includes('玩家移动轨迹'))
+  assert.ok(host.draw().includes('1  你 · 测试玩家1'))
+  assert.ok(host.draw().includes('2  测试玩家2'))
+  assert.equal(host.hits('room_area').length, 0)
+  assert.equal(host.hits('confirm_move').length, 0)
+
+  sim.tick(MOVEMENT_REPLAY_LEAD_MS + MOVEMENT_REPLAY_MS / 2)
+  const recovered = await sim.mount(1)
+  await recovered.idle()
+  assert.equal(recovered.run('presentation'), 'REPLAY')
+  assert.equal(recovered.run('movementReplay.endsAt'), end)
+  const replaySnapshot = host.read('accountGame')
+  sim.tick(MOVEMENT_REPLAY_MS / 2 - 1)
+  host.run('update()')
+  recovered.run('update()')
+  assert.equal(host.run('presentation'), 'REPLAY')
+  assert.equal(recovered.run('presentation'), 'REPLAY')
+  host.touch('start', 400, 230)
+  sim.tick(1)
+  host.run('update()')
+  recovered.run('update()')
+  assert.equal(host.run('presentation'), 'ROOM')
+  assert.equal(recovered.run('presentation'), 'ROOM')
+  assert.equal(host.run('searchVisitState.visit.deadlineAt - Date.now()'), 50000)
+  assert.equal(recovered.run('searchVisitState.visit.deadlineAt - Date.now()'), 50000)
+  host.touch('end', ...center(host.hits('room_leave')[0].rect))
+  await host.idle()
+  assert.equal(host.requests.some(req => req.input?.action === 'leave'), false, '回放期间开始的触控不能误触离开房间')
+  host.run(`applyAccountResponse({activeGame:${JSON.stringify(replaySnapshot)}, profile:accountProfile, revision:accountRevision, serverNow:Date.now()})`)
+  assert.equal(host.run('presentation'), 'ROOM', '迟到的回放数据不能重复播放')
+  await Promise.all([host.idle(), recovered.idle()])
+})
+
 test('第3轮：三人同房分流、真实拖拽拾取与搜索换轮', async t => {
   const sim = await simulation(t)
   const roomId = await startTogether(sim.client)
@@ -200,6 +255,9 @@ test('第3轮：三人同房分流、真实拖拽拾取与搜索换轮', async t
   for (let step = 0; step < routes[0].length; step += 1) {
     await Promise.all(sim.client.map((app, index) => move(app, ...routes[index][step])))
     await Promise.all(sim.client.map(heartbeat))
+    assert.ok(sim.client.every(app => app.run('presentation') === 'REPLAY'))
+    assert.ok(sim.client.every(app => app.run('movementReplay.tracks.length') === 3))
+    await finishReplay(sim, sim.client)
     if (step < routes[0].length - 1) {
       await Promise.all(sim.client.map(app => app.tap('room_leave')))
       await Promise.all(sim.client.map(heartbeat))
@@ -276,8 +334,10 @@ test('第4轮：断线恢复与迟到响应不会把玩家拉回已离开的结�
   guest.events.show()
   await guest.idle()
   assert.equal(guest.run('accountGame.gameId'), roomId)
+  await finishReplay(sim, [host, guest])
   assert.equal(guest.run('presentation'), 'ROOM')
   assert.ok(guest.draw().includes('出生点'))
+  await heartbeat(host)
 
   guest.events.hide()
   await guest.idle()
@@ -315,6 +375,7 @@ test('第5轮：独立撤离返仓、连续开局与结算确认防串局', asyn
   for (const [step, target] of route.entries()) {
     await Promise.all([move(host, ...target), guest.tap('confirm_move')])
     await Promise.all(sim.client.map(heartbeat))
+    await finishReplay(sim, sim.client)
     if (step === 0) {
       const areaId = host.read('searchVisitState.room.areas').find(area => area.itemCount > 0).areaId
       await host.tap('room_area', hit => hit.data === areaId)

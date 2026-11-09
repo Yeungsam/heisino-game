@@ -137,6 +137,24 @@ function pinTransitionOpacity(elapsedMs, durationMs = PIN_TRANSITION_MS) {
   }
 }
 
+const TRACK_COLORS = ['#ffd376', '#75d9ff', '#f3a8e5']
+
+function movementTrackFrame(layout, tracks, progress) {
+  const ratio = Math.max(0, Math.min(1, progress))
+  const eased = ratio * ratio * (3 - 2 * ratio)
+  return tracks.map((track, index) => {
+    const offset = (index - (tracks.length - 1) / 2) * 22 * layout.transform.scale
+    const start = roomRect(layout, track.from.x, track.from.y)
+    const finish = roomRect(layout, track.to.x, track.to.y)
+    const fromX = start.x + start.width / 2 + offset
+    const fromY = start.y + start.height * 0.4 + offset
+    const toX = finish.x + finish.width / 2 + offset
+    const toY = finish.y + finish.height * 0.4 + offset
+    return { ...track, number: index + 1, color: TRACK_COLORS[index], fromX, fromY, toX, toY,
+      x: fromX + (toX - fromX) * eased, y: fromY + (toY - fromY) * eased }
+  })
+}
+
 module.exports = {
   SOURCE_SIZE,
   ROOM_MASK_ALPHA,
@@ -155,5 +173,6 @@ module.exports = {
   roomTypeForNode,
   roomHighlightStyle,
   landmarkIconRect,
-  pinTransitionOpacity
+  pinTransitionOpacity,
+  movementTrackFrame
 }

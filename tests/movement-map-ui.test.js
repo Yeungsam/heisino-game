@@ -12,7 +12,8 @@ const {
   roomInfoAt,
   roomTypeAt,
   roomTypeForNode,
-  pinTransitionOpacity
+  pinTransitionOpacity,
+  movementTrackFrame
 } = require('../client/js/ui/movement-map')
 
 test('5×5房间边界对齐大厅底图，在宽屏上一起等比缩放和居中', () => {
@@ -57,6 +58,22 @@ test('地图图针先在当前房间渐隐，再在目标房间渐现', () => {
   assert.deepEqual(pinTransitionOpacity(PIN_TRANSITION_MS / 2), { from: 0, to: 0, done: false })
   assert.deepEqual(pinTransitionOpacity(PIN_TRANSITION_MS * 0.75), { from: 0, to: 0.5, done: false })
   assert.deepEqual(pinTransitionOpacity(PIN_TRANSITION_MS), { from: 0, to: 1, done: true })
+})
+
+test('多人轨迹同时插值，同一终点的标记错开，原地停留不位移', () => {
+  const layout = createMovementLayout(812, 375)
+  const tracks = [{ from: { x: 0, y: 1 }, to: { x: 1, y: 1 } },
+    { from: { x: 1, y: 0 }, to: { x: 1, y: 1 } }, { from: { x: 1, y: 1 }, to: { x: 1, y: 1 } }]
+  const start = movementTrackFrame(layout, tracks, 0)
+  const middle = movementTrackFrame(layout, tracks, 0.5)
+  const finish = movementTrackFrame(layout, tracks, 1)
+  for (let i = 0; i < tracks.length; i++) {
+    assert.equal(middle[i].x, (start[i].x + finish[i].x) / 2)
+    assert.equal(middle[i].y, (start[i].y + finish[i].y) / 2)
+  }
+  assert.equal(start[2].x, finish[2].x)
+  assert.equal(start[2].y, finish[2].y)
+  assert.equal(new Set(finish.map(track => track.x)).size, 3)
 })
 
 test('房间网格不会侵入顶部HUD或右侧房间图例', () => {

@@ -46,7 +46,8 @@ const {
   roomInfoAt,
   ROOM_TYPE_INFO,
   roomTypeForNode,
-  pinTransitionOpacity
+  pinTransitionOpacity,
+  movementTrackFrame
 } = require('./ui/movement-map')
 
 const canvas = wx.createCanvas()
@@ -182,6 +183,7 @@ let presentation = 'MAP'
 let selectedMove = null
 let movementPinPosition = null
 let movementPinTransition = null
+let movementReplay = null
 let activeBattle = null
 let toast = ''
 let toastUntil = 0
@@ -205,7 +207,7 @@ let searchRoomScrollY = 0
 let searchRippleSlotIndex = null
 let searchRippleStartedAt = 0
 let searchGesture = null
-let cancelledSearchTouch = false
+let cancelledGameTouch = false
 
 const ui = {
   hotspots: [],
@@ -400,6 +402,9 @@ function applyAccountResponse(response) {
   if (changedAssets) loadout = new LoadoutSession({ cards, quantities: accountProfile.quantities })
   accountGame = response.activeGame
   accountSettlement = response.lastSettlement
+  const changedRound = accountGame && previousGame &&
+    (previousGame.gameId !== accountGame.gameId || previousGame.state.turn !== accountGame.state.turn)
+  if (!accountGame || !previousGame || changedRound) movementReplay = null
   if (accountGame) {
     if (!engine || !previousGame || previousGame.gameId !== accountGame.gameId || engine.cards !== cards) engine = new GameEngine({ cards })
     Object.assign(engine, accountGame.state)
@@ -418,7 +423,7 @@ function applyAccountResponse(response) {
         startedAt: search.visit.observation.startedAt + clockOffset
       }
     } } : null
-    if (previousGame && previousGame.state.turn !== accountGame.state.turn) {
+    if (changedRound) {
       selectedMove = null
       activeBattle = null
       movementPinPosition = { ...engine.getPlayer('P1').position }
@@ -426,11 +431,19 @@ function applyAccountResponse(response) {
       presentation = 'MAP'
       searchRippleSlotIndex = null
       searchRoomScrollY = 0
-      if (engine.phase !== 'MOVE_SELECTION' && !accountGame.waiting) decidePostMove()
-    } else if (accountGame.waiting) {
+    }
+    const replay = accountGame.movementReplay
+    if (replay && !movementReplay) {
+      movementReplay = { ...replay, startedAt: replay.startedAt + clockOffset, endsAt: replay.endsAt + clockOffset }
+      selectedMove = null
+      movementPinTransition = null
+      cancelledGameTouch = true
+      presentation = 'REPLAY'
+    } else if (presentation !== 'REPLAY' && accountGame.waiting) {
       activeBattle = null
       presentation = 'MAP'
-    } else if (previousGame && previousGame.state.phase === 'MOVE_SELECTION' && engine.phase !== 'MOVE_SELECTION') decidePostMove()
+    } else if (presentation !== 'REPLAY' && (changedRound || previousGame?.state.phase === 'MOVE_SELECTION') &&
+        engine.phase !== 'MOVE_SELECTION') decidePostMove()
   } else if (accountSettlement && (scene === 'GAME' || pendingResume)) {
     engine = new GameEngine({ cards })
     Object.assign(engine, accountSettlement.state)
@@ -453,6 +466,7 @@ function resumeAccountGame() {
   movementPinTransition = null
   selectedMove = null
   activeBattle = null
+  if (presentation === 'REPLAY') return
   if (engine.phase === 'MOVE_SELECTION' || accountGame.waiting) presentation = 'MAP'
   else if (searchVisitState?.visit.observation?.active) presentation = 'SEARCH'
   else if (searchVisitState?.visit.observation) beginRoomVisit()
@@ -1406,7 +1420,10 @@ async function lobbyAction(op, roomId) {
   beginAccountRequest(op === 'start' ? '正在确认开局…' : '正在同步房间…')
   try {
     const input = { op, roomId }
-    if (op === 'create' || op === 'join') input.cardIds = loadout.snapshot().selectedCardIds
+    if (op === 'create' || op === 'join') {
+      input.cardIds = loadout.snapshot().selectedCardIds
+      input.movementReplay = true
+    }
     consumeLobbyResponse(await accountApi.command('lobby', input))
   } catch (error) { addToast(accountError(error), 2600) }
   finally { endAccountRequest() }
@@ -1721,7 +1738,7 @@ function canSelectMovement(state) {
   return state.phase === 'MOVE_SELECTION' && !latestMoveRequest?.pending && !accountGame?.waiting && Date.now() < state.moveDeadlineAt
 }
 
-function drawMovementRooms(state, layout) {
+function drawMovementRooms(state, layout, replaying) {
   const local = state.players.find(player => player.id === 'P1')
   const selecting = canSelectMovement(state)
   const legalKeys = new Set(selecting ? engine.legalMoves('P1').map(position => `${position.x},${position.y}`) : [])
@@ -1730,7 +1747,7 @@ function drawMovementRooms(state, layout) {
   for (let y = 0; y < C.BOARD_SIZE; y += 1) {
     for (let x = 0; x < C.BOARD_SIZE; x += 1) {
       const key = `${x},${y}`
-      const current = local.position.x === x && local.position.y === y
+      const current = !replaying && local.position.x === x && local.position.y === y
       const reachable = legalKeys.has(key) && !current
       const selected = selectedMove && selectedMove.x === x && selectedMove.y === y
       const highlightState = current ? 'CURRENT' : selected ? 'SELECTED' : reachable ? 'REACHABLE' : null
@@ -1900,6 +1917,58 @@ function drawMovementPin(state, layout) {
   drawMapPin(roomRect(layout, movementPinPosition.x, movementPinPosition.y), scale, 1)
 }
 
+function drawMovementReplay(layout) {
+  const scale = layout.transform.scale
+  const duration = movementReplay.endsAt - movementReplay.startedAt
+  const elapsed = Date.now() - movementReplay.startedAt
+  const progress = clamp(elapsed / duration, 0, 1)
+  const frame = movementTrackFrame(layout, movementReplay.tracks, progress)
+  const legend = layout.legend
+  drawHudPlate({ ...legend, height: 162 * scale })
+  text('玩家移动轨迹', legend.x + legend.width / 2, legend.y + 22 * scale, Math.max(9, 16 * scale), '#fff3d2', 'center', 'bold')
+
+  context.save()
+  context.lineCap = 'round'
+  for (const track of frame) {
+    context.strokeStyle = track.color
+    context.lineWidth = Math.max(2, 4 * scale)
+    context.globalAlpha = elapsed < 0 ? 0 : 0.35
+    context.beginPath()
+    context.moveTo(track.fromX, track.fromY)
+    context.lineTo(track.toX, track.toY)
+    context.stroke()
+    context.globalAlpha = 0.9
+    context.beginPath()
+    context.moveTo(track.fromX, track.fromY)
+    context.lineTo(track.x, track.y)
+    context.stroke()
+  }
+  context.globalAlpha = 1
+  for (const track of frame) {
+    const radius = Math.max(6, 12 * scale)
+    if (track.fromX === track.toX && track.fromY === track.toY && elapsed >= 0) {
+      context.globalAlpha = 0.45 * (1 - progress)
+      context.strokeStyle = track.color
+      context.lineWidth = Math.max(1, 2 * scale)
+      context.beginPath()
+      context.arc(track.x, track.y, radius * (1.25 + progress), 0, Math.PI * 2)
+      context.stroke()
+      context.globalAlpha = 1
+    }
+    context.fillStyle = track.color
+    context.strokeStyle = '#251423'
+    context.lineWidth = Math.max(1.5, 2 * scale)
+    context.beginPath()
+    context.arc(track.x, track.y, radius, 0, Math.PI * 2)
+    context.fill()
+    context.stroke()
+    text(String(track.number), track.x, track.y, Math.max(8, 13 * scale), '#251423', 'center', 'bold')
+    text(`${track.number}  ${track.isSelf ? '你 · ' : ''}${track.name}`, legend.x + 12 * scale,
+      legend.y + (58 + (track.number - 1) * 33) * scale, Math.max(8, 15 * scale), track.color, 'left', 'bold', legend.width - 24 * scale)
+  }
+  context.restore()
+}
+
 function selectMovementTarget(target) {
   const local = engine && engine.getPlayer('P1')
   if (!local) return
@@ -1969,6 +2038,12 @@ function drawMovementHud(state, layout) {
   const target = selectedMove || local.position
   const deadline = state.phase === 'MOVE_SELECTION' ? state.moveDeadlineAt : state.turnDeadlineAt
   const seconds = Math.max(0, Math.ceil((deadline - Date.now()) / 1000))
+  if (presentation === 'REPLAY') {
+    drawHudPlate(layout.action)
+    text('正在回放移动', layout.action.x + layout.action.width / 2, layout.action.y + layout.action.height / 2,
+      Math.max(9, 16 * scale), '#eadfc9', 'center', 'bold', layout.action.width - 8 * scale)
+    return
+  }
   if (latestMoveRequest?.pending && state.phase === 'MOVE_SELECTION' && !accountGame?.waiting) {
     drawHudPlate(layout.action, { stroke: '#c2a475', inner: '#584332' })
     text('正在提交移动…', layout.action.x + layout.action.width / 2, layout.action.y + layout.action.height / 2,
@@ -2052,10 +2127,14 @@ function drawMovementLegend(layout) {
 function drawMapScene(state) {
   drawContainedBackdrop(assets.movementMap || assets.map, '#09080b')
   const layout = createMovementLayout(viewWidth, viewHeight)
-  drawMovementRooms(state, layout)
-  drawMovementPin(state, layout)
+  const replaying = presentation === 'REPLAY'
+  drawMovementRooms(state, layout, replaying)
   drawMovementLandmarks(layout)
-  drawMovementLegend(layout)
+  if (replaying) drawMovementReplay(layout)
+  else {
+    drawMovementPin(state, layout)
+    drawMovementLegend(layout)
+  }
   drawMovementLocation(layout)
   drawMovementHud(state, layout)
   ui.discardRect = null
@@ -2461,6 +2540,7 @@ function drawSettlement(state) {
 function drawGame() {
   const state = currentState()
   if (!state) return
+  if (presentation === 'REPLAY') { drawMapScene(state); return }
   if (state.phase === 'GAME_OVER') presentation = 'SETTLEMENT'
   if (presentation === 'MAP') drawMapScene(state)
   if (presentation === 'BATTLE') drawBattle(state)
@@ -2491,11 +2571,21 @@ function update() {
     return
   }
   if (accountGame && scene === 'GAME') {
+    const now = Date.now()
+    if (presentation === 'REPLAY') {
+      if (now < movementReplay.endsAt) return
+      if (engine.getPlayer('P1').status === 'ACTIVE') {
+        decidePostMove()
+        invalidateFrame()
+      }
+    }
     const deadline = engine.phase === 'MOVE_SELECTION' ? engine.moveDeadlineAt : engine.turnDeadlineAt
-    const nearDeadline = Number.isFinite(deadline) && deadline - Date.now() < 1200
-    const interval = presentation === 'SEARCH' || nearDeadline ? 1000 : accountGame.mode === 'MULTIPLAYER' ? 2000 : 5000
-    if (Date.now() - accountLastHeartbeat > interval) {
-      accountLastHeartbeat = Date.now()
+    const nearDeadline = Number.isFinite(deadline) && deadline - now < 1200
+    const awaitingReplay = accountGame.mode === 'MULTIPLAYER' && engine.phase === 'MOVE_SELECTION' && (accountGame.waiting === 'MOVES' || nearDeadline)
+    const interval = awaitingReplay || presentation === 'REPLAY' ? 500
+      : presentation === 'SEARCH' || nearDeadline ? 1000 : accountGame.mode === 'MULTIPLAYER' ? 2000 : 5000
+    if (now - accountLastHeartbeat > interval) {
+      accountLastHeartbeat = now
       heartbeatAccount()
     }
   }
@@ -2561,7 +2651,7 @@ function drawTapFeedback(samples) {
 function renderVisualKey(now) {
   let tick = ''
   if (scene === 'GAME' && presentation !== 'SETTLEMENT') {
-    const animated = presentation === 'SEARCH' || movementPinTransition || searchDragging
+    const animated = presentation === 'SEARCH' || presentation === 'REPLAY' || movementPinTransition || searchDragging
     tick = Math.floor(now / (animated ? 1000 / 30 : presentation === 'ROOM' ? 100 : 1000))
   } else if (scene === 'LOBBY' && lobbyRoom) tick = Math.floor(now / 1000)
   const pending = accountBusy ? Math.floor(now / 180) : ''
@@ -2629,7 +2719,7 @@ async function dropDraggedInventoryItem(instanceId) {
 }
 
 function handleAction(action) {
-  if (!action) return
+  if (!action || (scene === 'GAME' && presentation === 'REPLAY')) return
   if (action.id === 'account_diagnostics') { showConnectionDiagnostics(); return }
   if (action.id === 'account_retry') { connectAccount(); return }
   if (action.id === 'profile_name') { inputNickname(); return }
@@ -2713,9 +2803,10 @@ function handleAction(action) {
 }
 
 wx.onTouchStart(event => {
-  cancelledSearchTouch = false
+  cancelledGameTouch = scene === 'GAME' && presentation === 'REPLAY'
   const point = touchPoint(event, false)
   tapFeedback.add(point, Date.now())
+  if (cancelledGameTouch) return
   if (scene === 'WAREHOUSE') {
     warehouseGesture = { start: point, last: point, mode: warehousePreviewCardId ? 'PREVIEW' : 'PENDING' }
     return
@@ -2806,8 +2897,8 @@ wx.onTouchMove(event => {
 
 wx.onTouchEnd(event => {
   invalidateFrame()
-  if (cancelledSearchTouch) {
-    cancelledSearchTouch = false
+  if (cancelledGameTouch) {
+    cancelledGameTouch = false
     return
   }
   const point = touchPoint(event)
@@ -2895,7 +2986,7 @@ function cancelInputGesture() {
   loadoutGesture = null
   loadoutDragging = null
   loadoutDragPoint = null
-  if (searchGesture) cancelledSearchTouch = true
+  if (searchGesture) cancelledGameTouch = true
   searchGesture = null
   searchDragging = null
   searchDragPoint = null
