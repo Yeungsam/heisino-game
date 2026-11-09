@@ -29,3 +29,11 @@ tcb fn code update heisino-game -e cloud1-d5ghcmrajdca722b5 --deployMode zip
 大厅验收至少检查 `OPTIONS /api/account/lobby` 返回 204，未登录 `POST /api/account/lobby` 返回 401 `UNAUTHENTICATED`，以及已登录可获取列表和建房。单人验收走真实 `SINGLE` 开局、恢复和结算。检查房间集合 `heisino_match_rooms` 为仅服务端可访问。账号冒烟使用无效微信登录码验证微信换码链路，真实登录、建房、单人开局和数据库事务需单独验收。
 
 环境变量保存在 CloudBase，发布和验收记录只写变量名与检查结果。
+
+## 2026-11-09 多人大厅与单人模式服务端发布
+
+- 从 `codex/multiplayer-single-player` 的 `1b25c5d` 发布到上海环境 `cloud1-d5ghcmrajdca722b5`。代码更新前已下载三个函数的旧版本备份。
+- `heisino-cards` 于 10:56:10 更新，公网返回 53 张卡，四类卡面均可访问，守卫圆盾复用原圆盾卡面。
+- `heisino-account` 于 10:56:15 更新。`heisino_match_rooms` 已创建并通过云端 ACL 查询确认 `ADMINONLY`。大厅 `POST` 从 404 恢复到未登录预期的 401 `UNAUTHENTICATED`，`OPTIONS` 返回 204，微信换码冒烟通过。已登录的微信开发者工具可以进入大厅并显示正常的空房间列表。
+- `heisino-game` 于 10:56:32 更新。独立搜索对局的建局、进入房间、物资曝光、拾取和离开通过线上冒烟。
+- 本次发布前的五轮本地回归均通过，每轮 158 项。多人建房开局、单人完整对局及结算仍待真机验收。
