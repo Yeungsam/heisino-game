@@ -101,6 +101,42 @@ test('无离屏Canvas时正确回退，所有页面及空白位置都有点击�
   assert.equal(f.run('tapFeedback.sample(Date.now()).length'), 0)
 })
 
+test('新回合横幅从画布底部滑入并避开消息，毒圈提示到期消失', async () => {
+  const f = await fixture({ active: true })
+  f.run(`
+    const noticePanels = []
+    panel = (...args) => noticePanels.push(args.slice(0, 4))
+    darken = () => { throw new Error('横幅不应覆盖全屏') }
+    let noticeNow = roundNotice.startedAt
+    Date.now = () => noticeNow
+    drawRoundNotice(noticeNow)
+    noticeNow += 80
+    drawRoundNotice(noticeNow)
+    noticeNow += 140
+    drawRoundNotice(noticeNow)
+  `)
+  const panels = JSON.parse(f.run('JSON.stringify(noticePanels)'))
+  const height = f.run('viewHeight')
+  assert.ok(panels[0][1] >= height)
+  assert.ok(panels[0][1] > panels[1][1] && panels[1][1] > panels[2][1])
+  assert.equal(panels[2][3], 36)
+  assert.equal(panels[2][1] + panels[2][3], height - 8)
+
+  f.run(`
+    roundNotice.turn = C.ALERT_START_TURN
+    roundNotice.hp = 20
+    drawRoundNotice(noticeNow)
+    addToast('操作反馈')
+    drawToast()
+  `)
+  const [poison, toast] = JSON.parse(f.run('JSON.stringify(noticePanels.slice(-2))'))
+  assert.ok(poison[2] <= 232 && poison[3] <= 42)
+  assert.ok(toast[1] + toast[3] < poison[1])
+  assert.ok(f.labels.includes('毒圈已开启') && f.labels.includes('剩余生命 20/30'))
+  f.run('noticeNow = roundNotice.startedAt + ROUND_NOTICE_MS; drawRoundNotice(noticeNow)')
+  assert.equal(f.run('noticePanels.length'), 5)
+})
+
 test('后台同步进行时玩家操作不再被忽略，绘制不深拷贝对局', async () => {
   const f = await fixture({ active: true })
   const heartbeat = f.run('heartbeatAccount()')

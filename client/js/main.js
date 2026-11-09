@@ -837,9 +837,11 @@ function addToast(message, duration = 1800) {
 }
 
 function drawToast() {
-  if (!toast || Date.now() > toastUntil) return
+  const now = Date.now()
+  if (!toast || now > toastUntil) return
   const width = Math.min(viewWidth * 0.56, 420)
-  const centerY = scene === 'HOME' ? viewHeight * 0.73 : viewHeight - 36
+  const bottomOffset = roundNoticeVisible(now) ? (accountBusy ? 102 : 76) : 36
+  const centerY = scene === 'HOME' ? viewHeight * 0.73 : viewHeight - bottomOffset
   panel((viewWidth - width) / 2, centerY - 18, width, 36, { fill: 'rgba(20,12,18,.94)', stroke: PALETTE.gold, radius: 18 })
   text(toast, viewWidth / 2, centerY, 12, PALETTE.paleGold, 'center', 'bold')
 }
@@ -2571,23 +2573,22 @@ function drawRoundNotice(now) {
   const elapsed = now - startedAt
   const poison = turn >= C.ALERT_START_TURN
   const accent = poison ? '#ff8e91' : '#ffe193'
-  const entrance = clamp(elapsed / 160, 0, 1)
+  const entrance = 1 - (1 - clamp(elapsed / 220, 0, 1)) ** 3
   const opacity = Math.min(entrance, clamp((ROUND_NOTICE_MS - elapsed) / 230, 0, 1))
-  const width = Math.min(350, viewWidth * 0.64)
-  const height = poison ? 112 : 88
+  const width = Math.min(232, viewWidth * 0.62)
+  const height = poison ? 42 : 36
   const x = (viewWidth - width) / 2
-  const y = Math.max(8, viewHeight * 0.14 - 12 * (1 - entrance))
+  const y = viewHeight + 2 - (height + 10) * entrance
   context.save()
   context.globalAlpha = opacity
-  darken(poison ? 0.30 : 0.20, poison ? '66, 7, 25' : '19, 12, 28')
-  drawHudPlate({ x, y, width, height }, { top: poison ? '#551b32' : '#402737', stroke: accent, inner: poison ? '#932e54' : '#986135' })
-  text(`第 ${turn} 回合开始`, viewWidth / 2, y + 25, 22, '#fff4dd', 'center', 'bold', width - 22)
+  panel(x, y, width, height, { fill: poison ? 'rgba(57,20,39,.96)' : 'rgba(31,20,32,.94)', stroke: accent, radius: 9 })
+  text(`第 ${turn} 回合开始`, viewWidth / 2, y + 11, 13, '#fff4dd', 'center', 'bold', width - 20)
+  const hpLabel = `剩余生命 ${hp}/${maxHp}`
   if (poison) {
     const warning = turn === C.ALERT_START_TURN ? '毒圈已开启' : '毒圈伤害生效'
-    text(warning, viewWidth / 2, y + 51, 15, accent, 'center', 'bold', width - 22)
-  }
-  text(`剩余生命 ${hp}/${maxHp}`, viewWidth / 2, y + height - 35, 14, '#fff0e5', 'center', 'bold', width - 22)
-  hpBar(x + width * 0.23, y + height - 22, width * 0.54, hp, maxHp, accent)
+    text(warning, x + 10, y + 29, 11, accent, 'left', 'bold', width / 2 - 14)
+    text(hpLabel, x + width - 10, y + 29, 11, '#fff0e5', 'right', 'normal', width / 2 - 14)
+  } else text(hpLabel, viewWidth / 2, y + 25, 11, '#fff0e5', 'center', 'normal', width - 20)
   context.restore()
 }
 
