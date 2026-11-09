@@ -5,6 +5,10 @@
     {
       "name": "search",
       "root": "subpackages/search"
+    },
+    {
+      "name": "rooms",
+      "root": "subpackages/rooms"
     }
   ],
   "networkTimeout": {

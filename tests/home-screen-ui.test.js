@@ -3,6 +3,7 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
 const { HOME_SOURCE_SIZE, HOME_LAYERS, HOME_LABELS, createHomeLayout, centeredTextBaseline } = require('../client/js/ui/home-screen')
+const { ROOM_BACKGROUNDS } = require('../client/js/ui/search-room')
 
 const clientRoot = path.join(__dirname, '..', 'client')
 
@@ -77,6 +78,22 @@ test('房间搜索美术使用独立分包且低于4MiB', () => {
   assert.ok(directorySize(searchPackage) < 4 * 1024 * 1024)
   const config = JSON.parse(fs.readFileSync(path.join(clientRoot, 'game.json'), 'utf8'))
   assert.ok(config.subpackages.some(item => item.name === 'search' && item.root === 'subpackages/search'))
+})
+
+test('五张 Figma 房间底图都以原始尺寸进入小游戏本地房间分包', () => {
+  const root = 'subpackages/rooms'
+  const config = JSON.parse(fs.readFileSync(path.join(clientRoot, 'game.json'), 'utf8'))
+  assert.ok(config.subpackages.some(item => item.name === 'rooms' && item.root === root))
+  assert.ok(fs.existsSync(path.join(clientRoot, root, 'game.js')))
+  assert.ok(directorySize(path.join(clientRoot, root)) < 4 * 1024 * 1024)
+  assert.equal(Object.keys(ROOM_BACKGROUNDS).length, 5)
+  for (const { source, width, height } of Object.values(ROOM_BACKGROUNDS)) {
+    assert.ok(source.startsWith(`${root}/assets/`))
+    const image = fs.readFileSync(path.join(clientRoot, source))
+    assert.equal(image.subarray(12, 16).toString(), 'IHDR')
+    assert.equal(image.readUInt32BE(16), width)
+    assert.equal(image.readUInt32BE(20), height)
+  }
 })
 
 test('首页按钮文字按字形边界上下视觉居中', () => {

@@ -8,14 +8,18 @@ const { AccountService } = require('../functions/heisino-account/service')
 const { MemoryAccountStore } = require('../functions/heisino-account/store')
 const cards = require('../client/data/cards')
 
-async function fixture({ active = false, offscreen = true, slowCatalog = false, remoteCards = cards } = {}) {
+async function fixture({ active = false, offscreen = true, slowCatalog = false, remoteCards = cards, width = 812, roomPackageFailures = 0, roomImageFailures = [] } = {}) {
   let touchStart, touchEnd, hide, show, releaseHeartbeat, frames = 0, arcs = 0, copies = 0
-  const labels = [], clipRects = []
+  const labels = [], clipRects = [], roomDraws = [], packages = [], roomLoads = []
+  const failedImages = new Set(roomImageFailures)
   const gradient = { addColorStop() {} }
   const context = new Proxy({}, { get(target, key) {
     if (key in target) return target[key]
     if (key === 'measureText') return value => ({ width: String(value).length * 7 })
-    if (key === 'drawImage') return () => { frames += 1 }
+    if (key === 'drawImage') return (image, ...rect) => {
+      frames += 1
+      if (image.src?.startsWith('subpackages/rooms/')) roomDraws.push([path.basename(image.src), rect])
+    }
     if (key === 'arc') return () => { arcs += 1 }
     if (key === 'fillText') return value => { labels.push(value) }
     if (key === 'rect') return (...args) => { clipRects.push(args) }
@@ -24,8 +28,18 @@ async function fixture({ active = false, offscreen = true, slowCatalog = false, 
   } })
   const wx = {
     createCanvas() { if (this.screenCreated && !offscreen) throw new Error('Offscreen unavailable'); this.screenCreated = true; return { getContext: () => context } },
-    getWindowInfo: () => ({ windowWidth: 812, windowHeight: 375, pixelRatio: 3 }),
-    createImage: () => ({ width: 1920, height: 1080, set src(_) { queueMicrotask(() => { if (this.onload) this.onload() }) } }),
+    getWindowInfo: () => ({ windowWidth: width, windowHeight: 375, pixelRatio: 3 }),
+    createImage: () => ({ width: 1920, height: 1080, get src() { return this.source }, set src(source) {
+      this.source = source
+      const isRoom = source.startsWith('subpackages/rooms/')
+      if (isRoom) roomLoads.push(path.basename(source))
+      const failed = isRoom && failedImages.delete(path.basename(source))
+      queueMicrotask(() => failed ? this.onerror?.() : this.onload?.())
+    } }),
+    loadSubpackage({ name, success, fail }) {
+      packages.push(name)
+      queueMicrotask(name === 'rooms' && roomPackageFailures-- > 0 ? fail : success)
+    },
     onTouchStart(handler) { touchStart = handler }, onTouchMove() {}, onTouchEnd(handler) { touchEnd = handler },
     onHide(handler) { hide = handler }, onShow(handler) { show = handler }
   }
@@ -60,7 +74,8 @@ async function fixture({ active = false, offscreen = true, slowCatalog = false, 
   vm.runInContext(fs.readFileSync(main, 'utf8'), sandbox, { filename: main })
   await new Promise(resolve => setImmediate(resolve))
   return { sandbox, calls, run: code => vm.runInContext(code, sandbox), touchStart: event => touchStart(event), touchEnd: event => touchEnd(event),
-    hide: () => hide(), show: () => show(), releaseHeartbeat: () => releaseHeartbeat(), counts: () => ({ frames, arcs, copies }), labels, clipRects }
+    hide: () => hide(), show: () => show(), releaseHeartbeat: () => releaseHeartbeat(), counts: () => ({ frames, arcs, copies }),
+    labels, clipRects, roomDraws, packages, roomLoads }
 }
 
 test('旧云端目录下守卫圆盾仍可辨认并加入战备', async () => {
@@ -200,7 +215,7 @@ test('超宽屏只绘制一次完整房间底图，不绘制拉伸的边缘补�
     context.drawImage = (image, ...args) => {
       if (image === assets.searchRoomBackground) backgroundDraws.push(args)
     }
-    paintRoomArtwork()
+    paintRoomArtwork(createRoomLayout(viewWidth, viewHeight))
     backgroundDraws
   `)
   assert.equal(calls.length, 1)
@@ -255,4 +270,46 @@ test('移动页绘制25格新名称和七种图例，移动目标与进房标题
   f.labels.length = 0
   f.run('drawRoom(engine)')
   assert.ok(f.labels.includes('会客厅'))
+})
+
+test('按当前房间切换五张底图，搜索浮层沿用同一底图，窄宽横屏均铺满且热区对齐', async () => {
+  const examples = [
+    ['n_1_0', 'lounge.png'], ['n_2_0', 'security.png'], ['n_3_0', 'storage.png'],
+    ['n_1_1', 'medical.png'], ['n_2_2', 'vault.png'], ['n_4_4', null], ['n_0_0', null]
+  ]
+  for (const width of [667, 920]) {
+    const f = await fixture({ active: true, offscreen: false, width })
+    assert.equal(await f.run('accountAction("move", { target: { x: 0, y: 0 } })'), true)
+    for (const [node, image] of examples) {
+      f.roomDraws.length = 0
+      f.run(`searchVisitState.room.nodeId = '${node}'; drawRoom(engine); drawSearch(engine)`)
+      assert.deepEqual(f.roomDraws.map(([source]) => source), image ? [image, image] : [])
+      if (!image) continue
+      const [, [x, y, w, h]] = f.roomDraws[0]
+      assert.ok(x <= 0 && y <= 0 && x + w >= width - 0.001 && y + h >= 375 - 0.001)
+      assert.ok(Math.abs(w / h - 956 / 440) < 0.001)
+      const areas = JSON.parse(f.run('JSON.stringify(ui.roomAreaRects)'))
+      assert.deepEqual(areas.map(area => area.areaId), ['LEFT_CABINET', 'MAIN_TABLE', 'RIGHT_TABLE'])
+      assert.ok(areas.every(area => area.x >= 0 && area.y >= 0 && area.x + area.width <= width && area.y + area.height <= 375))
+    }
+  }
+})
+
+test('底图分包或单图加载失败时房间仍能操作，重试后只补未加载的图片', async () => {
+  const f = await fixture({ active: true, roomPackageFailures: 1, roomImageFailures: ['medical.png'] })
+  assert.deepEqual(f.packages.filter(name => name === 'rooms'), ['rooms'])
+  assert.equal(await f.run('accountAction("move", { target: { x: 0, y: 0 } })'), true)
+  await f.run('roomBackgroundsPromise')
+  assert.equal(f.packages.filter(name => name === 'rooms').length, 2)
+  assert.equal(f.roomLoads.filter(name => name === 'medical.png').length, 1)
+  f.run('searchVisitState.room.nodeId = "n_1_1"; ui.hotspots = []; drawRoom(engine)')
+  assert.equal(f.roomDraws.length, 0)
+  assert.equal(f.run('ui.hotspots.filter(item => item.id === "room_area").length'), 3)
+  assert.equal(f.run('ui.hotspots.some(item => item.id === "room_leave")'), true)
+  await f.run('preloadRoomBackgrounds()')
+  f.run('drawRoom(engine); drawSearch(engine)')
+  assert.deepEqual(f.roomDraws.map(([source]) => source), ['medical.png', 'medical.png'])
+  assert.equal(f.packages.filter(name => name === 'rooms').length, 2)
+  assert.equal(f.roomLoads.filter(name => name === 'medical.png').length, 2)
+  assert.equal(f.roomLoads.filter(name => name === 'lounge.png').length, 1)
 })

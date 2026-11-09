@@ -16,6 +16,24 @@ const ROOM_AREA_TEMPLATE = Object.freeze([
   { areaId: 'RIGHT_TABLE', x: 1223, y: 571, width: 573, height: 306 }
 ])
 
+// Full scene exports from Figma heisino. Coordinates locate the three existing search areas on each scene.
+function roomBackground(name, bounds) {
+  return {
+    source: `subpackages/rooms/assets/${name}.png`,
+    width: 956,
+    height: 440,
+    areas: bounds.map(([x, y, width, height], index) => ({ areaId: ROOM_AREA_TEMPLATE[index].areaId, x, y, width, height }))
+  }
+}
+
+const ROOM_BACKGROUNDS = Object.freeze({
+  LOUNGE: roomBackground('lounge', [[87, 111, 170, 100], [200, 179, 307, 175], [585, 257, 257, 157]]),
+  SECURITY: roomBackground('security', [[145, 75, 338, 114], [99, 190, 439, 125], [598, 277, 251, 157]]),
+  STORAGE: roomBackground('storage', [[84, 60, 326, 167], [108, 231, 307, 123], [575, 210, 327, 195]]),
+  MEDICAL: roomBackground('medical', [[376, 47, 122, 164], [50, 218, 277, 173], [586, 260, 174, 147]]),
+  VAULT: roomBackground('vault', [[91, 67, 243, 278], [351, 38, 268, 225], [657, 175, 169, 218]])
+})
+
 function searchTimerState(deadlineAt, now = Date.now()) {
   const remainingMs = Math.max(0, deadlineAt - now)
   return {
@@ -54,7 +72,7 @@ function createSearchLayout(viewWidth, viewHeight) {
   }
 }
 
-function createRoomLayout(viewWidth, viewHeight) {
+function createRoomLayout(viewWidth, viewHeight, background) {
   const scale = Math.min(viewWidth / SEARCH_DESIGN_WIDTH, viewHeight / SEARCH_DESIGN_HEIGHT)
   const offsetX = (viewWidth - SEARCH_DESIGN_WIDTH * scale) / 2
   const offsetY = (viewHeight - SEARCH_DESIGN_HEIGHT * scale) / 2
@@ -66,11 +84,13 @@ function createRoomLayout(viewWidth, viewHeight) {
     height: source.height * scale
   })
   // Room art covers the screen; HUD stays inside the contained design safe area.
-  const artworkScale = Math.max(viewWidth / SEARCH_DESIGN_WIDTH, viewHeight / SEARCH_DESIGN_HEIGHT)
-  const artworkWidth = SEARCH_DESIGN_WIDTH * artworkScale
-  const artworkHeight = SEARCH_DESIGN_HEIGHT * artworkScale
+  const sourceWidth = background?.width || SEARCH_DESIGN_WIDTH
+  const sourceHeight = background?.height || SEARCH_DESIGN_HEIGHT
+  const artworkScale = Math.max(viewWidth / sourceWidth, viewHeight / sourceHeight)
+  const artworkWidth = sourceWidth * artworkScale
+  const artworkHeight = sourceHeight * artworkScale
   const artwork = { scale: artworkScale, offsetX: (viewWidth - artworkWidth) / 2, offsetY: (viewHeight - artworkHeight) / 2 }
-  const areas = ROOM_AREA_TEMPLATE.flatMap(area => {
+  const areas = (background?.areas || ROOM_AREA_TEMPLATE).flatMap(area => {
     const left = Math.max(0, artwork.offsetX + area.x * artwork.scale)
     const top = Math.max(0, artwork.offsetY + area.y * artwork.scale)
     const right = Math.min(viewWidth, artwork.offsetX + (area.x + area.width) * artwork.scale)
@@ -210,6 +230,7 @@ module.exports = {
   SEARCH_PANEL_NINE_SLICE,
   SEARCH_ASSET_CROPS,
   ROOM_AREA_TEMPLATE,
+  ROOM_BACKGROUNDS,
   searchTimerState,
   syncSearchDeadline,
   createSearchLayout,

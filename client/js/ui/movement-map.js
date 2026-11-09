@@ -91,9 +91,13 @@ function roomRect(layout, x, y, inset = 0) {
   }
 }
 
-function roomInfoAt(x, y) {
+function roomKeyAt(x, y) {
   if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || x >= 5 || y < 0 || y >= 5) return null
-  return ROOM_TYPE_INFO[ROOM_TYPES[y][x]]
+  return ROOM_TYPES[y][x]
+}
+
+function roomInfoAt(x, y) {
+  return ROOM_TYPE_INFO[roomKeyAt(x, y)] || null
 }
 
 function roomTypeAt(x, y) {
@@ -101,9 +105,13 @@ function roomTypeAt(x, y) {
   return room ? room.name : '未知房间'
 }
 
-function roomTypeForNode(nodeId) {
+function roomKeyForNode(nodeId) {
   const coordinates = /^n_(\d+)_(\d+)$/.exec(nodeId)
-  return coordinates ? roomTypeAt(Number(coordinates[1]), Number(coordinates[2])) : '未知房间'
+  return coordinates ? roomKeyAt(Number(coordinates[1]), Number(coordinates[2])) : null
+}
+
+function roomTypeForNode(nodeId) {
+  return ROOM_TYPE_INFO[roomKeyForNode(nodeId)]?.name || '未知房间'
 }
 
 function roomHighlightStyle(state) {
@@ -170,6 +178,7 @@ module.exports = {
   roomRect,
   roomInfoAt,
   roomTypeAt,
+  roomKeyForNode,
   roomTypeForNode,
   roomHighlightStyle,
   landmarkIconRect,

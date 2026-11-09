@@ -14,6 +14,7 @@ const { createHomeLayout, centeredTextBaseline } = require('./ui/home-screen')
 const {
   SEARCH_ASSET_CROPS,
   SEARCH_PANEL_NINE_SLICE,
+  ROOM_BACKGROUNDS,
   searchTimerState,
   syncSearchDeadline,
   createSearchLayout,
@@ -45,6 +46,7 @@ const {
   roomTypeAt,
   roomInfoAt,
   ROOM_TYPE_INFO,
+  roomKeyForNode,
   roomTypeForNode,
   pinTransitionOpacity,
   movementTrackFrame
@@ -128,6 +130,9 @@ const searchAssetSources = {
   searchProgressFill: 'subpackages/search/assets/search-progress-fill.png'
 }
 const assets = {}
+const roomBackgroundImages = {}
+let roomBackgroundPackageReady = false
+let roomBackgroundsPromise = null
 const cardImages = {}
 let PLAYER_ACCOUNT_GOLD = 0
 let accountProfile = null
@@ -272,7 +277,32 @@ function loadAssets() {
   })
 }
 
+function preloadRoomBackgrounds() {
+  if (roomBackgroundsPromise) return roomBackgroundsPromise
+  const missing = Object.entries(ROOM_BACKGROUNDS).filter(([key]) => !roomBackgroundImages[key])
+  if (!missing.length) return
+  roomBackgroundsPromise = new Promise(resolve => {
+    if (roomBackgroundPackageReady || !wx.loadSubpackage) resolve(true)
+    else wx.loadSubpackage({ name: 'rooms', success: () => resolve(true), fail: () => resolve(false) })
+  }).then(ready => {
+    if (!ready) return
+    roomBackgroundPackageReady = true
+    return Promise.all(missing.map(([key, { source }]) => new Promise(resolve => {
+      const image = wx.createImage()
+      image.onload = () => {
+        roomBackgroundImages[key] = image
+        invalidateFrame()
+        resolve()
+      }
+      image.onerror = resolve
+      image.src = source
+    })))
+  }).finally(() => { roomBackgroundsPromise = null })
+  return roomBackgroundsPromise
+}
+
 function loadSearchAssets() {
+  preloadRoomBackgrounds()
   if (searchAssetsReady) return Promise.resolve()
   if (searchAssetsPromise) return searchAssetsPromise
   searchAssetsPromise = new Promise(resolve => {
@@ -2230,7 +2260,19 @@ function drawDesignAsset(key, layout, sourceRect, options = {}) {
   context.restore()
 }
 
-function drawRoomArtwork() {
+function currentRoomNodeId() {
+  return searchVisitState?.room.nodeId || positionKey(engine.getPlayer('P1').position)
+}
+
+function drawRoomArtwork(node = currentRoomNodeId()) {
+  const roomKey = roomKeyForNode(node)
+  const background = roomBackgroundImages[roomKey]
+  const layout = createRoomLayout(viewWidth, viewHeight, background ? ROOM_BACKGROUNDS[roomKey] : null)
+  if (background) {
+    const { x, y, width, height } = layout.contentRect
+    context.drawImage(background, x, y, width, height)
+    return layout
+  }
   if (!roomArtworkCache && !roomArtworkCacheDisabled && searchAssetsReady) {
     const screenContext = context
     try {
@@ -2238,7 +2280,7 @@ function drawRoomArtwork() {
       if (!layer) throw new Error('Offscreen canvas unavailable')
       context = layer.getContext('2d')
       context.scale(pixelRatio, pixelRatio)
-      paintRoomArtwork()
+      paintRoomArtwork(layout)
       roomArtworkCache = layer
     } catch (_) { roomArtworkCacheDisabled = true }
     finally { context = screenContext }
@@ -2246,14 +2288,14 @@ function drawRoomArtwork() {
   if (roomArtworkCache) {
     try {
       context.drawImage(roomArtworkCache, 0, 0, viewWidth, viewHeight)
-      return createRoomLayout(viewWidth, viewHeight)
+      return layout
     } catch (_) { roomArtworkCache = null; roomArtworkCacheDisabled = true }
   }
-  return paintRoomArtwork()
+  paintRoomArtwork(layout)
+  return layout
 }
 
-function paintRoomArtwork() {
-  const layout = createRoomLayout(viewWidth, viewHeight)
+function paintRoomArtwork(layout) {
   const background = assets.searchRoomBackground
   const artwork = layout.artwork
   const { x, y, width, height } = layout.contentRect
@@ -2266,7 +2308,6 @@ function paintRoomArtwork() {
   drawDesignAsset('searchRoomChairFront', artwork, { x: 809, y: 731, width: 217, height: 262 })
   drawDesignAsset('searchRoomChairFront', artwork, { x: 443, y: 740, width: 234, height: 274 }, { rotation: -175.75, flipY: true })
   drawDesignAsset('searchRoomForeground', artwork, { x: 0, y: 639, width: 1920, height: 442 })
-  return layout
 }
 
 function drawSearchTimer(layout = createSearchLayout(viewWidth, viewHeight)) {
@@ -2338,9 +2379,9 @@ function drawAuthorityBadge(x, y) {
 }
 
 function drawRoom(state) {
-  const layout = drawRoomArtwork()
+  const node = currentRoomNodeId()
+  const layout = drawRoomArtwork(node)
   const visitOpen = canActInRoom()
-  const node = searchVisitState ? searchVisitState.room.nodeId : positionKey(engine.getPlayer('P1').position)
   const roomName = roomTypeForNode(node)
   // Hit testing goes from last to first: background regions sit below buttons.
   ui.roomAreaRects = layout.areas
