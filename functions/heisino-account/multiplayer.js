@@ -175,8 +175,7 @@ class Multiplayer {
     game.state = engine.snapshot()
     room.game = game
     room.status = 'PLAYING'
-    const replayTime = game.replayEnabled ? C.MOVEMENT_REPLAY_LEAD_MS + C.MOVEMENT_REPLAY_MS : 0
-    room.listUntil = now + C.MAX_TURNS * (C.MOVE_SELECTION_MS + replayTime + C.SEARCH_DURATION_MS)
+    room.listUntil = now + WAIT_MS
     tx.saveRoom(room)
   }
 
@@ -227,8 +226,10 @@ class Multiplayer {
       this.account.settle(owner, engine, game.ended?.[member.playerId] ?? now, member.playerId, publicState(engine, member.playerId, null))
       this.saveAccount(tx, owner)
     }
-    room.playerCount = engine.activePlayers().length
-    if (!room.playerCount) this.close(room)
+    const activePlayers = engine.activePlayers()
+    room.playerCount = activePlayers.length
+    if (room.playerCount) room.listUntil = Math.max(...activePlayers.map(player => game.seen[player.id])) + WAIT_MS
+    else this.close(room)
     tx.saveRoom(room)
     return this.gameResponse(document, room, engine)
   }

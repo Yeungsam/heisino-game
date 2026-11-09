@@ -167,6 +167,25 @@ test('多人回放共享时刻和权威轨迹，期间禁止搜索，旧版混�
   }
 })
 
+test('多人房间超过12回合后仍可移动，并按存活玩家活跃时间显示', async () => {
+  const f = await fixture(3)
+  const roomId = await f.startRoom(2)
+  const room = f.store.rooms.get(roomId)
+  room.game.state.turn = 12
+  room.listUntil = 0
+  assert.ok(!(await f.lobby(2, 'list')).rooms.some(entry => entry.roomId === roomId))
+  await f.game(0, roomId, 12, 'move', { target: { x: 1, y: 0 } })
+  await f.game(1, roomId, 12, 'move', { target: { x: 1, y: 4 } })
+  await f.game(0, roomId, 12, 'leave')
+  const { activeGame, lastSettlement, serverNow } = await f.game(1, roomId, 12, 'leave')
+  assert.equal(lastSettlement, null)
+  assert.equal(activeGame.state.turn, 13)
+  assert.equal(activeGame.state.players.find(player => player.id === 'P1').hp, 20)
+  assert.equal((await f.lobby(2, 'list')).rooms.find(entry => entry.roomId === roomId).status, 'PLAYING')
+  assert.equal(f.store.rooms.get(roomId).listUntil, serverNow + RESUME_MS)
+  assert.equal((await f.game(1, roomId, 13, 'move', { target: { x: 2, y: 4 } })).activeGame.waiting, 'MOVES')
+})
+
 test('三人同房分流给独立物资，同一张卡只能入一人的背包一次', async () => {
   const f = await fixture()
   const roomId = await f.startRoom()

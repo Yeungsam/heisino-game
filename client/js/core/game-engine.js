@@ -343,14 +343,6 @@ class GameEngine {
 
   finishTurn() {
     if (!['SEARCH', 'ROUND_RESULT'].includes(this.phase)) return { ok: false, reason: 'INVALID_PHASE' }
-    if (this.turn >= C.MAX_TURNS) {
-      this.activePlayers().forEach(player => {
-        player.status = 'TIMED_OUT'
-      })
-      this.phase = 'GAME_OVER'
-      this.addLog('第 12 回合结束，未完成撤离的玩家判定失败。')
-      return { ok: true, gameOver: true }
-    }
     this.turn += 1
     this.beginTurn()
     return { ok: true, gameOver: this.phase === 'GAME_OVER' }
@@ -373,7 +365,7 @@ class GameEngine {
     const reasonByStatus = {
       EXTRACTED: '成功撤离',
       DEFEATED: '战斗或警报圈战败',
-      TIMED_OUT: '第 12 回合结束前未撤离',
+      TIMED_OUT: '回合时限已结束', // Historical settlements can still carry this status.
       ACTIVE: '对局提前结束'
     }
     return {

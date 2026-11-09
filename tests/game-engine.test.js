@@ -155,11 +155,26 @@ test('第10回合警报圈伤害先于撤离完成结算', () => {
   assert.equal(game.settlementFor('P1').success, false)
 })
 
-test('第12回合结束仍未撤离时结算失败', () => {
+test('第12回合后存活玩家可继续行动，毒圈伤害持续', () => {
   const { game } = createGame()
   game.turn = 12
   game.phase = 'ROUND_RESULT'
+  assert.deepEqual(game.finishTurn(), { ok: true, gameOver: false })
+  assert.equal(game.turn, 13)
+  assert.equal(game.phase, 'MOVE_SELECTION')
+  assert.equal(game.getPlayer('P1').status, 'ACTIVE')
+  assert.equal(game.getPlayer('P1').hp, 20)
+})
+
+test('第12回合发起的撤离在下一回合存活时完成', () => {
+  const { game } = createGame()
+  const player = game.getPlayer('P1')
+  player.position = { x: 4, y: 4 }
+  game.turn = 12
+  game.phase = 'ROUND_RESULT'
+  assert.equal(game.requestExtraction('P1').completesAtTurn, 13)
   game.finishTurn()
-  assert.equal(game.getPlayer('P1').status, 'TIMED_OUT')
-  assert.equal(game.settlementFor('P1').success, false)
+  assert.equal(player.hp, 20)
+  assert.equal(game.settlementFor('P1').status, 'EXTRACTED')
+  assert.equal(game.settlementFor('P1').turn, 13)
 })

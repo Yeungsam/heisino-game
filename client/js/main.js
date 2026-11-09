@@ -184,6 +184,8 @@ let selectedMove = null
 let movementPinPosition = null
 let movementPinTransition = null
 let movementReplay = null
+const ROUND_NOTICE_MS = 1400
+let roundNotice = null
 let activeBattle = null
 let toast = ''
 let toastUntil = 0
@@ -379,6 +381,13 @@ function showConnectionDiagnostics() {
   } catch (_) { connectionDiagnosticsOpen = false }
 }
 
+function announceRound(gameId, state) {
+  if (roundNotice?.gameId === gameId && roundNotice.turn >= state.turn) return
+  const player = state.players.find(candidate => candidate.id === 'P1')
+  if (!player) return
+  roundNotice = { gameId, turn: state.turn, hp: player.hp, maxHp: player.maxHp, startedAt: Date.now() }
+}
+
 function applyAccountResponse(response) {
   if (!response || response.revision < accountRevision) return
   invalidateFrame()
@@ -444,6 +453,7 @@ function applyAccountResponse(response) {
       presentation = 'MAP'
     } else if (presentation !== 'REPLAY' && (changedRound || previousGame?.state.phase === 'MOVE_SELECTION') &&
         engine.phase !== 'MOVE_SELECTION') decidePostMove()
+    if (engine.phase === 'MOVE_SELECTION' || changedRound) announceRound(accountGame.gameId, engine)
   } else if (accountSettlement && (scene === 'GAME' || pendingResume)) {
     engine = new GameEngine({ cards })
     Object.assign(engine, accountSettlement.state)
@@ -451,6 +461,10 @@ function applyAccountResponse(response) {
     searchVisitState = null
     roomTimerAnchor = null
     presentation = 'SETTLEMENT'
+    if (accountSettlement.status === 'DEFEATED' && previousGame?.gameId === accountSettlement.gameId &&
+        engine.turn > previousGame.state.turn && engine.turn >= C.ALERT_START_TURN) {
+      announceRound(accountSettlement.gameId, engine)
+    }
   }
   const visit = searchVisitState?.visit
   if (searchGesture && (visit?.visitId !== previousVisit?.visitId || !visit?.observation?.active ||
@@ -1567,14 +1581,7 @@ function drawTopHud(state) {
   context.stroke()
   const { title, round, hp, alert, resource } = hudLayout
   text('♠ 大劫卡西诺', title.x, 23, 17, PALETTE.paleGold, 'left', 'bold', title.width)
-  text(`回合 ${String(state.turn).padStart(2, '0')}/${C.MAX_TURNS}`, round.x, 17, 11, '#decdd3', 'left', 'normal', round.width)
-  const progressWidth = Math.min(96, round.width)
-  roundedPath(round.x, 29, progressWidth, 6, 3)
-  context.fillStyle = 'rgba(255,255,255,.13)'
-  context.fill()
-  roundedPath(round.x, 29, progressWidth * state.turn / C.MAX_TURNS, 6, 3)
-  context.fillStyle = state.turn >= 10 ? '#ee5252' : PALETTE.gold
-  context.fill()
+  text(`第 ${state.turn} 回合`, round.x, 23, 12, '#decdd3', 'left', 'bold', round.width)
   text(`HP ${local.hp}/${local.maxHp}`, hp.x + hp.width / 2, 15, 11, '#fff5e3', 'center', 'bold', hp.width)
   hpBar(hp.x, 29, hp.width, local.hp, local.maxHp)
   const alertActive = state.turn >= C.ALERT_START_TURN
@@ -2000,7 +2007,7 @@ function drawMovementHud(state, layout) {
 
   drawHudPlate(layout.round, { stroke: '#f3c350', inner: '#a9272c' })
   text('♦ ♠', layout.round.x + 30 * scale, layout.round.y + layout.round.height / 2, Math.max(9, 18 * scale), '#fff1c2', 'center', 'bold')
-  text(`回 合  ${String(state.turn).padStart(2, '0')}/${C.MAX_TURNS}`, layout.round.x + layout.round.width / 2, layout.round.y + layout.round.height / 2, headlineSize, '#fff3d2', 'center', 'bold')
+  text(`第 ${state.turn} 回合`, layout.round.x + layout.round.width / 2, layout.round.y + layout.round.height / 2, headlineSize, '#fff3d2', 'center', 'bold')
   text('♠', layout.round.x + layout.round.width - 28 * scale, layout.round.y + layout.round.height / 2, Math.max(10, 21 * scale), '#fff1c2', 'center', 'bold')
 
   const vaultOpen = state.turn >= C.VAULT_OPEN_TURN
@@ -2521,7 +2528,7 @@ function drawSettlement(state) {
   context.lineTo(x + width - 40, y + 95)
   context.stroke()
   const metrics = [
-    ['撤离回合', `${settlement.turn}/${C.MAX_TURNS}`],
+    ['结束回合', String(settlement.turn)],
     ['剩余生命', `${settlement.hp}/30`],
     ['携带物资', `${settlement.itemCount} 件`],
     ['结算价值', settlement.success ? formatGold(settlement.lootValue) : '0 Gold']
@@ -2551,6 +2558,37 @@ function drawGame() {
   if (accountGame && presentation !== 'SETTLEMENT') {
     button('account_abandon', '放弃对局', { x: 10, y: viewHeight - 30, width: 86, height: 24 }, { size: 9, top: '#46303d', bottom: '#281d2a' })
   }
+}
+
+function roundNoticeVisible(now) {
+  return scene === 'GAME' && presentation !== 'REPLAY' && roundNotice &&
+    roundNotice.gameId === (accountGame?.gameId || accountSettlement?.gameId) && now - roundNotice.startedAt < ROUND_NOTICE_MS
+}
+
+function drawRoundNotice(now) {
+  if (!roundNoticeVisible(now)) return
+  const { turn, hp, maxHp, startedAt } = roundNotice
+  const elapsed = now - startedAt
+  const poison = turn >= C.ALERT_START_TURN
+  const accent = poison ? '#ff8e91' : '#ffe193'
+  const entrance = clamp(elapsed / 160, 0, 1)
+  const opacity = Math.min(entrance, clamp((ROUND_NOTICE_MS - elapsed) / 230, 0, 1))
+  const width = Math.min(350, viewWidth * 0.64)
+  const height = poison ? 112 : 88
+  const x = (viewWidth - width) / 2
+  const y = Math.max(8, viewHeight * 0.14 - 12 * (1 - entrance))
+  context.save()
+  context.globalAlpha = opacity
+  darken(poison ? 0.30 : 0.20, poison ? '66, 7, 25' : '19, 12, 28')
+  drawHudPlate({ x, y, width, height }, { top: poison ? '#551b32' : '#402737', stroke: accent, inner: poison ? '#932e54' : '#986135' })
+  text(`第 ${turn} 回合开始`, viewWidth / 2, y + 25, 22, '#fff4dd', 'center', 'bold', width - 22)
+  if (poison) {
+    const warning = turn === C.ALERT_START_TURN ? '毒圈已开启' : '毒圈伤害生效'
+    text(warning, viewWidth / 2, y + 51, 15, accent, 'center', 'bold', width - 22)
+  }
+  text(`剩余生命 ${hp}/${maxHp}`, viewWidth / 2, y + height - 35, 14, '#fff0e5', 'center', 'bold', width - 22)
+  hpBar(x + width * 0.23, y + height - 22, width * 0.54, hp, maxHp, accent)
+  context.restore()
 }
 
 function update() {
@@ -2617,7 +2655,10 @@ function draw() {
   if (scene === 'WAREHOUSE') drawWarehouse()
   if (scene === 'LOADOUT') drawLoadout()
   if (scene === 'LOBBY') drawLobby()
-  if (scene === 'GAME') drawGame()
+  if (scene === 'GAME') {
+    drawGame()
+    drawRoundNotice(Date.now())
+  }
   drawToast()
   drawPendingRequest()
 }
@@ -2655,9 +2696,10 @@ function renderVisualKey(now) {
     tick = Math.floor(now / (animated ? 1000 / 30 : presentation === 'ROOM' ? 100 : 1000))
   } else if (scene === 'LOBBY' && lobbyRoom) tick = Math.floor(now / 1000)
   const pending = accountBusy ? Math.floor(now / 180) : ''
+  const notice = roundNoticeVisible(now) ? Math.floor(now / (1000 / 30)) : ''
   const toastVisible = !!toast && now < toastUntil
   const retry = Object.values(cardImages).some(record => record.failed && record.attempts < 3) ? Math.floor(now / 1000) : ''
-  return `${scene}:${presentation}:${tick}:${pending}:${toastVisible}:${retry}`
+  return `${scene}:${presentation}:${tick}:${pending}:${notice}:${toastVisible}:${retry}`
 }
 
 function renderFrame(now) {

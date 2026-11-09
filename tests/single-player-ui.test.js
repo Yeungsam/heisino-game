@@ -8,6 +8,38 @@ async function solo(app) {
   assert.equal(app.run('accountGame?.mode'), 'SINGLE')
 }
 
+test('新回合提示只播放一次，毒圈开启和扣至零血都显示实际生命值', async t => {
+  const sim = await simulation(t, 1)
+  const [player] = sim.client
+  await solo(player)
+  assert.ok(player.draw().includes('第 1 回合开始'))
+  assert.ok(player.draw().includes('剩余生命 30/30'))
+  const enteredAt = player.run('roundNotice.startedAt')
+  sim.tick(500)
+  await heartbeat(player)
+  assert.equal(player.run('roundNotice.startedAt'), enteredAt)
+  sim.tick(900)
+  assert.ok(!player.draw().includes('第 1 回合开始'))
+  assert.ok(player.hits('confirm_move').length, '提示不占用移动操作')
+
+  sim.store.documents.get(player.account.id).activeGame.state.turn = 9
+  await heartbeat(player)
+  for (const [turn, hp, warning] of [[10, 20, '毒圈已开启'], [11, 10, '毒圈伤害生效'], [12, 0, '毒圈伤害生效']]) {
+    await player.tap('confirm_move')
+    await player.tap('room_leave')
+    const labels = player.draw()
+    assert.ok(labels.includes(`第 ${turn} 回合开始`))
+    assert.ok(labels.includes(warning))
+    assert.ok(labels.includes(`剩余生命 ${hp}/30`))
+    assert.ok(labels.every(label => !/回合.*\/12/.test(label)))
+  }
+  assert.equal(player.run('presentation'), 'SETTLEMENT')
+  assert.equal(player.run('accountSettlement.status'), 'DEFEATED')
+  assert.equal(player.run('accountSettlement.hp'), 0)
+  sim.tick(1400)
+  assert.ok(!player.draw().includes('第 12 回合开始'))
+})
+
 test('单人第1轮：码头入口、开局回包丢失与一次扣仓', async t => {
   const sim = await simulation(t, 2)
   let outage = true

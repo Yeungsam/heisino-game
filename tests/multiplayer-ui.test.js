@@ -105,6 +105,7 @@ test('第2轮：三端移动截止、等待界面与回合超时', async t => {
   sim.tick(50000)
   await Promise.all(sim.client.map(heartbeat))
   assert.ok(sim.client.every(app => app.run('engine.turn === 2 && presentation === "MAP"')))
+  assert.ok(sim.client.every(app => app.draw().includes('第 2 回合开始')))
   assert.ok(sim.client.every(app => app.hits('confirm_move').length === 1))
 })
 
