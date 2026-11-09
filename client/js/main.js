@@ -134,6 +134,7 @@ let accountGame = null
 let accountSettlement = null
 let accountBusy = false
 let heartbeatInFlight = false
+let latestMoveRequest = null
 let accountBusySince = 0
 let accountBusyLabel = ''
 let accountConnectionError = null
@@ -326,6 +327,7 @@ function accountError(error) {
     HOST_REQUIRED: '只有房主可以开始游戏。',
     NOT_ENOUGH_PLAYERS: '至少需要 2 名玩家才能开局。',
     MOVE_ALREADY_SUBMITTED: '已提交移动，正在等待其他玩家。',
+    MOVE_DEADLINE_EXCEEDED: '移动阶段已截止，正在同步位置。',
     INVALID_PHASE: '当前行动阶段已结束，正在同步对局。'
   }
   return messages[error.code] || '连接失败，请检查网络后重试。'
@@ -460,21 +462,41 @@ function resumeAccountGame() {
 async function accountAction(action, extra = {}) {
   if (!accountGame) return false
   if (accountBusy) { addToast('上一操作处理中，请稍候。', 900); return false }
-  beginAccountRequest('正在同步操作…')
+  const { gameId, mode, state: { turn } } = accountGame
+  const multiplayerMove = action === 'move' && mode === 'MULTIPLAYER'
+  const moveRequest = multiplayerMove ? { pending: true, origin: positionKey(engine.getPlayer('P1').position) } : null
+  if (moveRequest) latestMoveRequest = moveRequest
+  const options = { bypassHeartbeat: multiplayerMove }
+  beginAccountRequest(multiplayerMove ? '正在提交移动…' : '正在同步操作…')
   try {
-    applyAccountResponse(await accountApi.command('game', { gameId: accountGame.gameId, turn: accountGame.state.turn, action, ...extra }))
+    applyAccountResponse(await accountApi.command('game', { gameId, turn, action, ...extra }, options))
     return true
   } catch (error) {
     addToast(accountError(error), 2200)
-    try { applyAccountResponse(await accountApi.command('resume')) } catch (_) {}
+    try {
+      applyAccountResponse(await accountApi.command('resume', {}, options))
+      if (moveRequest && error.code === 'MOVE_DEADLINE_EXCEEDED' && accountGame?.gameId === gameId &&
+          (engine.turn === turn || engine.turn === turn + 1) && positionKey(engine.getPlayer('P1').position) === moveRequest.origin) {
+        addToast('移动超时，本回合原地停留。', 2200)
+      }
+    } catch (_) {}
     return false
-  } finally { endAccountRequest() }
+  } finally {
+    if (moveRequest) moveRequest.pending = false
+    endAccountRequest()
+  }
 }
 
 async function heartbeatAccount() {
   if (accountBusy || heartbeatInFlight || accountBackground || !accountGame) return
   heartbeatInFlight = true
-  try { applyAccountResponse(await accountApi.command('heartbeat')) } catch (_) { addToast('连接中断，10 分钟内重进可恢复。', 1500) }
+  const moveRequest = latestMoveRequest
+  try {
+    const response = await accountApi.command('heartbeat')
+    if (moveRequest === latestMoveRequest) applyAccountResponse(response)
+  } catch (_) {
+    if (moveRequest === latestMoveRequest) addToast('连接中断，10 分钟内重进可恢复。', 1500)
+  }
   finally { heartbeatInFlight = false }
 }
 
@@ -1696,7 +1718,7 @@ function drawHudPlate(rect, options = {}) {
 }
 
 function canSelectMovement(state) {
-  return state.phase === 'MOVE_SELECTION' && !accountGame?.waiting && Date.now() < state.moveDeadlineAt
+  return state.phase === 'MOVE_SELECTION' && !latestMoveRequest?.pending && !accountGame?.waiting && Date.now() < state.moveDeadlineAt
 }
 
 function drawMovementRooms(state, layout) {
@@ -1947,7 +1969,11 @@ function drawMovementHud(state, layout) {
   const target = selectedMove || local.position
   const deadline = state.phase === 'MOVE_SELECTION' ? state.moveDeadlineAt : state.turnDeadlineAt
   const seconds = Math.max(0, Math.ceil((deadline - Date.now()) / 1000))
-  if (accountGame?.waiting && seconds > 0) {
+  if (latestMoveRequest?.pending && state.phase === 'MOVE_SELECTION' && !accountGame?.waiting) {
+    drawHudPlate(layout.action, { stroke: '#c2a475', inner: '#584332' })
+    text('正在提交移动…', layout.action.x + layout.action.width / 2, layout.action.y + layout.action.height / 2,
+      Math.max(9, 16 * scale), '#eadfc9', 'center', 'bold', layout.action.width - 8 * scale)
+  } else if (accountGame?.waiting && seconds > 0) {
     drawHudPlate(layout.action, { stroke: '#c2a475', inner: '#584332' })
     text(`等待其他玩家  ${seconds}s`, layout.action.x + layout.action.width / 2, layout.action.y + layout.action.height / 2,
       Math.max(9, 16 * scale), '#eadfc9', 'center', 'bold', layout.action.width - 8 * scale)
@@ -2614,6 +2640,7 @@ function handleAction(action) {
       success(result) { if (result.confirm && accountGame?.gameId === gameId) accountAction('abandon') } })
     return
   }
+  if (action.id === 'confirm_move' && latestMoveRequest?.pending) return
   if (accountBusy) { addToast('上一操作处理中，请稍候。', 900); return }
   if (action.id === 'home_start') enterLoadout()
   if (action.id === 'home_shop') addToast('商店暂未开放。')

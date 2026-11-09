@@ -117,6 +117,19 @@ test('共享回合按所有真人完成或超时推进，一人掉线不阻塞�
   assert.deepEqual(recovered.activeGame.state.players.find(player => player.id === 'P1').position, { x: 0, y: 4 })
 })
 
+test('多人移动区分真正的重复提交与截止后原地停留，已成功的请求可重试', async () => {
+  const f = await fixture(2)
+  const roomId = await f.startRoom()
+  const accepted = { target: { x: 1, y: 0 }, requestId: 'move-before-deadline' }
+  f.tick(C.MOVE_SELECTION_MS - 1)
+  await f.game(0, roomId, 1, 'move', accepted)
+  await assert.rejects(f.game(0, roomId, 1, 'move', { target: { x: 0, y: 0 } }), { code: 'MOVE_ALREADY_SUBMITTED' })
+  f.tick(1)
+  await assert.rejects(f.game(1, roomId, 1, 'move', { target: { x: 1, y: 4 } }), { code: 'MOVE_DEADLINE_EXCEEDED' })
+  assert.equal((await f.game(0, roomId, 1, 'move', accepted)).activeGame.search.visit.roomNodeId, 'n_1_0')
+  assert.equal((await f.command(1, 'resume')).activeGame.search.visit.roomNodeId, 'n_0_4')
+})
+
 test('三人同房分流给独立物资，同一张卡只能入一人的背包一次', async () => {
   const f = await fixture()
   const roomId = await f.startRoom()

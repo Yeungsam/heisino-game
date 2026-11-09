@@ -282,6 +282,9 @@ class Multiplayer {
     else {
       if (input.turn !== engine.turn) throw fault('STALE_TURN', 409)
       if (input.action === 'move') {
+        if (engine.phase !== 'MOVE_SELECTION') {
+          throw fault(now >= engine.moveDeadlineAt ? 'MOVE_DEADLINE_EXCEEDED' : 'INVALID_PHASE', 409)
+        }
         if (engine.moveSelections[playerId]) throw fault('MOVE_ALREADY_SUBMITTED', 409)
         requireSuccess(engine.submitMove(playerId, input.target || {}))
       } else {

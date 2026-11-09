@@ -98,6 +98,33 @@ test('过期会话重新微信登录后重发原操作，操作顺序保持串�
   assert.equal(f.calls[3].header.Authorization, 'Bearer refreshed-token')
 })
 
+test('多人移动和并发心跳同时收到未登录时只续期一次', async () => {
+  const accountId = 'a'.repeat(64)
+  const heartbeatStarted = Promise.withResolvers()
+  const refreshStarted = Promise.withResolvers()
+  const f = client(options => {
+    if (options.url.endsWith('/login')) {
+      if (options.data.code === 'new-code-1') ok(options, { token: 'first-token', profile: { accountId } })
+      else refreshStarted.resolve(options)
+    } else if (options.header.Authorization === 'Bearer refreshed-token') ok(options, { saved: true })
+    else if (options.url.endsWith('/heartbeat')) heartbeatStarted.resolve(options)
+    else options.success({ statusCode: 401, data: { error: 'UNAUTHENTICATED' } })
+  })
+  await f.api.login()
+  const heartbeat = f.api.command('heartbeat')
+  const firstHeartbeat = await heartbeatStarted.promise
+  const move = f.api.command('game', { action: 'move' }, { bypassHeartbeat: true })
+  const refresh = await refreshStarted.promise
+  firstHeartbeat.success({ statusCode: 401, data: { error: 'UNAUTHENTICATED' } })
+  await new Promise(resolve => setImmediate(resolve))
+  assert.equal(f.loginCount(), 2)
+  ok(refresh, { token: 'refreshed-token', profile: { accountId } })
+  await Promise.all([heartbeat, move])
+  const moves = f.calls.filter(call => call.url.endsWith('/game'))
+  assert.equal(moves.length, 2)
+  assert.deepEqual(moves[0].data, moves[1].data)
+})
+
 test('接口性能采样只保留耗时和状态，区分客户端排队与服务端处理，不保留凭证', async () => {
   const f = client(options => options.success({ statusCode: 200, header: { 'Server-Timing': 'app;dur=42.5' }, data: { ok: true, data: {} } }))
   await f.api.command('game', { action: 'move', token: 'DO_NOT_LOG' })

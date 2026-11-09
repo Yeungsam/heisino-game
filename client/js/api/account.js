@@ -4,6 +4,8 @@ const TOKEN_KEY = 'heisino.account.session.v1'
 let session = null
 let identityChanged = false
 let queue = Promise.resolve()
+let heartbeatQueue = Promise.resolve()
+let renewingSession = null
 const performanceSamples = []
 function recordPerformance(action, queuedAt, startedAt, response) {
   const headers = response && response.header || {}
@@ -49,6 +51,10 @@ function changedAccountError() {
   return Object.assign(new Error('ACCOUNT_CHANGED'), { code: 'ACCOUNT_CHANGED' })
 }
 
+function requireAccount(accountId) {
+  if (identityChanged || (accountId && accountId !== sessionAccountId())) throw changedAccountError()
+}
+
 async function login(expectedAccountId) {
   // Verify the currently signed-in WeChat identity on every cold launch; a
   // cached game token must not carry an old WeChat user's assets into a new one.
@@ -69,25 +75,34 @@ async function login(expectedAccountId) {
   return result
 }
 
-function command(action, data = {}) {
-  // Retries reuse the exact payload and id. Mutations are serialized across UI and lifecycle events.
+function command(action, data = {}, { bypassHeartbeat = false } = {}) {
+  // Retries reuse the exact payload and id. Only time-sensitive moves and their recovery bypass a heartbeat.
   const input = { ...data, requestId: data.requestId || requestId() }
   const queuedAt = Date.now()
   const accountId = sessionAccountId()
   const background = action === 'heartbeat' || (action === 'lobby' && input.op === 'list')
   const run = async () => {
-    if (identityChanged || (accountId && accountId !== sessionAccountId())) throw changedAccountError()
-    try { return await request(action, input, 'POST', queuedAt) } catch (error) {
-      if (error.code === 'NETWORK_ERROR' && !background) return request(action, input)
+    requireAccount(accountId)
+    const sentSession = session
+    let response
+    try { response = await request(action, input, 'POST', queuedAt) } catch (error) {
+      requireAccount(accountId)
       if (error.statusCode === 401) {
-        await login(accountId)
-        return request(action, input)
-      }
-      throw error
+        if (session === sentSession && !renewingSession) {
+          renewingSession = login(accountId).finally(() => { renewingSession = null })
+        }
+        await renewingSession
+        requireAccount(accountId)
+      } else if (error.code !== 'NETWORK_ERROR' || background) throw error
+      response = await request(action, input)
     }
+    requireAccount(accountId)
+    return response
   }
-  const next = queue.then(run, run)
-  queue = next.catch(() => {})
+  const ready = bypassHeartbeat ? queue : Promise.all([queue, heartbeatQueue])
+  const next = ready.then(run)
+  if (action === 'heartbeat') heartbeatQueue = next.catch(() => {})
+  else queue = next.catch(() => {})
   return next
 }
 

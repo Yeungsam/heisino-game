@@ -98,6 +98,97 @@ test('第2轮：三端移动截止、等待界面与回合超时', async t => {
   assert.ok(sim.client.every(app => app.hits('confirm_move').length === 1))
 })
 
+test('多人移动优先于慢心跳，重按只提交一次且旧回包不能覆盖新位置', async t => {
+  const sim = await simulation(t, 2)
+  const [host] = sim.client
+  const heartbeatArrived = Promise.withResolvers()
+  const releaseHeartbeat = Promise.withResolvers()
+  const releaseMove = Promise.withResolvers()
+  let delayHeartbeat = false
+  const guest = await sim.mount(1, { blockResponse(req) {
+    if (delayHeartbeat && req.route.endsWith('/heartbeat')) {
+      heartbeatArrived.resolve()
+      return releaseHeartbeat.promise
+    }
+    if (req.input?.action === 'move') return releaseMove.promise
+  } })
+  await startTogether([host, guest])
+  await move(host, 1, 0)
+  await guest.tap('map_node', hit => hit.data.x === 1 && hit.data.y === 4)
+  sim.tick(14500)
+  delayHeartbeat = true
+  const pendingHeartbeat = guest.run('heartbeatAccount()')
+  try {
+    await heartbeatArrived.promise
+    const confirm = guest.hits('confirm_move')[0]
+    await guest.tap('confirm_move', () => true, false)
+    assert.ok(guest.draw().includes('正在提交移动…'))
+    assert.equal(guest.hits('confirm_move').length, 0)
+    guest.run(`handleAction(${JSON.stringify(confirm)})`)
+    await new Promise(resolve => setImmediate(resolve))
+    assert.equal(guest.requests.filter(req => req.input?.action === 'move').length, 1, '不能等心跳结束再发送移动')
+    releaseMove.resolve()
+    for (let attempt = 0; attempt < 50 && guest.run('accountBusy'); attempt++) {
+      await new Promise(resolve => setTimeout(resolve, 2))
+    }
+    assert.equal(guest.run('accountBusy'), false)
+    assert.equal(guest.run('searchVisitState.visit.roomNodeId'), 'n_1_4')
+    sim.tick(600)
+  } finally {
+    delayHeartbeat = false
+    releaseMove.resolve()
+    releaseHeartbeat.resolve()
+    await pendingHeartbeat
+  }
+  assert.equal(guest.run('presentation'), 'ROOM')
+  assert.equal(guest.run('searchVisitState.visit.roomNodeId'), 'n_1_4')
+  await heartbeat(host)
+  await host.tap('room_leave')
+  await guest.tap('room_leave')
+  assert.equal(guest.run('engine.turn'), 2)
+  assert.deepEqual(guest.read('movementPinPosition'), { x: 1, y: 4 })
+})
+
+test('多人移动晚到明确提示原地停留，成功回包丢失则原请求重试', async t => {
+  const sim = await simulation(t, 2)
+  const [host] = sim.client
+  let delayClock = false
+  let loseMoveReply = false
+  const guest = await sim.mount(1, { blockResponse(req) {
+    if (delayClock && req.route.endsWith('/heartbeat')) sim.tick(600)
+    if (loseMoveReply && req.input?.action === 'move') {
+      loseMoveReply = false
+      throw new Error('request:fail timeout')
+    }
+  } })
+  await startTogether([host, guest])
+  await move(host, 1, 0)
+  sim.tick(14500)
+  delayClock = true
+  await heartbeat(guest)
+  delayClock = false
+  await move(guest, 1, 4)
+  assert.match(guest.run('toast'), /移动超时，本回合原地停留/)
+  assert.equal(guest.run('searchVisitState.visit.roomNodeId'), 'n_0_4')
+  await heartbeat(host)
+  await host.tap('room_leave')
+  await guest.tap('room_leave')
+  assert.equal(guest.run('engine.turn'), 2)
+  assert.deepEqual(guest.read('movementPinPosition'), { x: 0, y: 4 })
+
+  await heartbeat(host)
+  loseMoveReply = true
+  await move(guest, 1, 4)
+  const attempts = guest.requests.filter(req => req.input?.action === 'move' && req.input.turn === 2)
+  assert.equal(attempts.length, 2)
+  assert.equal(attempts[0].input.requestId, attempts[1].input.requestId)
+  assert.equal(attempts[1].status, 200)
+  assert.equal(guest.run('accountGame.waiting'), 'MOVES')
+  await move(host, 1, 1)
+  await heartbeat(guest)
+  assert.equal(guest.run('searchVisitState.visit.roomNodeId'), 'n_1_4')
+})
+
 test('第3轮：三人同房分流、真实拖拽拾取与搜索换轮', async t => {
   const sim = await simulation(t)
   const roomId = await startTogether(sim.client)
