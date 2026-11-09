@@ -37,3 +37,9 @@ tcb fn code update heisino-game -e cloud1-d5ghcmrajdca722b5 --deployMode zip
 - `heisino-account` 于 10:56:15 更新。`heisino_match_rooms` 已创建并通过云端 ACL 查询确认 `ADMINONLY`。大厅 `POST` 从 404 恢复到未登录预期的 401 `UNAUTHENTICATED`，`OPTIONS` 返回 204，微信换码冒烟通过。已登录的微信开发者工具可以进入大厅并显示正常的空房间列表。
 - `heisino-game` 于 10:56:32 更新。独立搜索对局的建局、进入房间、物资曝光、拾取和离开通过线上冒烟。
 - 本次发布前的五轮本地回归均通过，每轮 158 项。多人建房开局、单人完整对局及结算仍待真机验收。
+
+## 2026-11-09 多人移动截止修复
+
+- 提交 `96f5994` 的 `heisino-account` 于 17:07:20 部署至上海环境 `cloud1-d5ghcmrajdca722b5`，更新前备份了旧函数代码。`heisino_match_rooms` 权限经查询确认为 `ADMINONLY`。
+- 公网大厅、鉴权和微信换码冒烟通过。两名隔离验收账号验证了 `POST /api/account/game` 的截止前成功、截止后返回 `409 MOVE_DEADLINE_EXCEEDED`、原请求 ID 重试成功、并发心跳和下一回合坐标。测试账号、房间和流水已清理并核对。
+- 五轮本地回归均通过，每轮 162 项。客户端已生成微信开发预览，安卓与 iOS 双机验收待完成。
