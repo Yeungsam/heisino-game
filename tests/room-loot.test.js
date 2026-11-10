@@ -4,6 +4,7 @@ const { drawRoomLootCard, drawRoomLootCount } = require('../client/js/core/room-
 const { ROOM_TYPES } = require('../client/js/core/room-map')
 const { cards } = require('../functions/heisino-account/runtime')
 const searchCards = require('../functions/heisino-game/catalog')
+const { isRetiredCard } = require('../client/js/core/retired-cards')
 
 test('全部 100 个随机落点精确匹配普通房间和金库的掉落数量概率', () => {
   const expected = {
@@ -27,8 +28,8 @@ test('房型权重区间命中正确，同类坐标共用物资池，默认权�
   assert.deepEqual([0, 59, 60, 129, 130, 729, 730, 734, 735].map(loungeAt), [
     'wp_003', 'wp_003', 'wp_004', 'wp_004', 'ar_004', 'loot_023', 'loot_008', 'loot_008', 'loot_002'
   ])
-  const reference = { LOUNGE: ['n_1_0', 736, 15], STORAGE: ['n_3_0', 642, 18], SECURITY: ['n_3_1', 300, 19],
-    MEDICAL: ['n_4_1', 536, 15], VAULT: ['n_2_2', 706, 15] }
+  const reference = { LOUNGE: ['n_1_0', 736, 15], STORAGE: ['n_3_0', 622, 17], SECURITY: ['n_3_1', 285, 17],
+    MEDICAL: ['n_4_1', 536, 15], VAULT: ['n_2_2', 666, 14] }
   const accountCardIds = new Set(cards.map(card => card.cardId))
   const searchCardIds = new Set(searchCards.map(card => card.cardId))
   for (const [y, row] of ROOM_TYPES.entries()) {
@@ -48,7 +49,7 @@ test('房型权重区间命中正确，同类坐标共用物资池，默认权�
         seen.add(cardId)
       }
       assert.equal(seen.size, size)
-      assert.ok([...seen].every(id => accountCardIds.has(id) && searchCardIds.has(id)))
+      assert.ok([...seen].every(id => !isRetiredCard(id) && accountCardIds.has(id) && searchCardIds.has(id)))
     }
   }
 })

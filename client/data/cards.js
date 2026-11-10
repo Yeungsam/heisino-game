@@ -573,32 +573,6 @@ module.exports = [
     "dataStatus": "DRAFT"
   },
   {
-    "cardId": "sk_002",
-    "name": "四个六",
-    "description": "增加一枚骰子；如摇到4个6点则直接获胜。",
-    "kind": "SKILL",
-    "category": "SKILL",
-    "rarity": "PURPLE",
-    "attackMultiplier": null,
-    "defenseMultiplier": null,
-    "value": null,
-    "assetPath": "/assets/cards/sk_002.jpg",
-    "dataStatus": "DRAFT"
-  },
-  {
-    "cardId": "sk_003",
-    "name": "额外骰子",
-    "description": "增加一枚骰子。",
-    "kind": "SKILL",
-    "category": "SKILL",
-    "rarity": "PURPLE",
-    "attackMultiplier": null,
-    "defenseMultiplier": null,
-    "value": null,
-    "assetPath": "/assets/cards/sk_003.jpg",
-    "dataStatus": "DRAFT"
-  },
-  {
     "cardId": "sk_004",
     "name": "减骰",
     "description": "使对方减少一枚骰子。",

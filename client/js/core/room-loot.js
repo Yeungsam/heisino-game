@@ -1,5 +1,6 @@
 const { roomKeyForNode } = require('./room-map')
 const { createSeededRng, hashSeed, randomInt } = require('./rng')
+const { isRetiredCard } = require('./retired-cards')
 
 // 飞书《房间物资表》2026-11-10，按房型使用一份权重表。
 const POOLS = {
@@ -10,12 +11,12 @@ const POOLS = {
   ],
   STORAGE: [
     ['ar_009', 15], ['ar_010', 10], ['sk_007', 10], ['wp_003', 50], ['ar_001', 80], ['wp_002', 30],
-    ['wp_004', 40], ['ar_005', 30], ['ar_006', 60], ['ar_007', 60], ['sk_003', 20], ['loot_015', 70],
+    ['wp_004', 40], ['ar_005', 30], ['ar_006', 60], ['ar_007', 60], ['loot_015', 70],
     ['loot_016', 60], ['loot_004', 50], ['loot_008', 20], ['loot_020', 30], ['loot_007', 5], ['loot_002', 2]
   ],
   SECURITY: [
     ['wp_006', 20], ['loot_017', 20], ['loot_021', 10], ['loot_022', 20], ['ar_002', 20], ['ar_009', 10],
-    ['sk_001', 10], ['sk_002', 10], ['sk_003', 5], ['sk_004', 5], ['sk_005', 10], ['sk_006', 10],
+    ['sk_001', 10], ['sk_004', 5], ['sk_005', 10], ['sk_006', 10],
     ['sk_007', 10], ['sk_008', 10], ['sk_009', 15], ['sk_010', 10], ['loot_005', 30], ['loot_012', 70], ['loot_002', 5]
   ],
   MEDICAL: [
@@ -24,7 +25,7 @@ const POOLS = {
     ['loot_013', 50], ['loot_020', 50], ['loot_021', 40]
   ],
   VAULT: [
-    ['loot_023', 3], ['loot_016', 3], ['wp_001', 40], ['ar_003', 55], ['ar_005', 50], ['sk_002', 40],
+    ['loot_023', 3], ['loot_016', 3], ['wp_001', 40], ['ar_003', 55], ['ar_005', 50],
     ['sk_006', 70], ['loot_001', 60], ['loot_002', 60], ['loot_003', 55], ['loot_005', 50],
     ['loot_006', 50], ['loot_007', 50], ['loot_008', 75], ['loot_009', 45]
   ]
@@ -32,7 +33,10 @@ const POOLS = {
 
 const TABLES = Object.fromEntries(Object.entries(POOLS).map(([type, pool]) => {
   let total = 0
-  const entries = pool.map(([cardId, weight = 1]) => ({ cardId, upperBound: total += weight }))
+  const entries = pool.map(([cardId, weight = 1]) => {
+    if (isRetiredCard(cardId)) throw new Error(`Retired card in ${type} loot pool: ${cardId}`)
+    return { cardId, upperBound: total += weight }
+  })
   return [type, { total, entries }]
 }))
 

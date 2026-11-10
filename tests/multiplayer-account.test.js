@@ -96,6 +96,28 @@ test('多人开局时一人的战备失效，整个开局事务回滚', async ()
   assert.equal([...f.store.ledger.values()].some(entry => entry.type === 'DEPLOY'), false)
 })
 
+test('发布前已加入的多人房可开局，停用卡不带入也不扣除其他仓库资产', async () => {
+  const f = await fixture(2)
+  const { lobbyRoom: { roomId } } = await f.create()
+  await assert.rejects(f.join(1, roomId, ['sk_003']), { code: 'LOADOUT_INVALID' })
+  await f.join(1, roomId)
+  await f.store.transactRoom(async tx => {
+    const room = await tx.room(roomId)
+    room.members[1].cardIds.push('sk_003')
+    tx.saveRoom(room)
+    const account = await tx.account(f.players[1].id)
+    account.quantities.sk_003 = 2
+    tx.saveAccount(account)
+  })
+  await f.lobby(0, 'start', { roomId })
+  const guest = await f.command(1, 'resume')
+  assert.equal(guest.activeGame.gameId, roomId)
+  assert.deepEqual(guest.activeGame.state.items.map(item => item.cardId), ['wp_006'])
+  assert.deepEqual(guest.profile.quantities, { wp_006: 0, ar_001: 1, sk_001: 1 })
+  const deploy = [...f.store.ledger.values()].find(entry => entry.type === 'DEPLOY' && entry.accountId === f.players[1].id)
+  assert.deepEqual(deploy.quantities, { wp_006: -1 })
+})
+
 test('共享回合按所有真人完成或超时推进，一人掉线不阻塞且可恢复', async () => {
   const f = await fixture(2)
   const roomId = await f.startRoom()

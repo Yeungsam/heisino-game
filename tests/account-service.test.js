@@ -76,6 +76,32 @@ test('战备校验数量与类别，失败请求不会扣除资产', async () =>
   assert.equal((await f.service.execute(f.token, 'me')).profile.quantities.wp_006, 1)
 })
 
+test('旧账号仓库与对局恢复移除停用技能，保留其余物品和历史流水', async () => {
+  const f = await fixture()
+  const start = await f.start({ mode: 'SINGLE' })
+  await f.edit(document => {
+    document.quantities.sk_002 = 2
+    document.quantities.sk_003 = 1
+    document.ledger[0].quantities.sk_002 = 2
+    const state = document.activeGame.state
+    state.items.push({ cardId: 'sk_002', instanceId: 'retired-carried', ownerId: 'P1' },
+      { cardId: 'sk_003', instanceId: 'retired-room', nodeId: 'n_0_0', state: 'DROPPED' })
+    state.players[0].inventory.push('retired-carried')
+    state.searchAccess.P1 = ['retired-room']
+  })
+  const resumed = await f.service.execute(f.token, 'resume')
+  assert.equal(resumed.activeGame.gameId, start.activeGame.gameId)
+  assert.deepEqual(resumed.activeGame.state.players[0].inventory, start.activeGame.state.players[0].inventory)
+  assert.deepEqual(resumed.activeGame.state.items, start.activeGame.state.items)
+  assert.deepEqual(resumed.profile.quantities, start.profile.quantities)
+  const document = await f.store.get(f.id)
+  assert.deepEqual(document.quantities, start.profile.quantities)
+  assert.equal(document.ledger[0].quantities.sk_002, 2)
+  assert.deepEqual(document.activeGame.state.searchAccess.P1, [])
+  await assert.rejects(f.start({ cardIds: ['sk_002'], requestId: 'retired-start' }), { code: 'LOADOUT_INVALID' })
+  await assert.rejects(f.start({ cardIds: ['sk_003'], requestId: 'retired-start' }), { code: 'LOADOUT_INVALID' })
+})
+
 test('重复和并发开局只扣除一次，取消前端匹配不会扣仓库', async () => {
   const f = await fixture()
   const results = await Promise.all([f.start(), f.start(), f.start()])

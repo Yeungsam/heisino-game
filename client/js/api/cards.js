@@ -1,4 +1,5 @@
 const config = require('../config')
+const { isRetiredCard } = require('../core/retired-cards')
 
 function projectCard(card) {
   return {
@@ -32,7 +33,7 @@ function fetchCardCatalog(options = {}) {
         resolve({
           schemaVersion: response.data.schema_version,
           generatedAt: response.data.generated_at,
-          cards: response.data.cards.map(projectCard)
+          cards: response.data.cards.filter(card => !isRetiredCard(card.card_id)).map(projectCard)
         })
       },
       fail(error) {

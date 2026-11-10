@@ -1,6 +1,7 @@
 const assert = require('node:assert/strict')
 const { cardApiBaseUrl, cardAssetBaseUrl } = require('../client/js/config')
 const { cards: expectedCards } = require('../data/cards.json')
+const { RETIRED_CARD_IDS } = require('../client/js/core/retired-cards')
 
 const REQUIRED_CATEGORIES = ['WEAPON', 'ARMOR', 'LOOT', 'SKILL']
 
@@ -22,6 +23,12 @@ async function verifyProductionCardService() {
     assert.ok(card.assets)
     assert.ok(card.assets.card_art_url.startsWith(`${cardAssetBaseUrl}/assets/cards/`))
   })
+  assert.deepEqual([...ids].sort(), expectedCards.map(card => card.card_id).sort())
+  for (const id of RETIRED_CARD_IDS) {
+    const detail = await fetch(`${cardApiBaseUrl}/api/cards/${id}`, { signal: AbortSignal.timeout(10000) })
+    assert.equal(detail.status, 404)
+    assert.deepEqual(await detail.json(), { error: 'CARD_NOT_FOUND' })
+  }
 
   const shield = catalog.cards.find(card => card.card_id === 'ar_013')
   const original = catalog.cards.find(card => card.card_id === 'ar_005')

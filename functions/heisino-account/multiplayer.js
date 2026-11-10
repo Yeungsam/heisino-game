@@ -1,5 +1,5 @@
 const crypto = require('node:crypto')
-const { constants: C } = require('./runtime')
+const { constants: C, isRetiredCard } = require('./runtime')
 const { fault } = require('./wechat')
 
 const WAIT_MS = 10 * 60 * 1000
@@ -53,6 +53,7 @@ class Multiplayer {
     const document = await tx.account(accountId)
     if (!document) throw fault('UNAUTHENTICATED', 401)
     this.account.authenticate(document, token)
+    if (this.account.removeRetiredQuantities(document)) this.saveAccount(tx, document)
     return document
   }
 
@@ -166,6 +167,8 @@ class Multiplayer {
       const document = member.accountId === host.accountId ? host : await tx.account(member.accountId)
       if (!document || document.activeGame || document.lobbyRoomId !== room.roomId) throw fault('ROOM_CHANGED', 409)
       member.playerId = `P${index + 1}`
+      member.cardIds = member.cardIds.filter(id => !isRetiredCard(id))
+      this.account.removeRetiredQuantities(document)
       game.seen[member.playerId] = now
       this.account.deploy(document, { gameId: game.gameId, mode: game.mode, playerId: member.playerId }, this.account.loadoutCounts(member.cardIds))
       document.lobbyRoomId = null

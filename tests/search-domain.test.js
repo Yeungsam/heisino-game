@@ -57,9 +57,32 @@ test('服务端建局时不接受物资卡作为战备', async () => {
   const game = await service.createGame({
     gameId: 'game-loadout-categories',
     playerId: 'P1',
-    loadoutCardIds: ['wp_001', 'loot_001', 'ar_001', 'sk_001']
+    loadoutCardIds: ['wp_001', 'loot_001', 'ar_001', 'sk_001', 'sk_002', 'sk_003']
   })
   assert.deepEqual(game.player.inventory.map(item => item.cardId), ['wp_001', 'ar_001', 'sk_001'])
+})
+
+test('兼容搜索恢复旧局与请求重试不返回停用技能', async () => {
+  const { service, store } = fixture()
+  const input = { gameId: 'game-retired-skills', playerId: 'P1', loadoutCardIds: ['wp_001'] }
+  await service.createGame(input)
+  const entered = await service.startVisit({ ...input, roomNodeId: 'n_0_0', turn: 1 })
+  const observe = { ...input, visitId: entered.visit.visitId, areaId: 'MAIN_TABLE', requestId: 'old-observe' }
+  const stored = await store.get(input.gameId)
+  const carried = service.addItem(stored, 'sk_002', null, null, 'IN_INVENTORY', 'P1')
+  stored.players.P1.inventory.push(carried)
+  const dropped = service.addItem(stored, 'sk_003', 'n_0_0', 'MAIN_TABLE', 'DROPPED')
+  stored.items.find(item => item.instanceId === dropped).exposedBy.push('P1')
+  const visit = stored.visits[observe.visitId]
+  visit.observation = { active: true, areaId: 'MAIN_TABLE', startedAt: 1000, initialVisibleCount: 1, visibleItemIds: [dropped], newlyExposedItemIds: [dropped] }
+  stored.requestResults[observe.requestId] = service.visitSnapshot(stored, visit, stored.players.P1)
+  assert.ok(await store.replace({ ...stored, version: stored.version + 1 }, stored.version))
+  const retried = await service.observe(observe)
+  assert.deepEqual(retried.inventory.map(item => item.cardId), ['wp_001'])
+  assert.deepEqual(retried.room.visibleItems, [])
+  assert.deepEqual(await service.observe(observe), retried)
+  assert.equal((await store.get(input.gameId)).items.length, 1)
+  await assert.rejects(service.pickup({ ...observe, requestId: 'pickup-retired', instanceId: dropped }), { code: 'ITEM_NOT_VISIBLE' })
 })
 
 test('区域搜索每2秒曝光1件并持续展示该区域全部物品', async () => {

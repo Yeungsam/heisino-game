@@ -2,6 +2,7 @@ const crypto = require('node:crypto')
 const fs = require('node:fs')
 const path = require('node:path')
 const { execFileSync } = require('node:child_process')
+const { assertActiveCardIds } = require('../client/js/core/retired-cards')
 
 const sourceDirectory = process.argv[2]
 if (!sourceDirectory) {
@@ -18,8 +19,6 @@ const ocrByFile = Object.fromEntries(ocrCards.map(card => [card.sourceFile, card
 
 const skills = [
   ['sk_001', '3.1 (1).png', '对子加倍', '如对方摇到两个点数相同的骰子，最终伤害×2。', 'DOUBLE_DAMAGE_ON_MATCHING_DICE', 'RESOLUTION', {}],
-  ['sk_002', '3.1 (2).png', '四个六', '增加一枚骰子；如摇到4个6点则直接获胜。', 'ADD_DIE', 'BEFORE_ROLL', { count: 1, instant_win_faces: [6, 6, 6, 6] }],
-  ['sk_003', '3.1 (3).png', '额外骰子', '增加一枚骰子。', 'ADD_DIE', 'BEFORE_ROLL', { count: 1 }],
   ['sk_004', '3.1 (4).png', '减骰', '使对方减少一枚骰子。', 'REMOVE_OPPONENT_DIE', 'BEFORE_ROLL', { count: 1 }],
   ['sk_005', '3.1 (5).png', '迷雾手牌', '使对方的手牌附上迷雾。', 'MASK_OPPONENT_HAND', 'BEFORE_ROLL', {}],
   ['sk_006', '3.1 (6).png', '命运轮盘', '摇到1–9时己方扣除等同点数的生命；摇到10–18时己方恢复等同点数的生命。', 'RISK_REWARD_HP', 'RESOLUTION', { lose_range: [1, 9], gain_range: [10, 18] }],
@@ -157,6 +156,7 @@ skills.forEach(([id, file, name, description, effectType, phase, parameters]) =>
   cards.push(card)
 })
 
+assertActiveCardIds(cards.map(card => card.card_id))
 fs.mkdirSync(outputDirectory, { recursive: true })
 const publishedPaths = new Set()
 for (const card of cards) {

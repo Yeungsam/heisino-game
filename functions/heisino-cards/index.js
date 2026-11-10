@@ -41,6 +41,20 @@ const server = http.createServer((request, response) => {
     return
   }
 
+  const detail = url.pathname.match(/\/api\/cards\/(.+)$/)
+  if (detail) {
+    let cardId
+    try {
+      cardId = decodeURIComponent(detail[1])
+    } catch {
+      sendJson(response, 400, { error: 'INVALID_CARD_ID' })
+      return
+    }
+    const card = catalog.cards.find(candidate => candidate.card_id === cardId)
+    sendJson(response, card ? 200 : 404, card ? apiCard(card) : { error: 'CARD_NOT_FOUND' })
+    return
+  }
+
   const category = url.searchParams.get('category')?.toUpperCase()
   const cards = category
     ? catalog.cards.filter(card => card.category === category)

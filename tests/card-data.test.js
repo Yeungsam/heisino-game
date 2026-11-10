@@ -3,6 +3,7 @@ const assert = require('node:assert/strict')
 const fs = require('node:fs')
 const path = require('node:path')
 const clientCards = require('../client/data/cards')
+const { RETIRED_CARD_IDS, assertActiveCardIds } = require('../client/js/core/retired-cards')
 
 const sourcePath = path.join(__dirname, '..', 'data', 'cards.json')
 const sourceCards = JSON.parse(fs.readFileSync(sourcePath, 'utf8')).cards
@@ -27,18 +28,26 @@ test('微信小游戏卡牌投影与主配置保持一致', () => {
   })
 })
 
-test('客户端和云端目录包含四类 53 张卡牌', () => {
+test('客户端和云端目录包含四类 51 张卡牌', () => {
   const counts = sourceCards.reduce((result, card) => {
     result[card.category] = (result[card.category] || 0) + 1
     return result
   }, {})
 
-  assert.equal(sourceCards.length, 53)
-  assert.deepEqual(counts, { WEAPON: 7, ARMOR: 13, LOOT: 23, SKILL: 10 })
+  assert.equal(sourceCards.length, 51)
+  assert.deepEqual(counts, { WEAPON: 7, ARMOR: 13, LOOT: 23, SKILL: 8 })
   assert.deepEqual(require('../functions/heisino-cards/cards.json').cards, sourceCards)
   sourceCards.forEach(card => {
     assert.match(card.assets.sha256, /^[a-f0-9]{64}$/)
     assert.match(card.assets.card_art_path, /^\/assets\/cards\/[a-z0-9_]+\.jpg$/)
     assert.ok(card.source.ocr_text.length > 0)
   })
+})
+
+test('停用的两个技能 ID 永久保留，目录校验拒绝复用和重复编号', () => {
+  assert.ok(RETIRED_CARD_IDS.includes('sk_002') && RETIRED_CARD_IDS.includes('sk_003'))
+  const activeIds = sourceCards.map(card => card.card_id)
+  assert.doesNotThrow(() => assertActiveCardIds(activeIds))
+  for (const id of RETIRED_CARD_IDS) assert.throws(() => assertActiveCardIds([...activeIds, id]), /Retired card ID/)
+  assert.throws(() => assertActiveCardIds([...activeIds, activeIds[0]]), /Duplicate card ID/)
 })

@@ -3,6 +3,7 @@ const path = require('node:path')
 const core = fs.existsSync(path.join(__dirname, '../../client/js/core/room-loot.js')) ? '../../client/js/core' : './runtime'
 const { hashSeed } = require(`${core}/rng`)
 const { roomLootAreas, stockRoomLoot } = require(`${core}/room-loot`)
+const { isRetiredCard, removeRetiredItems, removeRetiredObservationItems } = require(`${core}/retired-cards`)
 
 const SEARCH_DURATION_MS = 50000
 const REVEAL_INTERVAL_MS = 2000
@@ -41,11 +42,12 @@ function ensureSchemaV2(game) {
   game.visits = game.visits || {}
   game.rooms = game.rooms || {}
   game.items = game.items || []
+  const retiredItems = removeRetiredItems(game)
 
   Object.keys(game.rooms).forEach(roomNodeId => {
     const room = game.rooms[roomNodeId]
     room.nodeId = room.nodeId || roomNodeId
-    room.itemIds = Array.isArray(room.itemIds) ? room.itemIds : []
+    room.itemIds = Array.isArray(room.itemIds) ? room.itemIds.filter(id => !retiredItems.has(id)) : []
     room.areas = room.areas || {}
     ROOM_AREA_IDS.forEach(areaId => {
       room.areas[areaId] = room.areas[areaId] || { areaId, itemIds: [] }
@@ -66,6 +68,7 @@ function ensureSchemaV2(game) {
     if (!room.areas[item.areaId].itemIds.includes(item.instanceId)) room.areas[item.areaId].itemIds.push(item.instanceId)
   })
   Object.values(game.visits).forEach(visit => {
+    removeRetiredObservationItems(visit, retiredItems)
     const observation = visit && visit.observation
     if (!observation || ROOM_AREA_IDS.includes(observation.areaId)) return
     observation.areaId = null
@@ -123,7 +126,7 @@ class MemorySearchStore {
 class SearchGameService {
   constructor(options) {
     this.cards = options.cards || []
-    this.loadoutCardIds = new Set(this.cards.filter(isLoadoutCard).map(cardIdOf))
+    this.loadoutCardIds = new Set(this.cards.filter(isLoadoutCard).map(cardIdOf).filter(id => !isRetiredCard(id)))
     this.store = options.store || new MemorySearchStore()
     this.now = options.now || (() => Date.now())
     if (!this.cards.some(isLootCard)) throw error('LOOT_CATALOG_EMPTY', 500)
@@ -148,7 +151,7 @@ class SearchGameService {
     const playerId = String(input.playerId || '').trim()
     if (!gameId || !playerId) throw error('INVALID_GAME_IDENTITY')
     const existing = await this.store.get(gameId)
-    if (existing) return this.gameSnapshot(ensureSchemaV2(existing), playerId)
+    if (existing) return this.mutate(gameId, null, game => this.gameSnapshot(game, playerId), { allowNoWrite: true })
 
     const lootSeed = hashSeed(input.seed || gameId)
     const rooms = {}
@@ -316,9 +319,13 @@ class SearchGameService {
       if (!game) throw error('GAME_NOT_FOUND', 404)
       const before = JSON.stringify(game)
       ensureSchemaV2(game)
-      if (requestId && game.requestResults[requestId]) return clone(game.requestResults[requestId])
+      const cached = requestId && game.requestResults[requestId]
+      if (cached && ![...(cached.inventory || []), ...(cached.room?.visibleItems || [])].some(item => isRetiredCard(item.cardId))) return clone(cached)
       const expectedVersion = game.version
-      const result = operation(game)
+      // A legacy response may contain retired items. Refresh the view without replaying the action.
+      const result = cached
+        ? this.visitSnapshot(game, this.requireVisit(game, cached.visit.visitId, cached.visit.playerId), this.requirePlayer(game, cached.visit.playerId))
+        : operation(game)
       if (options.allowNoWrite && before === JSON.stringify(game)) return clone(result)
       game.version += 1
       if (result && typeof result === 'object' && Object.hasOwn(result, 'version')) result.version = game.version

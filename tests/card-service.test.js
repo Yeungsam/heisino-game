@@ -12,8 +12,8 @@ test('卡牌服务返回完整卡库和可访问卡面', async t => {
   assert.equal(response.status, 200)
   const catalog = await response.json()
   assert.equal(catalog.schema_version, '0.2.0')
-  assert.equal(catalog.total, 53)
-  assert.equal(catalog.cards.length, 53)
+  assert.equal(catalog.total, 51)
+  assert.equal(catalog.cards.length, 51)
   const shield = catalog.cards.find(card => card.card_id === 'ar_013')
   const original = catalog.cards.find(card => card.card_id === 'ar_005')
   assert.equal(shield.rarity, 'BLUE')
@@ -34,7 +34,7 @@ test('卡牌服务支持按分类过滤', async t => {
   const response = await fetch(`http://127.0.0.1:${address.port}/api/cards?category=skill`)
   const catalog = await response.json()
 
-  assert.equal(catalog.total, 10)
+  assert.equal(catalog.total, 8)
   assert.ok(catalog.cards.every(card => card.category === 'SKILL'))
 })
 
@@ -49,6 +49,11 @@ test('卡牌详情区分缺失和非法编码，错误请求后服务仍可用',
   const missing = await request('/api/cards/does_not_exist')
   assert.equal(missing.status, 404)
   assert.deepEqual(await missing.json(), { error: 'CARD_NOT_FOUND' })
+  for (const id of ['sk_002', 'sk_003']) {
+    const retired = await request(`/api/cards/${id}`)
+    assert.equal(retired.status, 404)
+    assert.deepEqual(await retired.json(), { error: 'CARD_NOT_FOUND' })
+  }
   const asset = await request('/assets/cards/does_not_exist.jpg')
   assert.equal(asset.status, 404)
   assert.deepEqual(await asset.json(), { error: 'ASSET_NOT_FOUND' })

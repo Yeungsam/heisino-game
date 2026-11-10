@@ -12,4 +12,5 @@ const cards = raw.cards.map(card => ({
   value: card.economy.fixed_value ?? card.economy.purchase_price ?? 0
 }))
 const constants = local ? require('../../client/js/core/constants') : require('./runtime/core/constants')
-module.exports = { ...core, cards, constants }
+const retired = local ? require('../../client/js/core/retired-cards') : require('./runtime/core/retired-cards')
+module.exports = { ...core, ...retired, cards, constants }

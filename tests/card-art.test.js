@@ -28,11 +28,11 @@ test('服务端绝对卡面地址优先，本地目录降级到静态资源域�
 
 test('运行时卡牌索引按 cardId 解析全部卡牌', () => {
   const index = createCardCatalogIndex(cards)
-  assert.equal(Object.keys(index).length, 53)
+  assert.equal(Object.keys(index).length, 51)
   cards.forEach(card => assert.equal(index[card.cardId], card))
 })
 
-test('53 张卡牌使用 52 张有效卡面，守卫圆盾复用赌场圆盾', () => {
+test('51 张卡牌使用 50 张有效卡面，守卫圆盾复用赌场圆盾', () => {
   const publishedDigests = new Set()
   const cardByPath = new Map()
   sourceCards.forEach(card => {
@@ -56,5 +56,5 @@ test('53 张卡牌使用 52 张有效卡面，守卫圆盾复用赌场圆盾', (
     publishedDigests.add(digest)
     assert.match(card.assets.sha256, /^[a-f0-9]{64}$/, `原始卡面哈希无效 ${card.card_id}`)
   })
-  assert.equal(publishedDigests.size, 52)
+  assert.equal(publishedDigests.size, 50)
 })

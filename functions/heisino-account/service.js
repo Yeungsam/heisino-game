@@ -1,5 +1,5 @@
 const crypto = require('node:crypto')
-const { GameEngine, positionKey, cards, constants: C } = require('./runtime')
+const { GameEngine, positionKey, cards, constants: C, RETIRED_CARD_IDS, isRetiredCard, removeRetiredItems, removeRetiredObservationItems } = require('./runtime')
 const { fault, accountIdFor, validateNickname, validateAvatar } = require('./wechat')
 const { Multiplayer } = require('./multiplayer')
 const starter = require('./starter.json')
@@ -24,7 +24,7 @@ class AccountService {
     this.store = options.store
     this.identity = options.identity
     this.now = options.now || Date.now
-    this.cards = options.cards || cards
+    this.cards = (options.cards || cards).filter(card => !isRetiredCard(card.cardId))
     this.cardMap = Object.fromEntries(this.cards.map(card => [card.cardId, card]))
     this.blueBotEquipment = ['WEAPON', 'ARMOR'].map(category => this.cards.find(card => card.rarity === 'BLUE' && card.category === category)?.cardId).filter(Boolean)
     this.multiplayer = new Multiplayer(this)
@@ -34,12 +34,23 @@ class AccountService {
     for (let attempt = 0; attempt < 8; attempt += 1) {
       const document = await this.store.get(accountId)
       if (!document) throw fault('UNAUTHENTICATED', 401)
+      this.removeRetiredQuantities(document)
       const result = await callback(document)
       const version = document.version
       document.version += 1
       if (await this.store.replace(document, version)) return result
     }
     throw fault('ACCOUNT_BUSY', 409)
+  }
+
+  removeRetiredQuantities(document) {
+    let changed = false
+    for (const id of RETIRED_CARD_IDS) {
+      if (!Object.hasOwn(document.quantities, id)) continue
+      delete document.quantities[id]
+      changed = true
+    }
+    return changed
   }
 
   profile(document) {
@@ -131,7 +142,12 @@ class AccountService {
         game.rngState = (Math.imul(game.rngState, 1664525) + 1013904223) >>> 0
         return game.rngState / 0x100000000
       } })
-    if (game.state) Object.assign(engine, clone(game.state))
+    if (game.state) {
+      Object.assign(engine, clone(game.state))
+      const removed = removeRetiredItems(engine)
+      removeRetiredObservationItems(game.visit, removed)
+      for (const visit of Object.values(game.visits || {})) removeRetiredObservationItems(visit, removed)
+    }
     return engine
   }
 
@@ -139,13 +155,13 @@ class AccountService {
     if (!document.profileComplete) throw fault('PROFILE_REQUIRED', 409)
     const requestId = this.requestId(input)
     const cardIds = input.cardIds
-    const counts = this.loadoutCounts(cardIds)
     const fingerprint = digest(JSON.stringify({ cardIds, mode: input.mode || 'STANDARD' }))
     const prior = document.startRequests.find(request => request.id === requestId)
     if (prior) {
       if (prior.fingerprint !== fingerprint) throw fault('REQUEST_ID_REUSED', 409)
       return
     }
+    const counts = this.loadoutCounts(cardIds)
     if (document.activeGame) throw fault('ACTIVE_GAME_EXISTS', 409)
     if (document.lobbyRoomId) throw fault('ALREADY_IN_ROOM', 409)
     if (!['STANDARD', 'SINGLE_TEST', 'SINGLE'].includes(input.mode || 'STANDARD')) throw fault('MODE_INVALID')
@@ -338,6 +354,7 @@ class AccountService {
   settle(document, engine, endedAt = this.now(), playerId = 'P1', state = this.publicState(engine)) {
     const game = document.activeGame
     if (!game) return
+    this.removeRetiredQuantities(document)
     const result = engine.settlementFor(playerId)
     const returned = {}
     if (result.success) engine.getPlayer(playerId).inventory.forEach(id => {
