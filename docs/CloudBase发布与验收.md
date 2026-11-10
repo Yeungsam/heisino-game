@@ -82,3 +82,11 @@ tcb fn code update heisino-game -e cloud1-d5ghcmrajdca722b5 --deployMode zip
 - 提交 `3727ff8` 的 `heisino-account` 于 17:26:42 更新至上海环境 `cloud1-d5ghcmrajdca722b5`，状态为 `Active`。旧函数已备份，账号和房间集合 ACL 核对为 `ADMINONLY`。
 - 账号、大厅和鉴权冒烟通过。隔离对局通过公网 `/api/account/game` 验证单人从第 10 回合起逐回合扣 5 HP，第 15 回合归零。多人双方进入第 13 回合各扣 5 HP，同回合心跳不重复扣血。验收记录已清理并复查。
 - 五轮全量回归每轮 179/179 通过。
+
+## 2026-11-10 停用四个六与额外骰子
+
+- 上海环境 `cloud1-d5ghcmrajdca722b5` 更新 `heisino-account`、`heisino-game` 和 `heisino-cards`，初次发布提交 `f7cb9d8`；三个旧函数代码分别备份。卡牌详情首次误回目录，经 `f6611fe` 修正网关转发时剥离路径前缀的问题，重新部署 `heisino-cards` 后复测通过。
+- 公网卡库 51 张，四类卡面可访问；`wp_006` 详情正常，`sk_002` 和 `sk_003` 详情均返回 `404 CARD_NOT_FOUND`。账号鉴权、微信换码与大厅冒烟通过；独立搜索建局、曝光、拾取和重进通过。
+- 隔离账号通过公网验证拒绝停用卡战备、清除旧仓库数量和对局实例并写回；兼容搜索验证过滤停用战备及受影响房型的掉落。现网仓库含两个停用字段的账号数为 0；历史资产流水保留。测试数据已清理并复查。
+- 使用 [CloudBase 数据库权限查询](https://cloud.tencent.com/document/product/876/34821) 核对账号、资产流水和多人房间为 `ADMINONLY`，兼容搜索为 `PRIVATE` 且服务端写入的验收记录没有玩家所有者。
+- 网关修复后五轮全量回归各通过 184/184 项。
