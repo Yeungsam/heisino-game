@@ -7,5 +7,6 @@ coverage/
 feishu-auth-qr*.png
 client/project.private.config.json
 functions/heisino-account/runtime/
+functions/heisino-game/runtime/
 .env
 .env.*

@@ -52,7 +52,7 @@ test('倒计时未选择的玩家默认停留原地', () => {
 
 test('房间物资第一次点击显示，第二次点击拾取', () => {
   const { game } = createGame()
-  game.submitMove('P1', { x: 0, y: 0 })
+  game.submitMove('P1', { x: 1, y: 0 })
   game.submitMove('P2', { x: 0, y: 4 })
   game.submitMove('P3', { x: 4, y: 0 })
   game.resolveMoves()
@@ -65,7 +65,7 @@ test('房间物资第一次点击显示，第二次点击拾取', () => {
 
 test('背包满时拒绝拾取且物品留在房间', () => {
   const { game } = createGame()
-  game.submitMove('P1', { x: 0, y: 0 })
+  game.submitMove('P1', { x: 1, y: 0 })
   game.submitMove('P2', { x: 0, y: 4 })
   game.submitMove('P3', { x: 4, y: 0 })
   game.resolveMoves()
@@ -96,13 +96,28 @@ test('三人同节点时随机两人战斗，另一人搜索，原房间物资�
     player.previousPosition = { x: 2, y: 2 }
     game.submitMove(player.id, { x: 2, y: 2 })
   })
-  const originalItemIds = game.items.filter(item => item.nodeId === 'n_2_2' && item.state === 'HIDDEN').map(item => item.instanceId).sort()
   game.resolveMoves()
+  const originalItemIds = game.items.filter(item => item.nodeId === 'n_2_2' && item.state === 'HIDDEN').map(item => item.instanceId).sort()
+  assert.equal(originalItemIds.length, 10)
   const split = game.encounters.find(encounter => encounter.type === 'THREE_PLAYER_SPLIT')
   assert.ok(split)
   assert.equal(split.fighterIds.length, 2)
   assert.ok(!split.fighterIds.includes(split.searcherId))
   assert.deepEqual(split.battleItemIds.concat(split.searchItemIds).sort(), originalItemIds)
+})
+
+test('上线前的物资快照继续使用已生成或已拿空的房间', () => {
+  const { game } = createGame()
+  const legacy = game.snapshot()
+  delete legacy.roomStock
+  const existing = { instanceId: 'item_99', cardId: 'loot_001', nodeId: 'n_1_0', areaId: 'MAIN_TABLE', state: 'HIDDEN' }
+  legacy.items.push(existing)
+  const resumed = Object.assign(new GameEngine({ cards }), legacy)
+  const player = resumed.getPlayer('P1')
+  resumed.resolveRoom('n_1_0', [player])
+  assert.deepEqual(resumed.searchItemsFor('P1'), [existing])
+  resumed.resolveRoom('n_2_0', [player])
+  assert.equal(resumed.items.filter(item => item.nodeId === 'n_2_0').length, 0)
 })
 
 test('警报圈伤害使生命归零时立即战败', () => {

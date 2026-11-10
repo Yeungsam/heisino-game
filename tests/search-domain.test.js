@@ -25,17 +25,27 @@ function roomArea(game, roomNodeId, predicate = area => area.itemCount > 0) {
   return game.rooms.find(room => room.nodeId === roomNodeId).areas.find(predicate)
 }
 
-test('对局初始化为普通房间4件、中央金库10件、撤离点0件', async () => {
-  const { service } = fixture()
+test('独立搜索建局只规划区域数量，首次进入才按房型生成 4、10 或 0 件', async () => {
+  const { service, store } = fixture()
   const game = await service.createGame({ gameId: 'game-room-counts', playerId: 'P1', loadoutCardIds: ['wp_001'], seed: 'counts' })
   const countByNode = Object.fromEntries(game.rooms.map(room => [room.nodeId, room.itemCount]))
-  assert.equal(countByNode.n_0_0, 4)
+  assert.equal(countByNode.n_1_0, 4)
+  assert.equal(countByNode.n_0_0, 0)
+  assert.equal(countByNode.n_4_0, 0)
+  assert.equal(countByNode.n_0_4, 0)
   assert.equal(countByNode.n_2_2, 10)
   assert.equal(countByNode.n_4_4, 0)
   assert.equal(game.schemaVersion, 2)
   assert.deepEqual(game.rooms[0].areas.map(area => area.areaId), ROOM_AREA_IDS)
   game.rooms.forEach(room => assert.equal(room.areas.reduce((sum, area) => sum + area.itemCount, 0), room.itemCount))
   assert.equal(game.player.inventory.length, 1)
+  assert.equal((await store.get(game.gameId)).items.length, 1)
+  for (const [index, [roomNodeId, count]] of Object.entries(countByNode).entries()) {
+    const visited = await service.startVisit({ gameId: game.gameId, playerId: 'P1', roomNodeId, turn: index + 1 })
+    assert.equal(visited.room.unpickedCount, count)
+    assert.deepEqual(visited.room.areas.map(area => area.itemCount), game.rooms[index].areas.map(area => area.itemCount))
+    assert.deepEqual(visited.room.visibleItems, [])
+  }
 })
 
 test('服务端建局时不接受物资卡作为战备', async () => {
@@ -51,8 +61,8 @@ test('服务端建局时不接受物资卡作为战备', async () => {
 test('区域搜索每2秒曝光1件并持续展示该区域全部物品', async () => {
   const { service, advance } = fixture()
   const game = await service.createGame({ gameId: 'game-reveal', playerId: 'P1', loadoutCardIds: [], seed: 'reveal' })
-  const area = roomArea(game, 'n_0_0')
-  const started = await service.startVisit({ gameId: 'game-reveal', playerId: 'P1', roomNodeId: 'n_0_0', turn: 1, requestId: 'visit-1' })
+  const area = roomArea(game, 'n_1_0')
+  const started = await service.startVisit({ gameId: 'game-reveal', playerId: 'P1', roomNodeId: 'n_1_0', turn: 1, requestId: 'visit-1' })
   await service.observe({ gameId: 'game-reveal', playerId: 'P1', visitId: started.visit.visitId, areaId: area.areaId, requestId: 'observe-1' })
 
   advance(REVEAL_INTERVAL_MS - 1)
@@ -108,22 +118,23 @@ test('已曝光未拾取物可再次观察，拾取和丢弃由权威状态结�
   assert.equal(dropped.room.activeArea.itemCount, area.itemCount)
   assert.equal(dropped.room.visibleItems.find(item => item.instanceId === loadoutItemId).areaId, area.areaId)
   assert.ok(dropped.version > started.version)
+  await service.leave({ gameId: game.gameId, playerId: 'P1', visitId: started.visit.visitId })
+  const reenter = requestId => service.startVisit({ gameId: game.gameId, playerId: 'P1', roomNodeId: 'n_1_0', turn: 2, requestId })
+  const [retryA, retryB] = await Promise.all([reenter('visit-2a'), reenter('visit-2b')])
+  assert.equal(retryA.visit.visitId, retryB.visit.visitId)
+  assert.equal(retryA.room.unpickedCount, 4)
+  assert.equal(retryB.inventory[0].instanceId, exposedId)
 })
 
 test('区域达到30件后拒绝继续丢弃', async () => {
   const { service, store } = fixture()
   await service.createGame({ gameId: 'game-area-capacity', playerId: 'P1', loadoutCardIds: ['wp_001'], seed: 'capacity' })
+  const started = await service.startVisit({ gameId: 'game-area-capacity', playerId: 'P1', roomNodeId: 'n_0_0', turn: 1 })
   const game = await store.get('game-area-capacity')
-  const targetItems = game.items.filter(item => item.nodeId).slice(0, ROOM_AREA_CAPACITY)
-  targetItems.forEach(item => {
-    item.nodeId = 'n_0_0'
-    item.areaId = 'MAIN_TABLE'
-  })
-  game.rooms.n_0_0.itemIds = targetItems.map(item => item.instanceId)
+  for (let i = 0; i < ROOM_AREA_CAPACITY; i++) service.addItem(game, 'loot_001', 'n_0_0', 'MAIN_TABLE', 'HIDDEN')
   game.version += 1
   await store.replace(game, game.version - 1)
 
-  const started = await service.startVisit({ gameId: game.gameId, playerId: 'P1', roomNodeId: 'n_0_0', turn: 1 })
   await service.observe({ gameId: game.gameId, playerId: 'P1', visitId: started.visit.visitId, areaId: 'MAIN_TABLE' })
   await assert.rejects(
     service.drop({ gameId: game.gameId, playerId: 'P1', visitId: started.visit.visitId, instanceId: started.inventory[0].instanceId }),
@@ -134,18 +145,21 @@ test('区域达到30件后拒绝继续丢弃', async () => {
 test('旧版房间文档在下一次写入时确定性迁移到区域模型', async () => {
   const { service, store } = fixture()
   await service.createGame({ gameId: 'game-schema-migration', playerId: 'P1', loadoutCardIds: [], seed: 'migration' })
+  await service.startVisit({ gameId: 'game-schema-migration', playerId: 'P1', roomNodeId: 'n_1_0', turn: 1 })
   const legacy = await store.get('game-schema-migration')
   delete legacy.schemaVersion
-  Object.values(legacy.rooms).forEach(room => delete room.areas)
+  delete legacy.lootSeed
+  Object.values(legacy.rooms).forEach(room => { delete room.areas; delete room.lootAreas })
   legacy.items.forEach(item => delete item.areaId)
   legacy.version += 1
   await store.replace(legacy, legacy.version - 1)
 
-  await service.startVisit({ gameId: legacy.gameId, playerId: 'P1', roomNodeId: 'n_0_0', turn: 1 })
+  await service.startVisit({ gameId: legacy.gameId, playerId: 'P1', roomNodeId: 'n_1_0', turn: 2 })
   const migrated = await store.get(legacy.gameId)
   assert.equal(migrated.schemaVersion, 2)
-  assert.deepEqual(Object.keys(migrated.rooms.n_0_0.areas), ROOM_AREA_IDS)
-  const assignments = migrated.items.filter(item => item.nodeId === 'n_0_0').map(item => item.areaId)
+  assert.deepEqual(Object.keys(migrated.rooms.n_1_0.areas), ROOM_AREA_IDS)
+  const assignments = migrated.items.filter(item => item.nodeId === 'n_1_0').map(item => item.areaId)
+  assert.equal(assignments.length, 4)
   assert.ok(assignments.every(areaId => ROOM_AREA_IDS.includes(areaId)))
 })
 

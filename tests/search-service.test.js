@@ -35,7 +35,7 @@ test('搜索服务提供建局、进入房间、观察和权威背包接口', as
   const visit = await request(origin, `/api/search/games/${gameId}/visits`, {
     method: 'POST',
     requestId: 'api-visit-1',
-    body: { playerId: 'P1', roomNodeId: 'n_0_0', turn: 1 }
+    body: { playerId: 'P1', roomNodeId: 'n_1_0', turn: 1 }
   })
   assert.equal(visit.status, 200)
   assert.equal(visit.body.data.room.unpickedCount, 4)

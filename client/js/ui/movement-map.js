@@ -1,3 +1,5 @@
+const { ROOM_TYPES, roomKeyAt, roomKeyForNode } = require('../core/room-map')
+
 const SOURCE_SIZE = Object.freeze({ width: 1280, height: 722 })
 const ROOM_MASK_ALPHA = 0.5
 const PIN_TRANSITION_MS = 460
@@ -35,15 +37,6 @@ const ROOM_TYPE_INFO = Object.freeze({
   EXIT: Object.freeze({ name: '撤离点', color: '#c5d7ff' }),
   VAULT: Object.freeze({ name: '中央金库', color: '#ffe192' })
 })
-
-// 飞书《房间地图说明》：从左到右、从上到下，按 [y][x] 取房间。
-const ROOM_TYPES = Object.freeze([
-  Object.freeze(['SPAWN', 'LOUNGE', 'SECURITY', 'STORAGE', 'SPAWN']),
-  Object.freeze(['LOUNGE', 'MEDICAL', 'LOUNGE', 'SECURITY', 'MEDICAL']),
-  Object.freeze(['SECURITY', 'LOUNGE', 'VAULT', 'STORAGE', 'LOUNGE']),
-  Object.freeze(['MEDICAL', 'SECURITY', 'STORAGE', 'MEDICAL', 'SECURITY']),
-  Object.freeze(['SPAWN', 'STORAGE', 'MEDICAL', 'LOUNGE', 'EXIT'])
-])
 
 function containedTransform(viewWidth, viewHeight, imageWidth = SOURCE_SIZE.width, imageHeight = SOURCE_SIZE.height) {
   const scale = Math.min(viewWidth / imageWidth, viewHeight / imageHeight)
@@ -91,11 +84,6 @@ function roomRect(layout, x, y, inset = 0) {
   }
 }
 
-function roomKeyAt(x, y) {
-  if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || x >= 5 || y < 0 || y >= 5) return null
-  return ROOM_TYPES[y][x]
-}
-
 function roomInfoAt(x, y) {
   return ROOM_TYPE_INFO[roomKeyAt(x, y)] || null
 }
@@ -103,11 +91,6 @@ function roomInfoAt(x, y) {
 function roomTypeAt(x, y) {
   const room = roomInfoAt(x, y)
   return room ? room.name : '未知房间'
-}
-
-function roomKeyForNode(nodeId) {
-  const coordinates = /^n_(\d+)_(\d+)$/.exec(nodeId)
-  return coordinates ? roomKeyAt(Number(coordinates[1]), Number(coordinates[2])) : null
 }
 
 function roomTypeForNode(nodeId) {

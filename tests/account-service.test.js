@@ -113,7 +113,7 @@ test('非法移动、伪造成功和客户端背包不能改变服务端结果',
 test('搜索曝光、拾取、丢弃和重复请求使用同一份权威物品', async () => {
   const f = await fixture()
   let response = await f.start()
-  response = await f.action(response.activeGame, 'move', { target: { x: 0, y: 0 } })
+  response = await f.action(response.activeGame, 'move', { target: { x: 1, y: 0 } })
   const area = response.activeGame.search.room.areas.find(entry => entry.itemCount > 0)
   response = await f.action(response.activeGame, 'observe', { areaId: area.areaId })
   assert.equal(response.activeGame.search.room.activeArea.visibleItems.length, 0)
@@ -129,6 +129,40 @@ test('搜索曝光、拾取、丢弃和重复请求使用同一份权威物品',
   response = await f.action(response.activeGame, 'drop', { instanceId: item.instanceId })
   assert.equal(response.activeGame.state.players[0].inventory.length, 3)
   assert.ok(response.activeGame.search.room.activeArea.visibleItems.some(entry => entry.instanceId === item.instanceId))
+})
+
+test('单人首次进房生成四件物资，重试、重连和再次进入均不补货', async () => {
+  const f = await fixture()
+  let { activeGame } = await f.start({ mode: 'SINGLE', cardIds: [] })
+  assert.deepEqual((await f.store.get(f.id)).activeGame.state.items, [])
+  assert.equal(Object.hasOwn(activeGame.state, 'roomStock'), false)
+
+  const move = async (target, requestId) => (await f.action(activeGame, 'move', { target, requestId })).activeGame
+  activeGame = await move({ x: 0, y: 0 }, 'spawn-loot')
+  assert.equal(activeGame.search.room.unpickedCount, 0)
+  activeGame = (await f.action(activeGame, 'leave')).activeGame
+  await f.edit(document => document.activeGame.botCheckedRooms.push('n_1_0'))
+
+  const firstMove = activeGame
+  const target = { x: 1, y: 0 }
+  activeGame = await move(target, 'room-loot-first')
+  assert.equal(activeGame.search.room.unpickedCount, 4)
+  assert.deepEqual(activeGame.state.items, [])
+  const stored = (await f.store.get(f.id)).activeGame.state
+  const original = stored.items.map(item => item.instanceId)
+  assert.equal(new Set(original).size, 4)
+  assert.ok(stored.items.every(item => item.nodeId === 'n_1_0'))
+  await f.action(firstMove, 'move', { target, requestId: 'room-loot-first' })
+  const areaId = activeGame.search.room.areas.find(area => area.itemCount > 0).areaId
+  await f.action(activeGame, 'observe', { areaId })
+  f.advance(2000)
+  activeGame = (await f.service.execute(f.token, 'resume')).activeGame
+  const { instanceId } = activeGame.search.room.activeArea.visibleItems[0]
+  await f.action(activeGame, 'pickup', { instanceId })
+  activeGame = (await f.action(activeGame, 'leave')).activeGame
+  activeGame = await move(target, 'room-loot-return')
+  assert.equal(activeGame.search.room.unpickedCount, 3)
+  assert.deepEqual((await f.store.get(f.id)).activeGame.state.items.map(item => item.instanceId), original)
 })
 
 test('99张一格，超出99在相邻格继续；十格满仍可补足已有堆叠', () => {
@@ -171,7 +205,7 @@ test('中断不足十分钟恢复同一对局，超过十分钟失败且不返�
 test('搜索中重启后恢复区域和已曝光物品，并暂停离线曝光进度', async () => {
   const f = await fixture()
   let response = await f.start()
-  response = await f.action(response.activeGame, 'move', { target: { x: 0, y: 0 } })
+  response = await f.action(response.activeGame, 'move', { target: { x: 1, y: 0 } })
   const area = response.activeGame.search.room.areas.find(entry => entry.itemCount > 0)
   response = await f.action(response.activeGame, 'observe', { areaId: area.areaId })
   f.advance(2000)

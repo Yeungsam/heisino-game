@@ -1,3 +1,9 @@
+const fs = require('node:fs')
+const path = require('node:path')
+const core = fs.existsSync(path.join(__dirname, '../../client/js/core/room-loot.js')) ? '../../client/js/core' : './runtime'
+const { hashSeed } = require(`${core}/rng`)
+const { roomLootAreas, stockRoomLoot } = require(`${core}/room-loot`)
+
 const SEARCH_DURATION_MS = 50000
 const REVEAL_INTERVAL_MS = 2000
 const MAX_VISIBLE_ITEMS = 30
@@ -16,23 +22,6 @@ function clone(value) {
 
 function nodeId(x, y) {
   return `n_${x}_${y}`
-}
-
-function hashSeed(value) {
-  let hash = 2166136261
-  for (const char of String(value)) {
-    hash ^= char.charCodeAt(0)
-    hash = Math.imul(hash, 16777619)
-  }
-  return hash >>> 0
-}
-
-function seededRandom(seed) {
-  let state = seed >>> 0 || 1
-  return () => {
-    state = (Math.imul(state, 1664525) + 1013904223) >>> 0
-    return state / 0x100000000
-  }
 }
 
 function createRoom(roomNodeId) {
@@ -134,11 +123,24 @@ class MemorySearchStore {
 class SearchGameService {
   constructor(options) {
     this.cards = options.cards || []
-    this.lootCardIds = this.cards.filter(isLootCard).map(cardIdOf)
     this.loadoutCardIds = new Set(this.cards.filter(isLoadoutCard).map(cardIdOf))
     this.store = options.store || new MemorySearchStore()
     this.now = options.now || (() => Date.now())
-    if (this.lootCardIds.length === 0) throw error('LOOT_CATALOG_EMPTY', 500)
+    if (!this.cards.some(isLootCard)) throw error('LOOT_CATALOG_EMPTY', 500)
+  }
+
+  addItem(game, cardId, roomNodeId, areaId, state, ownerId = null) {
+    const item = {
+      instanceId: `${game.gameId}-item-${game.itemSequence++}`, cardId, state,
+      nodeId: roomNodeId, areaId, ownerId, exposedBy: [], createdAt: this.now()
+    }
+    game.items.push(item)
+    if (roomNodeId) {
+      const room = game.rooms[roomNodeId]
+      room.itemIds.push(item.instanceId)
+      room.areas[areaId].itemIds.push(item.instanceId)
+    }
+    return item.instanceId
   }
 
   async createGame(input) {
@@ -148,57 +150,33 @@ class SearchGameService {
     const existing = await this.store.get(gameId)
     if (existing) return this.gameSnapshot(ensureSchemaV2(existing), playerId)
 
-    const random = seededRandom(hashSeed(input.seed || gameId))
-    let itemSequence = 1
-    const items = []
+    const lootSeed = hashSeed(input.seed || gameId)
     const rooms = {}
-    const addItem = (cardId, roomNodeId, areaId = null, state = 'HIDDEN', ownerId = null) => {
-      const item = {
-        instanceId: `${gameId}-item-${itemSequence++}`,
-        cardId,
-        state,
-        nodeId: ownerId ? null : roomNodeId,
-        areaId: ownerId ? null : areaId,
-        ownerId,
-        exposedBy: [],
-        createdAt: this.now()
-      }
-      items.push(item)
-      if (roomNodeId) {
-        rooms[roomNodeId].itemIds.push(item.instanceId)
-        rooms[roomNodeId].areas[areaId].itemIds.push(item.instanceId)
-      }
-      return item
-    }
-
     for (let y = 0; y < BOARD_SIZE; y += 1) {
       for (let x = 0; x < BOARD_SIZE; x += 1) {
         const roomNodeId = nodeId(x, y)
         rooms[roomNodeId] = createRoom(roomNodeId)
-        const count = roomNodeId === EXTRACTION_NODE_ID ? 0 : roomNodeId === VAULT_NODE_ID ? 10 : 4
-        for (let index = 0; index < count; index += 1) {
-          const cardId = this.lootCardIds[Math.floor(random() * this.lootCardIds.length)]
-          const areaId = ROOM_AREA_IDS[Math.floor(random() * ROOM_AREA_IDS.length)]
-          addItem(cardId, roomNodeId, areaId)
-        }
+        rooms[roomNodeId].lootAreas = roomLootAreas(roomNodeId, lootSeed, ROOM_AREA_IDS)
       }
     }
 
     const loadoutCardIds = Array.isArray(input.loadoutCardIds) ? input.loadoutCardIds : []
-    const inventory = loadoutCardIds.filter(cardId => this.loadoutCardIds.has(cardId)).slice(0, BACKPACK_SLOTS)
-      .map(cardId => addItem(cardId, null, null, 'IN_INVENTORY', playerId).instanceId)
     const game = {
       gameId,
       schemaVersion: SEARCH_SCHEMA_VERSION,
       version: 1,
       createdAt: this.now(),
-      itemSequence,
-      items,
+      itemSequence: 1,
+      lootSeed,
+      items: [],
       rooms,
-      players: { [playerId]: { playerId, inventory } },
+      players: {},
       visits: {},
       requestResults: {}
     }
+    const inventory = loadoutCardIds.filter(cardId => this.loadoutCardIds.has(cardId)).slice(0, BACKPACK_SLOTS)
+      .map(cardId => this.addItem(game, cardId, null, null, 'IN_INVENTORY', playerId))
+    game.players[playerId] = { playerId, inventory }
     const created = await this.store.create(game)
     return this.gameSnapshot(created ? game : await this.store.get(gameId), playerId)
   }
@@ -210,6 +188,13 @@ class SearchGameService {
       if (!room) throw error('ROOM_NOT_FOUND', 404)
       const existing = Object.values(game.visits).find(visit => visit.playerId === input.playerId && visit.turn === input.turn && visit.status === 'ACTIVE')
       if (existing) return this.visitSnapshot(game, existing, player)
+      // Older games already contain their room items. Only an unconsumed plan can create new items.
+      if (room.lootAreas) {
+        stockRoomLoot(room.nodeId, game.lootSeed, room.lootAreas, (cardId, areaId) => {
+          this.addItem(game, cardId, room.nodeId, areaId, 'HIDDEN')
+        })
+        delete room.lootAreas
+      }
       const startedAt = this.now()
       const visitId = `${game.gameId}-visit-${Object.keys(game.visits).length + 1}`
       const visit = {
@@ -428,10 +413,11 @@ class SearchGameService {
       schemaVersion: game.schemaVersion,
       rooms: Object.values(game.rooms).map(room => ({
         nodeId: room.nodeId,
-        itemCount: this.roomItems(game, room.nodeId).filter(item => item.state !== 'IN_INVENTORY' && item.state !== 'DESTROYED').length,
+        itemCount: room.lootAreas?.length ?? this.roomItems(game, room.nodeId).filter(item => item.state !== 'IN_INVENTORY' && item.state !== 'DESTROYED').length,
         areas: ROOM_AREA_IDS.map(areaId => ({
           areaId,
-          itemCount: this.areaItems(game, room.nodeId, areaId).filter(item => item.state !== 'IN_INVENTORY' && item.state !== 'DESTROYED').length
+          itemCount: room.lootAreas?.filter(plannedArea => plannedArea === areaId).length
+            ?? this.areaItems(game, room.nodeId, areaId).filter(item => item.state !== 'IN_INVENTORY' && item.state !== 'DESTROYED').length
         }))
       }))
     }
@@ -487,7 +473,5 @@ module.exports = {
   VAULT_NODE_ID,
   EXTRACTION_NODE_ID,
   MemorySearchStore,
-  SearchGameService,
-  hashSeed,
-  seededRandom
+  SearchGameService
 }

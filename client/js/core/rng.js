@@ -1,3 +1,12 @@
+function hashSeed(value) {
+  let hash = 2166136261
+  for (const char of String(value)) {
+    hash ^= char.charCodeAt(0)
+    hash = Math.imul(hash, 16777619)
+  }
+  return hash >>> 0
+}
+
 function createSeededRng(seed) {
   let state = seed >>> 0
   return function random() {
@@ -24,4 +33,4 @@ function shuffled(items, rng) {
   return result
 }
 
-module.exports = { createSeededRng, randomInt, shuffled }
+module.exports = { hashSeed, createSeededRng, randomInt, shuffled }

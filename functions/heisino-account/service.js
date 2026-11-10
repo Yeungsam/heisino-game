@@ -366,6 +366,7 @@ class AccountService {
   publicState(engine) {
     const state = engine.snapshot()
     delete state.nextItemSequence
+    delete state.roomStock
     // Hidden room card types and future RNG state never leave the server.
     state.items = state.items.filter(item => item.ownerId === 'P1' || item.revealedBy === 'P1' || item.state === 'DROPPED')
     return state

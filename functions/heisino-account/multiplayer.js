@@ -28,6 +28,7 @@ function publicState(engine, playerId, visit) {
   const alias = id => id === playerId ? 'P1' : id === 'P1' ? playerId : id
   const visible = visit?.observation?.active ? new Set(visit.observation.visibleItemIds) : new Set()
   delete state.nextItemSequence
+  delete state.roomStock
   state.searchAccess = { P1: [] }
   state.players = state.players.map(player => player.id === playerId ? { ...player, id: 'P1' } : {
     id: alias(player.id), name: player.name, hp: player.hp, maxHp: player.maxHp, status: player.status,

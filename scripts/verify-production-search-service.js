@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict')
 
 const origin = process.env.SEARCH_API_ORIGIN || 'https://cloud1-d5ghcmrajdca722b5-1510428576.ap-shanghai.app.tcloudbase.com/api/search'
-const gameId = `prod-smoke-${Date.now()}`
+const gameId = process.env.SEARCH_SMOKE_GAME_ID || `prod-smoke-${Date.now()}`
 const playerId = 'production-smoke-player'
 
 async function request(pathname, options = {}) {
@@ -30,7 +30,8 @@ async function main() {
   const roomCounts = Object.fromEntries(game.rooms.map(room => [room.nodeId, room.itemCount]))
   assert.equal(game.rooms.length, 25)
   assert.equal(game.schemaVersion, 2)
-  assert.equal(roomCounts.n_0_0, 4)
+  assert.equal(roomCounts.n_1_0, 4)
+  for (const node of ['n_0_0', 'n_0_4', 'n_4_0', 'n_4_4']) assert.equal(roomCounts[node], 0)
   assert.equal(roomCounts.n_2_2, 10)
   assert.equal(roomCounts.n_4_4, 0)
   assert.equal(game.player.inventory.length, 1)
@@ -39,8 +40,10 @@ async function main() {
   const entered = await request(`/games/${gameId}/visits`, {
     method: 'POST',
     requestId: `${gameId}-visit`,
-    body: { playerId, roomNodeId: 'n_0_0', turn: 1 }
+    body: { playerId, roomNodeId: 'n_1_0', turn: 1 }
   })
+  assert.equal(entered.room.unpickedCount, 4)
+  assert.deepEqual(entered.room.visibleItems, [])
   const visitId = entered.visit.visitId
   await request(`/games/${gameId}/visits/${visitId}/observe`, {
     method: 'POST',
@@ -68,11 +71,22 @@ async function main() {
   })
   assert.equal(left.visit.status, 'LEFT')
 
+  const returned = await request(`/games/${gameId}/visits`, {
+    method: 'POST', requestId: `${gameId}-return`, body: { playerId, roomNodeId: 'n_1_0', turn: 2 }
+  })
+  assert.equal(returned.room.unpickedCount, 3)
+  const vault = await request(`/games/${gameId}/visits`, {
+    method: 'POST', requestId: `${gameId}-vault`, body: { playerId, roomNodeId: 'n_2_2', turn: 3 }
+  })
+  assert.equal(vault.room.unpickedCount, 10)
+
   console.log(JSON.stringify({
     ok: true,
     gameId,
     rooms: game.rooms.length,
-    normalRoomItems: roomCounts.n_0_0,
+    normalRoomItems: entered.room.unpickedCount,
+    spawnItems: roomCounts.n_0_0,
+    revisitedRoomItems: returned.room.unpickedCount,
     vaultItems: roomCounts.n_2_2,
     extractionItems: roomCounts.n_4_4,
     areaSchemaVersion: game.schemaVersion,

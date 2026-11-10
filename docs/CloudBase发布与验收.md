@@ -12,7 +12,7 @@
 |---|---|---|---|
 | `heisino-account` | `/api/account` | `npm run account:build` 生成完整运行时 | `npm run verify:account:production` |
 | `heisino-cards` | `/api/cards` | 核对生成的卡牌目录与卡面 | `npm run verify:cards:production` |
-| `heisino-game` | `/api/search` | 核对独立搜索规则与卡牌映射 | `npm run verify:search:production` |
+| `heisino-game` | `/api/search` | `npm run account:build` 生成共享房型、物资库和随机抽取运行时 | `npm run verify:search:production` |
 
 在仓库根目录执行下面的代码更新命令，按本次影响范围选用。账号和搜索函数使用锁定的云端依赖。卡牌函数直接用 Node 内置模块运行。
 

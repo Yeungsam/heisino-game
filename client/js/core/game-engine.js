@@ -2,6 +2,7 @@ const C = require('./constants')
 const { randomInt, shuffled } = require('./rng')
 const { resolveBattle } = require('./combat')
 const { canAddItem } = require('./inventory')
+const { roomLootAreas, stockRoomLoot } = require('./room-loot')
 
 function nodeId(x, y) {
   return `n_${x}_${y}`
@@ -35,6 +36,8 @@ class GameEngine {
     this.encounters = []
     this.log = []
     this.nextItemSequence = 1
+    // A snapshot without roomStock predates lazy generation and already holds its room items.
+    this.roomStock = null
   }
 
   start(participants) {
@@ -43,7 +46,7 @@ class GameEngine {
       this.createPlayer('P2', '黑桃客', 0, 4, ['wp_005']),
       this.createPlayer('P3', '红心客', 4, 0, ['wp_002'])
     ]
-    this.seedRooms()
+    this.roomStock = { seed: randomInt(this.rng, 0x100000000), visited: [] }
     this.beginTurn()
     return this.snapshot()
   }
@@ -89,19 +92,14 @@ class GameEngine {
     return item
   }
 
-  seedRooms() {
-    const lootIds = this.cards.filter(card => card.kind === 'LOOT').map(card => card.cardId)
-    for (let y = 0; y < C.BOARD_SIZE; y += 1) {
-      for (let x = 0; x < C.BOARD_SIZE; x += 1) {
-        if (nodeId(x, y) === C.EXTRACTION_NODE_ID) continue
-        const roomNodeId = nodeId(x, y)
-        const count = roomNodeId === C.EXTRACTION_NODE_ID ? 0 : x === 2 && y === 2 ? 10 : 4
-        for (let index = 0; index < count; index += 1) {
-          const areaId = C.SEARCH_ROOM_AREA_IDS[Math.floor(this.rng() * C.SEARCH_ROOM_AREA_IDS.length)]
-          this.createItem(lootIds[Math.floor(this.rng() * lootIds.length)], roomNodeId, 'HIDDEN', null, areaId)
-        }
-      }
-    }
+  stockRoom(roomNodeId) {
+    if (!this.roomStock || this.roomStock.visited.includes(roomNodeId)) return
+    const { seed, visited } = this.roomStock
+    const areas = roomLootAreas(roomNodeId, seed, C.SEARCH_ROOM_AREA_IDS)
+    stockRoomLoot(roomNodeId, seed, areas, (cardId, areaId) => {
+      this.createItem(cardId, roomNodeId, 'HIDDEN', null, areaId)
+    })
+    visited.push(roomNodeId)
   }
 
   beginTurn() {
@@ -210,6 +208,7 @@ class GameEngine {
   }
 
   resolveRoom(roomNodeId, players) {
+    this.stockRoom(roomNodeId)
     const roomItems = this.items.filter(item => item.nodeId === roomNodeId && ['HIDDEN', 'REVEALED', 'DROPPED'].includes(item.state))
     if (players.length === 1) {
       this.grantSearch(players[0].id, roomItems)
@@ -417,6 +416,7 @@ class GameEngine {
       log: this.log,
       moveDeadlineAt: this.moveDeadlineAt,
       turnDeadlineAt: this.turnDeadlineAt,
+      roomStock: this.roomStock,
       nextItemSequence: this.nextItemSequence
     })
   }

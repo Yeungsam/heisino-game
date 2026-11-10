@@ -3,8 +3,15 @@ const path = require('node:path')
 const root = path.resolve(__dirname, '..')
 const target = path.join(root, 'functions/heisino-account/runtime')
 fs.mkdirSync(path.join(target, 'core'), { recursive: true })
-for (const name of ['game-engine', 'combat', 'constants', 'rng', 'inventory']) {
+for (const name of ['game-engine', 'combat', 'constants', 'rng', 'inventory', 'room-map', 'room-loot']) {
   fs.copyFileSync(path.join(root, `client/js/core/${name}.js`), path.join(target, `core/${name}.js`))
 }
 fs.copyFileSync(path.join(root, 'data/cards.json'), path.join(target, 'cards.json'))
 console.log('Built account function runtime from shared rules and card catalog.')
+
+const searchTarget = path.join(root, 'functions/heisino-game/runtime')
+fs.mkdirSync(searchTarget, { recursive: true })
+for (const name of ['room-map', 'room-loot', 'rng']) {
+  fs.copyFileSync(path.join(root, `client/js/core/${name}.js`), path.join(searchTarget, `${name}.js`))
+}
+console.log('Built search function runtime from shared room rules.')
