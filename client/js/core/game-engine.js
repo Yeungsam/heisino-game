@@ -1,7 +1,6 @@
 const C = require('./constants')
 const { randomInt, shuffled } = require('./rng')
 const { resolveBattle } = require('./combat')
-const { canAddItem } = require('./inventory')
 const { roomLootAreas, stockRoomLoot } = require('./room-loot')
 
 function nodeId(x, y) {
@@ -305,7 +304,7 @@ class GameEngine {
       item.revealedBy = playerId
       return { ok: true, action: 'REVEALED', item: clone(item) }
     }
-    if (!canAddItem(player.inventory.map(id => this.items.find(unit => unit.instanceId === id)), item.cardId, C.BACKPACK_SLOTS)) return { ok: false, reason: 'BACKPACK_FULL' }
+    if (player.inventory.length >= C.BACKPACK_SLOTS) return { ok: false, reason: 'BACKPACK_FULL' }
     item.state = 'IN_INVENTORY'
     item.ownerId = playerId
     item.nodeId = null

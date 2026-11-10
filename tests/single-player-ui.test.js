@@ -195,6 +195,38 @@ test('单人第3轮：逐件曝光、拾取丢弃与搜索截止热区', async t
   assert.equal((await sim.store.get(player.account.id)).activeGame.state.items.find(item => item.instanceId === hiddenId).state, 'DROPPED')
 })
 
+test('旧局超过十件的同款物品可翻页，丢弃时只移除选中的一件', async t => {
+  const sim = await simulation(t, 1)
+  const [player] = sim.client
+  await solo(player)
+  const stored = sim.store.documents.get(player.account.id).activeGame
+  const engine = sim.service.restore(stored)
+  const local = engine.getPlayer('P1')
+  const copies = Array.from({ length: 11 - local.inventory.length }, () => engine.createItem('loot_001', null, 'IN_INVENTORY', 'P1').instanceId)
+  local.inventory.push(...copies)
+  const inventory = local.inventory.slice()
+  stored.state = engine.snapshot()
+  await player.tap('confirm_move')
+  await player.tap('room_area', hit => hit.data === 'MAIN_TABLE')
+  assert.ok(player.draw().includes('玩家背包  11/10'))
+  assert.deepEqual(player.read('ui.searchInventoryRects').map(item => item.instanceId), inventory.slice(0, 10))
+  await player.tap('search_backpack_page')
+  player.draw()
+  const [overflow] = player.read('ui.searchInventoryRects')
+  assert.equal(overflow.instanceId, inventory[10])
+  drag(player, overflow, player.read('ui.searchRoomRect'))
+  await player.idle()
+  assert.ok(player.draw().includes('玩家背包  10/10'))
+  assert.deepEqual(player.read('ui.searchInventoryRects').map(item => item.instanceId), inventory.slice(0, 10))
+  assert.equal(player.hits('search_backpack_page').length, 0)
+  const dropped = player.read('ui.searchItemRects').find(item => item.instanceId === overflow.instanceId)
+  assert.ok(dropped)
+  drag(player, dropped, player.read('ui.searchBackpackRect'))
+  await player.idle()
+  assert.match(player.draw().join('\n'), /背包已满/)
+  assert.ok(player.read('ui.searchItemRects').some(item => item.instanceId === overflow.instanceId))
+})
+
 test('单人第4轮：搜索暂停、冷重启恢复与十分钟失败边界', async t => {
   const sim = await simulation(t, 1)
   const [player] = sim.client

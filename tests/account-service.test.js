@@ -3,7 +3,7 @@ const assert = require('node:assert/strict')
 const { AccountService, RESUME_MS } = require('../functions/heisino-account/service')
 const { MemoryAccountStore } = require('../functions/heisino-account/store')
 const { WechatIdentity, validateNickname, validateAvatar, fault } = require('../functions/heisino-account/wechat')
-const { stackItems, quantitySlots, canAddItem } = require('../client/js/core/inventory')
+const { stackItems, quantitySlots } = require('../client/js/core/inventory')
 const { LoadoutSession } = require('../client/js/core/loadout')
 const cards = require('../client/data/cards')
 
@@ -169,13 +169,10 @@ test('单人首次进房按种子生成两件物资，重试、重连和再次�
   assert.deepEqual((await f.store.get(f.id)).activeGame.state.items.map(item => item.instanceId), original)
 })
 
-test('99张一格，超出99在相邻格继续；十格满仍可补足已有堆叠', () => {
+test('仓库和战备显示仍每格堆叠 99 张，超出后另开一格', () => {
   assert.deepEqual(quantitySlots({ a: 200, b: 1 }).map(slot => slot.quantity), [99, 99, 2, 1])
   const units = Array.from({ length: 100 }, (_, i) => ({ cardId: 'a', instanceId: `a${i}` }))
   assert.deepEqual(stackItems(units).map(slot => slot.quantity), [99, 1])
-  const full = Array.from({ length: 10 }, (_, i) => ({ cardId: `c${i}`, instanceId: `c${i}` }))
-  assert.equal(canAddItem(full, 'c0'), true)
-  assert.equal(canAddItem(full, 'new'), false)
 })
 
 test('战备允许同卡多张，受拥有数量与四张总上限约束', () => {

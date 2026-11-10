@@ -17,16 +17,6 @@ function automaticWinner(left, right, rng, forceLeft) {
     leftHp: leftWins ? left.hp : 0, rightHp: leftWins ? 0 : right.hp, rounds: [] }
 }
 
-function slots(items) {
-  const counts = {}
-  items.forEach(item => { counts[item.cardId] = (counts[item.cardId] || 0) + 1 })
-  return Object.keys(counts).sort().flatMap(cardId => {
-    const units = items.filter(item => item.cardId === cardId)
-    const result = []
-    for (let i = 0; i < units.length; i += 99) result.push({ ...units[i], quantity: Math.min(99, units.length - i), instanceIds: units.slice(i, i + 99).map(item => item.instanceId) })
-    return result
-  })
-}
 function must(result) { if (!result.ok) throw fault(result.reason, 409); return result }
 
 class AccountService {
@@ -383,8 +373,10 @@ class AccountService {
       const visibleIds = visibleArea && visibleArea.areaId === areaId ? visibleArea.visibleItemIds : []
       return { areaId, itemCount: units.length, visibleItems: units.filter(item => visibleIds.includes(item.instanceId)) }
     })
-    const inventory = engine.getPlayer(playerId).inventory.map(id => engine.items.find(item => item.instanceId === id))
-    return { visit, inventory: slots(inventory), room: { nodeId: visit.roomNodeId, canObserve: true, areas, unpickedCount: available.length,
+    const inventory = engine.getPlayer(playerId).inventory.map(instanceId => ({
+      ...engine.items.find(item => item.instanceId === instanceId), quantity: 1, instanceIds: [instanceId]
+    }))
+    return { visit, inventory, room: { nodeId: visit.roomNodeId, canObserve: true, areas, unpickedCount: available.length,
       activeAreaId: visibleArea ? visibleArea.areaId : null, activeArea: visibleArea ? areas.find(area => area.areaId === visibleArea.areaId) : null } }
   }
 
@@ -407,4 +399,4 @@ class AccountService {
   }
 }
 
-module.exports = { AccountService, RESUME_MS, slots }
+module.exports = { AccountService, RESUME_MS }

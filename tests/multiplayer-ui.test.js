@@ -289,7 +289,10 @@ test('第3轮：三人同房分流、真实拖拽拾取与搜索换轮', async t
   winner.touch('end', bagX, bagY)
   await winner.idle()
   assert.match(winner.draw().join('\n'), /物资已收入背包/)
-  assert.ok(winner.read('searchVisitState.inventory').some(stack => stack.cardId === 'wp_006' && stack.quantity === 2))
+  const duplicateSlots = winner.read('ui.searchInventoryRects').filter(slot => slot.cardId === 'wp_006')
+  assert.equal(duplicateSlots.length, 2)
+  assert.notEqual(duplicateSlots[0].x, duplicateSlots[1].x)
+  assert.notEqual(duplicateSlots[0].instanceId, duplicateSlots[1].instanceId)
 
   const [x, y] = center(winner.read('ui.searchInventoryRects')[0])
   winner.touch('start', x, y)

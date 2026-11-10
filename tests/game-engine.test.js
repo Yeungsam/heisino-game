@@ -63,7 +63,7 @@ test('房间物资第一次点击显示，第二次点击拾取', () => {
   assert.ok(game.getPlayer('P1').inventory.includes(item.instanceId))
 })
 
-test('背包满时拒绝拾取且物品留在房间', () => {
+test('十件同款也会填满对局背包，丢弃指定实例后可拾取', () => {
   const { game } = createGame()
   game.submitMove('P1', { x: 1, y: 0 })
   game.submitMove('P2', { x: 0, y: 4 })
@@ -71,15 +71,20 @@ test('背包满时拒绝拾取且物品留在房间', () => {
   game.resolveMoves()
   const player = game.getPlayer('P1')
   const target = game.searchItemsFor('P1').find(candidate => candidate.state === 'HIDDEN')
-  const fillerIds = cards.filter(card => card.category === 'LOOT' && card.cardId !== target.cardId).map(card => card.cardId)
+  target.cardId = game.items.find(item => item.instanceId === player.inventory[0]).cardId
   while (player.inventory.length < C.BACKPACK_SLOTS) {
-    const filler = game.createItem(fillerIds[player.inventory.length - 1], null, 'IN_INVENTORY', 'P1')
+    const filler = game.createItem(target.cardId, null, 'IN_INVENTORY', 'P1')
     player.inventory.push(filler.instanceId)
   }
   game.interactWithItem('P1', target.instanceId)
   const result = game.interactWithItem('P1', target.instanceId)
   assert.equal(result.reason, 'BACKPACK_FULL')
   assert.equal(game.items.find(item => item.instanceId === target.instanceId).state, 'REVEALED')
+  const removedId = player.inventory[1]
+  assert.equal(game.dropItem('P1', removedId).ok, true)
+  assert.equal(game.interactWithItem('P1', target.instanceId).action, 'PICKED_UP')
+  assert.equal(player.inventory.length, C.BACKPACK_SLOTS)
+  assert.ok(!player.inventory.includes(removedId) && player.inventory.includes(target.instanceId))
 })
 
 test('第10回合开始时立即扣除10点生命', () => {

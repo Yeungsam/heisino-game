@@ -146,6 +146,30 @@ test('区域达到30件后拒绝继续丢弃', async () => {
   )
 })
 
+test('独立搜索中十件同款占满背包，放下一件后才可拾取同款', async () => {
+  const { service, store, advance } = fixture()
+  const gameId = 'game-instance-capacity', playerId = 'P1', roomNodeId = 'n_0_0', areaId = 'MAIN_TABLE'
+  const created = await service.createGame({ gameId, playerId, loadoutCardIds: Array(10).fill('wp_001') })
+  const started = await service.startVisit({ gameId, playerId, roomNodeId, turn: 1 })
+  const input = { gameId, playerId, visitId: started.visit.visitId }
+  const stored = await store.get(gameId)
+  const candidate = service.addItem(stored, 'wp_001', roomNodeId, areaId, 'HIDDEN')
+  const version = stored.version++
+  await store.replace(stored, version)
+  await service.observe({ ...input, areaId })
+  advance(REVEAL_INTERVAL_MS)
+  await assert.rejects(service.pickup({ ...input, instanceId: candidate }), { code: 'BACKPACK_FULL' })
+  const unchanged = await service.getVisit(input)
+  assert.equal(unchanged.inventory.length, 10)
+  assert.ok(unchanged.room.visibleItems.some(item => item.instanceId === candidate))
+  const droppedId = created.player.inventory[0].instanceId
+  await service.drop({ ...input, instanceId: droppedId })
+  const picked = await service.pickup({ ...input, instanceId: candidate })
+  assert.equal(picked.inventory.length, 10)
+  assert.ok(picked.inventory.some(item => item.instanceId === candidate))
+  assert.ok(picked.room.visibleItems.some(item => item.instanceId === droppedId))
+})
+
 test('旧版房间文档在下一次写入时确定性迁移到区域模型', async () => {
   const { service, store } = fixture()
   await service.createGame({ gameId: 'game-schema-migration', playerId: 'P1', loadoutCardIds: [], seed: 'migration' })

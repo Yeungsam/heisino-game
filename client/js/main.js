@@ -211,6 +211,7 @@ let searchRequestPending = false
 let searchDragging = null
 let searchDragPoint = null
 let searchRoomScrollY = 0
+let searchBackpackPage = 0
 let searchRippleSlotIndex = null
 let searchRippleStartedAt = 0
 let searchGesture = null
@@ -453,6 +454,7 @@ function applyAccountResponse(response) {
     engine.turnDeadlineAt += clockOffset
     searchAuthority = 'ACCOUNT'
     const search = accountGame.search
+    if (search?.visit.visitId !== previousVisit?.visitId) searchBackpackPage = 0
     roomTimerAnchor = search ? syncSearchDeadline(roomTimerAnchor, search.visit, response.serverNow, receivedAt) : null
     searchVisitState = search ? { ...search, visit: {
       ...search.visit,
@@ -1710,7 +1712,6 @@ function drawMapGrid(state, layout) {
 
 function drawInventory(state, x, y, width, interactive = true) {
   const local = state.players.find(player => player.id === 'P1')
-  const inventoryStacks = stackItems(local.inventory.map(id => state.items.find(item => item.instanceId === id)).filter(Boolean))
   panel(x, y, width, viewHeight - y - 70, { fill: 'rgba(28,17,30,.9)', stroke: 'rgba(247,201,92,.66)', radius: 13 })
   text('装备与背包', x + 14, y + 20, 14, PALETTE.paleGold, 'left', 'bold')
   const weapon = state.items.find(item => item.instanceId === local.equippedWeaponId)
@@ -1721,7 +1722,7 @@ function drawInventory(state, x, y, width, interactive = true) {
   const weaponTextX = weaponCard ? x + 51 : x + 20
   text(weaponCard ? weaponCard.name : '徒手', weaponTextX, y + 54, 12, '#fff2d5', 'left', 'bold')
   text(weaponCard ? `攻击倍率 ${weaponCard.attackMultiplier}` : '攻击倍率 0.3', weaponTextX, y + 72, 9, '#d7bca9')
-  text(`背包 ${inventoryStacks.length}/${C.BACKPACK_SLOTS}`, x + 14, y + 103, 11, '#d8cbd7', 'left', 'bold')
+  text(`背包 ${local.inventory.length}/${C.BACKPACK_SLOTS}`, x + 14, y + 103, 11, '#d8cbd7', 'left', 'bold')
   ui.inventoryRects = []
   const columns = 5
   const rows = Math.ceil(C.BACKPACK_SLOTS / columns)
@@ -1739,12 +1740,11 @@ function drawInventory(state, x, y, width, interactive = true) {
     context.fill()
     context.strokeStyle = 'rgba(230,198,125,.35)'
     context.stroke()
-    const instanceId = inventoryStacks[index] && inventoryStacks[index].instanceId
+    const instanceId = local.inventory[index]
     if (instanceId) {
       const item = state.items.find(candidate => candidate.instanceId === instanceId)
       const card = item && cardById(item.cardId)
       drawCardArt(card, rect, { radius: 6, inset: 2, stroke: 'rgba(230,198,125,.55)', lineWidth: 1 })
-      drawQuantity(rect, inventoryStacks[index].quantity)
       if (item && item.state === 'EQUIPPED') {
         context.fillStyle = 'rgba(74,18,25,.84)'
         context.fillRect(rect.x + 2, rect.y + rect.height - 14, rect.width - 4, 12)
@@ -2425,23 +2425,36 @@ function drawSearchInventoryPanel(rect) {
   if (assets.searchPanel) drawNineSliceImage(assets.searchPanel, rect, SEARCH_PANEL_NINE_SLICE, scale)
   else panel(rect.x, rect.y, rect.width, rect.height, { fill: 'rgba(27,15,29,.94)', stroke: '#c9914b', lineWidth: 2, radius: 14 })
   if (assets.searchBagIcon) drawImageSourceInRect(assets.searchBagIcon, SEARCH_ASSET_CROPS.bagIcon, { x: rect.x + 52 * scale, y: contentLayout.iconTop, width: 32 * scale, height: 35 * scale })
-  text(`玩家背包  ${searchVisitState ? searchVisitState.inventory.length : 0}/${C.BACKPACK_SLOTS}`, rect.x + 100 * scale, contentLayout.headerBaselineY, Math.max(10, 26 * scale), PALETTE.paleGold, 'left', 'bold')
+  const inventory = searchVisitState?.inventory || []
+  text(`玩家背包  ${inventory.length}/${C.BACKPACK_SLOTS}`, rect.x + 100 * scale, contentLayout.headerBaselineY, Math.max(10, 26 * scale), PALETTE.paleGold, 'left', 'bold')
   ui.searchInventoryRects = []
   const gridViewport = { x: rect.x + 54 * scale, y: contentLayout.gridTop, width: rect.width - 108 * scale, height: contentLayout.gridBottom - contentLayout.gridTop }
   const grid = createContainedCardGrid({ viewport: gridViewport, count: C.BACKPACK_SLOTS, columns: 5, gap: 10 * scale, padding: 2 * scale })
   ui.searchBackpackRect = gridViewport
+  // Older games may already contain more than ten instances. Keep them all reachable.
+  const pages = Math.max(1, Math.ceil(inventory.length / C.BACKPACK_SLOTS))
+  searchBackpackPage = clamp(searchBackpackPage, 0, pages - 1)
+  const offset = searchBackpackPage * C.BACKPACK_SLOTS
   grid.rects.forEach((slot, index) => {
     if (assets.searchSlot) drawImageSourceInRect(assets.searchSlot, SEARCH_ASSET_CROPS.slot, slot)
     else panel(slot.x, slot.y, slot.width, slot.height, { fill: 'rgba(255,255,255,.045)', stroke: 'rgba(236,201,126,.32)', radius: 7 })
-    const item = searchVisitState && searchVisitState.inventory[index]
+    const item = inventory[offset + index]
     if (item) {
       drawCardArt(cardById(item.cardId), fitAspectRect(slot, CARD_ASPECT_RATIO), { radius: 7, inset: 1, stroke: 'rgba(255,226,157,.72)', lineWidth: 1 })
-      drawQuantity(slot, item.quantity || 1)
       ui.searchInventoryRects.push({ ...slot, instanceId: item.instanceId, cardId: item.cardId })
     } else {
       if (assets.searchSlotPattern) drawImageSourceInRect(assets.searchSlotPattern, SEARCH_ASSET_CROPS.slotPattern, { x: slot.x + slot.width * 0.35, y: slot.y + slot.height * 0.32, width: slot.width * 0.3, height: slot.height * 0.36 })
     }
   })
+  if (pages > 1) {
+    const center = rect.x + rect.width / 2
+    const y = contentLayout.gridBottom + 4 * scale
+    const width = 142 * scale, height = 50 * scale
+    const size = Math.max(9, 24 * scale)
+    text(`${searchBackpackPage + 1} / ${pages}`, center, y + height / 2, size, PALETTE.paleGold, 'center')
+    if (searchBackpackPage > 0) button('search_backpack_page', '上一页', { x: center - 218 * scale, y, width, height }, { size, data: -1 })
+    if (searchBackpackPage < pages - 1) button('search_backpack_page', '下一页', { x: center + 76 * scale, y, width, height }, { size, data: 1 })
+  }
 }
 
 function drawSearchRoomPanel(rect) {
@@ -2874,6 +2887,7 @@ function handleAction(action) {
   if (action.id === 'room_area' && presentation === 'ROOM' && canActInRoom()) openSearchObservation(action.data)
   if (action.id === 'room_leave' && presentation === 'ROOM' && canActInRoom()) leaveCurrentRoom()
   if (action.id === 'search_finish' && presentation === 'SEARCH' && canActInRoom()) finishSearchOverlay()
+  if (action.id === 'search_backpack_page' && presentation === 'SEARCH' && canActInRoom()) searchBackpackPage += action.data
   if (action.id === 'next_turn') nextTurn()
   if (action.id === 'request_extraction' && canActInRoom()) {
     accountAction('extract')

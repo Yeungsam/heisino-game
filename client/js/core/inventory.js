@@ -27,8 +27,4 @@ function quantitySlots(quantities) {
   })
 }
 
-function canAddItem(items, cardId, capacity = 10) {
-  return stackItems(items.concat({ cardId, instanceId: '__candidate' })).length <= capacity
-}
-
-module.exports = { STACK_LIMIT, stackItems, quantitySlots, canAddItem }
+module.exports = { STACK_LIMIT, stackItems, quantitySlots }
