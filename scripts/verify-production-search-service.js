@@ -30,10 +30,10 @@ async function main() {
   const roomCounts = Object.fromEntries(game.rooms.map(room => [room.nodeId, room.itemCount]))
   assert.equal(game.rooms.length, 25)
   assert.equal(game.schemaVersion, 2)
-  assert.equal(roomCounts.n_1_0, 4)
+  assert.equal(roomCounts.n_1_0, 3)
   for (const node of ['n_0_0', 'n_0_4', 'n_4_0', 'n_4_4']) assert.equal(roomCounts[node], 0)
-  assert.equal(roomCounts.n_2_2, 10)
-  assert.equal(roomCounts.n_4_4, 0)
+  assert.equal(roomCounts.n_2_2, 7)
+  assert.equal(roomCounts.n_1_1, 0)
   assert.equal(game.player.inventory.length, 1)
   game.rooms.forEach(room => assert.equal(room.areas.reduce((sum, area) => sum + area.itemCount, 0), room.itemCount))
 
@@ -42,7 +42,7 @@ async function main() {
     requestId: `${gameId}-visit`,
     body: { playerId, roomNodeId: 'n_1_0', turn: 1 }
   })
-  assert.equal(entered.room.unpickedCount, 4)
+  assert.equal(entered.room.unpickedCount, 3)
   assert.deepEqual(entered.room.visibleItems, [])
   const visitId = entered.visit.visitId
   await request(`/games/${gameId}/visits/${visitId}/observe`, {
@@ -62,7 +62,7 @@ async function main() {
     body: { playerId, instanceId: observed.room.visibleItems[0].instanceId }
   })
   assert.equal(picked.inventory.length, 2)
-  assert.equal(picked.room.unpickedCount, 3)
+  assert.equal(picked.room.unpickedCount, 2)
 
   const left = await request(`/games/${gameId}/visits/${visitId}/leave`, {
     method: 'POST',
@@ -74,11 +74,15 @@ async function main() {
   const returned = await request(`/games/${gameId}/visits`, {
     method: 'POST', requestId: `${gameId}-return`, body: { playerId, roomNodeId: 'n_1_0', turn: 2 }
   })
-  assert.equal(returned.room.unpickedCount, 3)
+  assert.equal(returned.room.unpickedCount, 2)
   const vault = await request(`/games/${gameId}/visits`, {
     method: 'POST', requestId: `${gameId}-vault`, body: { playerId, roomNodeId: 'n_2_2', turn: 3 }
   })
-  assert.equal(vault.room.unpickedCount, 10)
+  assert.equal(vault.room.unpickedCount, 7)
+  const empty = await request(`/games/${gameId}/visits`, {
+    method: 'POST', requestId: `${gameId}-empty`, body: { playerId, roomNodeId: 'n_1_1', turn: 4 }
+  })
+  assert.equal(empty.room.unpickedCount, 0)
 
   console.log(JSON.stringify({
     ok: true,
@@ -86,6 +90,7 @@ async function main() {
     rooms: game.rooms.length,
     normalRoomItems: entered.room.unpickedCount,
     spawnItems: roomCounts.n_0_0,
+    emptyOrdinaryRoomItems: empty.room.unpickedCount,
     revisitedRoomItems: returned.room.unpickedCount,
     vaultItems: roomCounts.n_2_2,
     extractionItems: roomCounts.n_4_4,

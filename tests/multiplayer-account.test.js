@@ -190,6 +190,7 @@ test('三人同房分流给独立物资，同一张卡只能入一人的背包�
   const f = await fixture()
   const roomId = await f.startRoom()
   const room = f.store.rooms.get(roomId)
+  room.game.state.roomStock.seed = 6
   room.game.state.players.forEach((player, index) => { player.position = [{ x: 0, y: 1 }, { x: 2, y: 1 }, { x: 1, y: 2 }][index] })
   const move = index => f.game(index, roomId, 1, 'move', { target: { x: 1, y: 1 } })
   await Promise.all([move(0), move(1), move(2)])
@@ -199,7 +200,7 @@ test('三人同房分流给独立物资，同一张卡只能入一人的背包�
   assert.equal(synced.find(state => !state.activeGame).lastSettlement.status, 'DEFEATED')
   const engine = f.store.rooms.get(roomId).game.state
   assert.deepEqual(engine.roomStock.visited, ['n_1_1'])
-  assert.equal(engine.items.filter(item => item.nodeId === 'n_1_1' && item.state === 'HIDDEN').length, 4)
+  assert.equal(engine.items.filter(item => item.nodeId === 'n_1_1' && item.state === 'HIDDEN').length, 3)
   const [first, other] = survivors.map(index => engine.searchAccess[`P${index + 1}`])
   assert.ok(first.length > 0 && other.length > 0)
   assert.equal(first.some(id => other.includes(id)), false)

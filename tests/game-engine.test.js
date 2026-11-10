@@ -98,7 +98,7 @@ test('三人同节点时随机两人战斗，另一人搜索，原房间物资�
   })
   game.resolveMoves()
   const originalItemIds = game.items.filter(item => item.nodeId === 'n_2_2' && item.state === 'HIDDEN').map(item => item.instanceId).sort()
-  assert.equal(originalItemIds.length, 10)
+  assert.equal(originalItemIds.length, 6)
   const split = game.encounters.find(encounter => encounter.type === 'THREE_PLAYER_SPLIT')
   assert.ok(split)
   assert.equal(split.fighterIds.length, 2)
@@ -118,6 +118,25 @@ test('上线前的物资快照继续使用已生成或已拿空的房间', () =>
   assert.deepEqual(resumed.searchItemsFor('P1'), [existing])
   resumed.resolveRoom('n_2_0', [player])
   assert.equal(resumed.items.filter(item => item.nodeId === 'n_2_0').length, 0)
+})
+
+test('新局普通房间抽到零件后不重抽，旧局未访问房间仍按原数量生成', () => {
+  const { game } = createGame()
+  game.roomStock.seed = 4 // 新规则下 n_1_0 抽到 0 件。
+  const old = game.snapshot()
+  delete old.roomStock.randomCount
+  game.resolveRoom('n_1_0', [game.getPlayer('P1')])
+  assert.equal(game.items.filter(item => item.nodeId === 'n_1_0').length, 0)
+  assert.deepEqual(game.roomStock.visited, ['n_1_0'])
+  const reopened = Object.assign(new GameEngine({ cards }), game.snapshot())
+  reopened.resolveRoom('n_1_0', [reopened.getPlayer('P1')])
+  assert.deepEqual(reopened.roomStock.visited, ['n_1_0'])
+  assert.equal(reopened.items.filter(item => item.nodeId === 'n_1_0').length, 0)
+  const oldGame = Object.assign(new GameEngine({ cards }), old)
+  oldGame.resolveRoom('n_1_0', [oldGame.getPlayer('P1')])
+  oldGame.resolveRoom('n_2_2', [oldGame.getPlayer('P1')])
+  assert.equal(oldGame.items.filter(item => item.nodeId === 'n_1_0').length, 4)
+  assert.equal(oldGame.items.filter(item => item.nodeId === 'n_2_2').length, 10)
 })
 
 test('警报圈伤害使生命归零时立即战败', () => {

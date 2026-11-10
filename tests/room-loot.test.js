@@ -1,9 +1,26 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
-const { drawRoomLootCard } = require('../client/js/core/room-loot')
+const { drawRoomLootCard, drawRoomLootCount } = require('../client/js/core/room-loot')
 const { ROOM_TYPES } = require('../client/js/core/room-map')
 const { cards } = require('../functions/heisino-account/runtime')
 const searchCards = require('../functions/heisino-game/catalog')
+
+test('全部 100 个随机落点精确匹配普通房间和金库的掉落数量概率', () => {
+  const expected = {
+    SPAWN: { 0: 100 }, EXIT: { 0: 100 }, VAULT: { 6: 40, 7: 10, 8: 10, 9: 10, 10: 30 }
+  }
+  const ordinary = { 0: 20, 1: 20, 2: 30, 3: 20, 4: 10 }
+  for (const [y, row] of ROOM_TYPES.entries()) {
+    for (const [x, type] of row.entries()) {
+      const counts = {}
+      for (let roll = 0; roll < 100; roll++) {
+        const count = drawRoomLootCount(`n_${x}_${y}`, () => (roll + 0.5) / 100)
+        counts[count] = (counts[count] || 0) + 1
+      }
+      assert.deepEqual(counts, expected[type] || ordinary)
+    }
+  }
+})
 
 test('房型权重区间命中正确，同类坐标共用物资池，默认权重为 1', () => {
   const loungeAt = roll => drawRoomLootCard('n_1_0', () => (roll + 0.5) / 736)

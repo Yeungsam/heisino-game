@@ -25,15 +25,15 @@ function roomArea(game, roomNodeId, predicate = area => area.itemCount > 0) {
   return game.rooms.find(room => room.nodeId === roomNodeId).areas.find(predicate)
 }
 
-test('独立搜索建局只规划区域数量，首次进入才按房型生成 4、10 或 0 件', async () => {
+test('独立搜索建局保留随机数量，首次进入按计划生成，空房重进保持为空', async () => {
   const { service, store } = fixture()
   const game = await service.createGame({ gameId: 'game-room-counts', playerId: 'P1', loadoutCardIds: ['wp_001'], seed: 'counts' })
   const countByNode = Object.fromEntries(game.rooms.map(room => [room.nodeId, room.itemCount]))
-  assert.equal(countByNode.n_1_0, 4)
+  assert.equal(countByNode.n_1_0, 0)
   assert.equal(countByNode.n_0_0, 0)
   assert.equal(countByNode.n_4_0, 0)
   assert.equal(countByNode.n_0_4, 0)
-  assert.equal(countByNode.n_2_2, 10)
+  assert.equal(countByNode.n_2_2, 7)
   assert.equal(countByNode.n_4_4, 0)
   assert.equal(game.schemaVersion, 2)
   assert.deepEqual(game.rooms[0].areas.map(area => area.areaId), ROOM_AREA_IDS)
@@ -46,6 +46,10 @@ test('独立搜索建局只规划区域数量，首次进入才按房型生成 4
     assert.deepEqual(visited.room.areas.map(area => area.itemCount), game.rooms[index].areas.map(area => area.itemCount))
     assert.deepEqual(visited.room.visibleItems, [])
   }
+  const stored = await store.get(game.gameId)
+  assert.equal(Object.hasOwn(stored.rooms.n_1_0, 'lootAreas'), false)
+  const returned = await service.startVisit({ gameId: game.gameId, playerId: 'P1', roomNodeId: 'n_1_0', turn: 26 })
+  assert.equal(returned.room.unpickedCount, 0)
 })
 
 test('服务端建局时不接受物资卡作为战备', async () => {
@@ -114,7 +118,7 @@ test('已曝光未拾取物可再次观察，拾取和丢弃由权威状态结�
   const loadoutItemId = picked.inventory.find(item => item.cardId === 'wp_001').instanceId
   const dropped = await service.drop({ gameId: 'game-actions', playerId: 'P1', visitId: started.visit.visitId, instanceId: loadoutItemId, requestId: 'drop-1' })
   assert.equal(dropped.inventory.length, 1)
-  assert.equal(dropped.room.unpickedCount, 4)
+  assert.equal(dropped.room.unpickedCount, 3)
   assert.equal(dropped.room.activeArea.itemCount, area.itemCount)
   assert.equal(dropped.room.visibleItems.find(item => item.instanceId === loadoutItemId).areaId, area.areaId)
   assert.ok(dropped.version > started.version)
@@ -122,7 +126,7 @@ test('已曝光未拾取物可再次观察，拾取和丢弃由权威状态结�
   const reenter = requestId => service.startVisit({ gameId: game.gameId, playerId: 'P1', roomNodeId: 'n_1_0', turn: 2, requestId })
   const [retryA, retryB] = await Promise.all([reenter('visit-2a'), reenter('visit-2b')])
   assert.equal(retryA.visit.visitId, retryB.visit.visitId)
-  assert.equal(retryA.room.unpickedCount, 4)
+  assert.equal(retryA.room.unpickedCount, 3)
   assert.equal(retryB.inventory[0].instanceId, exposedId)
 })
 
@@ -159,7 +163,7 @@ test('旧版房间文档在下一次写入时确定性迁移到区域模型', as
   assert.equal(migrated.schemaVersion, 2)
   assert.deepEqual(Object.keys(migrated.rooms.n_1_0.areas), ROOM_AREA_IDS)
   const assignments = migrated.items.filter(item => item.nodeId === 'n_1_0').map(item => item.areaId)
-  assert.equal(assignments.length, 4)
+  assert.equal(assignments.length, 3)
   assert.ok(assignments.every(areaId => ROOM_AREA_IDS.includes(areaId)))
 })
 

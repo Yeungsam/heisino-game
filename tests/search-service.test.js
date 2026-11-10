@@ -27,7 +27,7 @@ test('搜索服务提供建局、进入房间、观察和权威背包接口', as
 
   const created = await request(origin, '/api/search/games', {
     method: 'POST',
-    body: { gameId, playerId: 'P1', loadoutCardIds: ['wp_001'] }
+    body: { gameId, playerId: 'P1', loadoutCardIds: ['wp_001'], seed: 'test-search-loot' }
   })
   assert.equal(created.status, 200)
   assert.equal(created.body.data.player.inventory.length, 1)
@@ -38,7 +38,7 @@ test('搜索服务提供建局、进入房间、观察和权威背包接口', as
     body: { playerId: 'P1', roomNodeId: 'n_1_0', turn: 1 }
   })
   assert.equal(visit.status, 200)
-  assert.equal(visit.body.data.room.unpickedCount, 4)
+  assert.equal(visit.body.data.room.unpickedCount, 2)
 
   const visitId = visit.body.data.visit.visitId
   const observed = await request(origin, `/api/search/games/${gameId}/visits/${visitId}/observe`, {

@@ -46,7 +46,7 @@ class GameEngine {
       this.createPlayer('P2', '黑桃客', 0, 4, ['wp_005']),
       this.createPlayer('P3', '红心客', 4, 0, ['wp_002'])
     ]
-    this.roomStock = { seed: randomInt(this.rng, 0x100000000), visited: [] }
+    this.roomStock = { seed: randomInt(this.rng, 0x100000000), visited: [], randomCount: true }
     this.beginTurn()
     return this.snapshot()
   }
@@ -94,8 +94,9 @@ class GameEngine {
 
   stockRoom(roomNodeId) {
     if (!this.roomStock || this.roomStock.visited.includes(roomNodeId)) return
-    const { seed, visited } = this.roomStock
-    const areas = roomLootAreas(roomNodeId, seed, C.SEARCH_ROOM_AREA_IDS)
+    const { seed, visited, randomCount } = this.roomStock
+    // In-progress games opened before this change keep their original fixed quantities.
+    const areas = roomLootAreas(roomNodeId, seed, C.SEARCH_ROOM_AREA_IDS, { fixedCount: !randomCount })
     stockRoomLoot(roomNodeId, seed, areas, (cardId, areaId) => {
       this.createItem(cardId, roomNodeId, 'HIDDEN', null, areaId)
     })

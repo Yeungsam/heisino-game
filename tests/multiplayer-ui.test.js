@@ -371,6 +371,7 @@ test('第5轮：独立撤离返仓、连续开局与结算确认防串局', asyn
   const sim = await simulation(t, 2)
   const [host, guest] = sim.client
   const roomId = await startTogether(sim.client)
+  sim.store.rooms.get(roomId).game.state.roomStock.seed = 0
   const route = [[1, 0], [2, 0], [3, 0], [4, 0], [4, 1], [4, 2], [4, 3], [4, 4]]
   let lootCardId
   for (const [step, target] of route.entries()) {

@@ -140,6 +140,7 @@ test('单人第3轮：逐件曝光、拾取丢弃与搜索截止热区', async t
   const sim = await simulation(t, 1)
   const [player] = sim.client
   await solo(player)
+  sim.store.documents.get(player.account.id).activeGame.state.roomStock.seed = 0
   nextRoll(sim, player, 0x4ccccccd)
   await move(player, 1, 0)
   const area = player.read('searchVisitState.room.areas').find(item => item.itemCount > 0)
@@ -198,6 +199,7 @@ test('单人第4轮：搜索暂停、冷重启恢复与十分钟失败边界', a
   const sim = await simulation(t, 1)
   const [player] = sim.client
   await solo(player)
+  sim.store.documents.get(player.account.id).activeGame.state.roomStock.seed = 0
   const gameId = player.run('accountGame.gameId')
   nextRoll(sim, player, 0x4ccccccc)
   await move(player, 1, 0)

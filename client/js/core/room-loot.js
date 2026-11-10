@@ -36,11 +36,26 @@ const TABLES = Object.fromEntries(Object.entries(POOLS).map(([type, pool]) => {
   return [type, { total, entries }]
 }))
 
-function roomLootAreas(roomNodeId, seed, areaIds) {
+const NORMAL_COUNT_THRESHOLDS = [20, 40, 70, 90, 100]
+const VAULT_COUNT_THRESHOLDS = [40, 50, 60, 70, 100]
+
+function drawRoomLootCount(roomNodeId, rng) {
+  const type = roomKeyForNode(roomNodeId)
+  if (!TABLES[type]) return 0
+  const vault = type === 'VAULT'
+  const thresholds = vault ? VAULT_COUNT_THRESHOLDS : NORMAL_COUNT_THRESHOLDS
+  const roll = randomInt(rng, 100)
+  return (vault ? 6 : 0) + thresholds.findIndex(threshold => roll < threshold)
+}
+
+function roomLootAreas(roomNodeId, seed, areaIds, { fixedCount = false } = {}) {
   const type = roomKeyForNode(roomNodeId)
   if (!TABLES[type]) return []
+  // Quantity has its own random stream so it cannot shift card or area draws.
+  const countRng = createSeededRng(hashSeed(`${seed}:${roomNodeId}:count`))
+  const count = fixedCount ? (type === 'VAULT' ? 10 : 4) : drawRoomLootCount(roomNodeId, countRng)
   const rng = createSeededRng(hashSeed(`${seed}:${roomNodeId}:areas`))
-  return Array.from({ length: type === 'VAULT' ? 10 : 4 }, () => areaIds[randomInt(rng, areaIds.length)])
+  return Array.from({ length: count }, () => areaIds[randomInt(rng, areaIds.length)])
 }
 
 function drawRoomLootCard(roomNodeId, rng) {
@@ -56,4 +71,4 @@ function stockRoomLoot(roomNodeId, seed, areas, addItem) {
   for (const areaId of areas) addItem(drawRoomLootCard(roomNodeId, rng), areaId)
 }
 
-module.exports = { roomLootAreas, drawRoomLootCard, stockRoomLoot }
+module.exports = { roomLootAreas, drawRoomLootCount, drawRoomLootCard, stockRoomLoot }
