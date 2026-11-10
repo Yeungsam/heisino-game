@@ -24,12 +24,12 @@ test('新回合提示只播放一次，毒圈开启和扣至零血都显示实�
 
   sim.store.documents.get(player.account.id).activeGame.state.turn = 9
   await heartbeat(player)
-  for (const [turn, hp, warning] of [[10, 20, '毒圈已开启'], [11, 10, '毒圈伤害生效'], [12, 0, '毒圈伤害生效']]) {
+  for (const [turn, hp] of [[10, 25], [11, 20], [12, 15], [13, 10], [14, 5], [15, 0]]) {
     await player.tap('confirm_move')
     await player.tap('room_leave')
     const labels = player.draw()
     assert.ok(labels.includes(`第 ${turn} 回合开始`))
-    assert.ok(labels.includes(warning))
+    assert.ok(labels.includes(turn === 10 ? '毒圈已开启' : '毒圈伤害生效'))
     assert.ok(labels.includes(`剩余生命 ${hp}/30`))
     assert.ok(labels.every(label => !/回合.*\/12/.test(label)))
   }
@@ -37,7 +37,7 @@ test('新回合提示只播放一次，毒圈开启和扣至零血都显示实�
   assert.equal(player.run('accountSettlement.status'), 'DEFEATED')
   assert.equal(player.run('accountSettlement.hp'), 0)
   sim.tick(1400)
-  assert.ok(!player.draw().includes('第 12 回合开始'))
+  assert.ok(!player.draw().includes('第 15 回合开始'))
 })
 
 test('单人第1轮：码头入口、开局回包丢失与一次扣仓', async t => {
