@@ -62,3 +62,19 @@ test('卡牌详情区分缺失和非法编码，错误请求后服务仍可用',
   assert.deepEqual(await malformed.json(), { error: 'INVALID_CARD_ID' })
   assert.equal((await request('/health')).status, 200)
 })
+
+test('CloudBase 去掉网关前缀后，仍可读取有效详情并拒绝停用卡', async t => {
+  const { server: cloudServer } = require('../functions/heisino-cards')
+  await new Promise(resolve => cloudServer.listen(0, '127.0.0.1', resolve))
+  t.after(() => new Promise(resolve => cloudServer.close(resolve)))
+  const origin = `http://127.0.0.1:${cloudServer.address().port}`
+  const detail = await fetch(origin + '/wp_006')
+  assert.equal(detail.status, 200)
+  assert.equal((await detail.json()).card_id, 'wp_006')
+  const removed = await fetch(origin + '/sk_002')
+  assert.equal(removed.status, 404)
+  assert.deepEqual(await removed.json(), { error: 'CARD_NOT_FOUND' })
+  const list = await fetch(origin + '/?category=skill')
+  assert.equal(list.status, 200)
+  assert.equal((await list.json()).total, 8)
+})

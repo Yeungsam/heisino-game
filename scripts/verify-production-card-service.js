@@ -25,10 +25,13 @@ async function verifyProductionCardService() {
   })
   assert.deepEqual([...ids].sort(), expectedCards.map(card => card.card_id).sort())
   for (const id of RETIRED_CARD_IDS) {
-    const detail = await fetch(`${cardApiBaseUrl}/api/cards/${id}`, { signal: AbortSignal.timeout(10000) })
+    const detail = await fetch(`${cardApiBaseUrl}/api/cards/${id}`, { cache: 'no-store', signal: AbortSignal.timeout(10000) })
     assert.equal(detail.status, 404)
     assert.deepEqual(await detail.json(), { error: 'CARD_NOT_FOUND' })
   }
+  const validDetail = await fetch(`${cardApiBaseUrl}/api/cards/wp_006`, { cache: 'no-store', signal: AbortSignal.timeout(10000) })
+  assert.equal(validDetail.status, 200)
+  assert.equal((await validDetail.json()).card_id, 'wp_006')
 
   const shield = catalog.cards.find(card => card.card_id === 'ar_013')
   const original = catalog.cards.find(card => card.card_id === 'ar_005')

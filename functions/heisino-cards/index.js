@@ -41,7 +41,8 @@ const server = http.createServer((request, response) => {
     return
   }
 
-  const detail = url.pathname.match(/\/api\/cards\/(.+)$/)
+  // CloudBase removes the /api/cards gateway prefix before forwarding.
+  const detail = url.pathname.match(/^(?:\/api\/cards)?\/([^/]+)$/)
   if (detail) {
     let cardId
     try {
@@ -68,8 +69,10 @@ const server = http.createServer((request, response) => {
   })
 })
 
-server.listen(port, '0.0.0.0', () => {
-  console.log(`Heisino card function listening on ${port}`)
-})
+if (require.main === module) {
+  server.listen(port, '0.0.0.0', () => {
+    console.log(`Heisino card function listening on ${port}`)
+  })
+}
 
 module.exports = { server, apiCard }
