@@ -72,10 +72,16 @@ function createCombat(engine, encounter, at) {
 function resolveImpact(combat, engine, at) {
   const scores = combat.playerIds.map(id => {
     const side = combat.sides[id]
-    const sum = zone => side.dice.filter(die => die.zone === zone).reduce((total, die) => total + die.value, 0)
+    const isGuard = engine.getPlayer(id).isBot
+    const points = (zone, percent) => {
+      const sum = side.dice.filter(die => die.zone === zone).reduce((total, die) => total + die.value, 0)
+      const scaled = sum * percent / 100
+      // A guard's assigned die must still count when its equipment scales it below one.
+      return isGuard && scaled > 0 && scaled < 1 ? 1 : Math.floor(scaled)
+    }
     return {
-      id, attack: Math.floor(sum('ATTACK') * side.attackPercent / 100),
-      defense: Math.floor(sum('DEFENSE') * side.defensePercent / 100)
+      id, attack: points('ATTACK', side.attackPercent),
+      defense: points('DEFENSE', side.defensePercent)
     }
   })
   combat.impact = Object.fromEntries(scores.map((score, i) => {

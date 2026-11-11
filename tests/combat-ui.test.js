@@ -190,16 +190,33 @@ test('碰撞动画中双方从两侧靠拢一次再退开，血量在接触时�
   assert.ok(retreat.labels.includes('HP 25/30'))
 })
 
-async function enterGuardRoom(sim) {
+async function enterGuardRoom(sim, seed = 0) {
   const [app] = sim.client
   await dock(app)
   await app.tap('lobby_single')
   const doc = await sim.store.get(app.account.id)
-  doc.activeGame.rngState = 0
+  doc.activeGame.rngState = seed
   assert.ok(await sim.store.replace({ ...doc, version: doc.version + 1 }, doc.version))
   await move(app, 1, 0)
   return app
 }
+
+test('守卫首回合两颗骰子都为 1 时仍各有 1 点攻防，结算面板与扣血一致', async t => {
+  const sim = await simulation(t, 1, { combatVersion: 1 })
+  const app = await enterGuardRoom(sim, 31)
+  assert.equal(app.run('interactiveBattle.subRound'), 1)
+  sim.tick(15000)
+  await heartbeat(app)
+  const battle = app.read('interactiveBattle')
+  assert.deepEqual(battle.opponent.dice.map(({ value, zone }) => [value, zone]).sort(), [[1, 'ATTACK'], [1, 'DEFENSE']])
+  assert.deepEqual(battle.opponent.impact, { attack: 1, defense: 1, loss: 0 })
+  assert.equal(battle.self.impact.loss, 1)
+  assert.equal(battle.self.hp, 29)
+  assert.deepEqual(battle.self.dice, [])
+  const labels = app.draw()
+  assert.ok(labels.includes('攻击 1'))
+  assert.ok(labels.includes('防御 1'))
+})
 
 test('第一小回合按下掷骰后跨阶段抬手，下一小回合不会误掷', async t => {
   const sim = await simulation(t, 1, { combatVersion: 1 })
