@@ -217,35 +217,45 @@ function expireParticipants(combat, engine, expiredIds, at) {
   if (engine.getPlayer(expired[0]).hp > 0) forfeit(combat, engine, expired[0], at)
 }
 
+function applyDiceLayout(side, zones, revision) {
+  if (side.dice.length !== 3 || !Array.isArray(zones) || zones.length !== 3 || zones.some(zone => !ZONES.has(zone))) {
+    throw fault('DICE_PLACEMENT_INVALID')
+  }
+  if (revision !== undefined) {
+    if (!Number.isSafeInteger(revision) || revision < 0) throw fault('DICE_PLACEMENT_INVALID')
+    if (revision <= (side.placementRevision ?? 0)) return
+    side.placementRevision = revision
+  }
+  side.dice.forEach((die, index) => { die.zone = zones[index] })
+}
+
 function combatAction(combat, engine, id, input, now) {
   if (!combat || !combat.playerIds.includes(id) || combat.stage !== 'PLAY' || now >= combat.deadlineAt) throw fault('COMBAT_CLOSED', 409)
   if (input.subRound !== combat.round) throw fault('STALE_SUB_ROUND', 409)
   const side = combat.sides[id]
+  if (input.action === 'combat-ready') {
+    const { ready = true, zones, placementRevision } = input
+    if (typeof ready !== 'boolean') throw fault('COMBAT_READY_INVALID')
+    if (!ready) side.readyAt = null
+    else if (side.readyAt === null) {
+      // Include the latest local layout so a delayed placement cannot change a ready player's dice.
+      if (zones !== undefined) applyDiceLayout(side, zones, placementRevision)
+      side.readyAt = now
+    }
+    return
+  }
   if (side.readyAt !== null) throw fault('COMBAT_ALREADY_READY', 409)
   if (input.action === 'combat-roll') {
     if (side.dice.length) throw fault('DICE_ALREADY_ROLLED', 409)
     roll(side, engine)
   } else if (input.action === 'combat-place') {
     if (input.zones !== undefined) {
-      const { zones, placementRevision } = input
-      if (side.dice.length !== 3 || !Array.isArray(zones) || zones.length !== 3 || zones.some(zone => !ZONES.has(zone)) ||
-          !Number.isSafeInteger(placementRevision) || placementRevision <= 0) throw fault('DICE_PLACEMENT_INVALID')
-      if (placementRevision > (side.placementRevision ?? 0)) {
-        side.dice.forEach((die, index) => { die.zone = zones[index] })
-        side.placementRevision = placementRevision
-      }
+      if (!Number.isSafeInteger(input.placementRevision) || input.placementRevision <= 0) throw fault('DICE_PLACEMENT_INVALID')
+      applyDiceLayout(side, input.zones, input.placementRevision)
     } else {
       if (!Number.isInteger(input.dieIndex) || !side.dice[input.dieIndex] || !ZONES.has(input.zone)) throw fault('DICE_PLACEMENT_INVALID')
       side.dice[input.dieIndex].zone = input.zone
     }
-  } else if (input.action === 'combat-ready') {
-    if (side.dice.length !== 3) throw fault('DICE_UNPLACED', 409)
-    if (input.zones !== undefined) {
-      if (!Array.isArray(input.zones) || input.zones.length !== side.dice.length ||
-          input.zones.some(zone => zone !== 'ATTACK' && zone !== 'DEFENSE')) throw fault('DICE_PLACEMENT_INVALID')
-      side.dice.forEach((die, index) => { die.zone = input.zones[index] })
-    } else if (side.dice.some(die => die.zone === 'TRAY')) throw fault('DICE_UNPLACED', 409)
-    side.readyAt = now
   } else {
     if (side.skillCardId) throw fault('SKILL_ALREADY_USED', 409)
     const player = engine.getPlayer(id)
@@ -283,7 +293,12 @@ function combatView(combat, engine, id) {
 
 function combatFingerprint(input) {
   const fields = [input.subRound, input.dieIndex, input.zone]
-  if (input.action === 'combat-ready' && input.zones !== undefined) fields.push(input.zones)
+  if (input.action === 'combat-ready') {
+    if (input.zones !== undefined) fields.push(input.zones)
+    if (input.ready !== undefined || input.placementRevision !== undefined) {
+      fields.push({ ready: input.ready, placementRevision: input.placementRevision })
+    }
+  }
   if (input.action === 'combat-place' && input.zones !== undefined) fields.push(input.zones, input.placementRevision)
   return fields
 }

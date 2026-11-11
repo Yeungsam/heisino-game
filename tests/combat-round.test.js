@@ -57,7 +57,6 @@ test('多人手动掷骰、摆放、技能消耗及就绪由服务端校验，�
   await assert.rejects(f.act(0, gameId, 1, 'combat-roll', { subRound: 1 }), { code: 'COMBAT_CLOSED' })
   f.advance(1800)
   const ready = i => f.act(i, gameId, 1, 'combat-ready', { subRound: 1 })
-  await assert.rejects(ready(0), { code: 'DICE_UNPLACED' })
   const rollInput = { subRound: 1, requestId: 'same-roll-request' }
   const roll = (await f.act(0, gameId, 1, 'combat-roll', rollInput)).activeGame.combat
   assert.equal(roll.self.dice.length, 3)
@@ -210,23 +209,58 @@ test('整组摆放可独立生效，迟到旧位置不回滚，未就绪也按�
   assert.deepEqual(impact.opponent.dice, [])
 })
 
-test('就绪一次提交三颗分配：先掷骰、整组校验、不能改点数、同请求可重试', async () => {
+test('没掷骰或没摆满也可就绪，取消和重试保留摆放，双方就绪后立即结算', async () => {
   const f = await fixture(2)
   const gameId = await f.startRoom()
-  const zones = ['ATTACK', 'DEFENSE', 'DEFENSE']
-  const ready = (input = {}) => f.act(0, gameId, 1, 'combat-ready', { subRound: 1, zones, ...input })
-  await assert.rejects(ready(), { code: 'DICE_UNPLACED' })
+  const ready = (i, value, input = {}) => f.act(i, gameId, 1, 'combat-ready', { subRound: 1, ready: value, ...input })
+  await assert.rejects(ready(0, 'true'), { code: 'COMBAT_READY_INVALID' })
+  const initialReady = { requestId: 'ready-empty-dice' }
+  const empty = (await ready(0, true, initialReady)).activeGame.combat
+  assert.equal(empty.stage, 'PLAY')
+  assert.equal(empty.self.ready, true)
+  assert.deepEqual(empty.self.dice, [])
+  await assert.rejects(f.act(0, gameId, 1, 'combat-roll', { subRound: 1 }), { code: 'COMBAT_ALREADY_READY' })
+  const cancel = { requestId: 'cancel-empty-dice' }
+  assert.equal((await ready(0, false, cancel)).activeGame.combat.self.ready, false)
+  assert.equal((await ready(0, true, initialReady)).activeGame.combat.self.ready, false, '迟到的就绪重试不能覆盖取消')
+  await assert.rejects(ready(0, true, cancel), { code: 'REQUEST_ID_REUSED' })
   const roll = (await f.act(0, gameId, 1, 'combat-roll', { subRound: 1 })).activeGame.combat.self.dice
-  for (const invalid of [null, ['ATTACK'], ['ATTACK', 'TRAY', 'DEFENSE'], ['ATTACK', { value: 6, zone: 'ATTACK' }, 'DEFENSE']]) {
-    await assert.rejects(ready({ zones: invalid }), { code: 'DICE_PLACEMENT_INVALID' })
+  for (const invalid of [null, ['ATTACK'], ['ATTACK', { value: 6, zone: 'ATTACK' }, 'DEFENSE']]) {
+    await assert.rejects(ready(0, true, { zones: invalid, placementRevision: 2 }), { code: 'DICE_PLACEMENT_INVALID' })
   }
-  assert.deepEqual((await f.command(0, 'resume')).activeGame.combat.self.dice, roll)
-  const requestId = 'ready-all-zones'
-  const self = (await ready({ requestId })).activeGame.combat.self
-  assert.deepEqual(self.dice, roll.map((die, i) => ({ ...die, zone: zones[i] })))
-  assert.equal(self.ready, true)
-  assert.deepEqual((await ready({ requestId })).activeGame.combat.self.dice, self.dice)
-  await assert.rejects(ready({ requestId, zones: zones.toReversed() }), { code: 'REQUEST_ID_REUSED' })
+  const zones = ['ATTACK', 'TRAY', 'TRAY']
+  await ready(0, true, { zones, placementRevision: 2 })
+  await ready(0, false, cancel)
+  assert.equal((await f.command(0, 'resume')).activeGame.combat.self.ready, true, '迟到的取消重试不能覆盖重新就绪')
+  await ready(0, false)
+  await f.act(0, gameId, 1, 'combat-place', { subRound: 1, zones: ['DEFENSE', 'TRAY', 'TRAY'], placementRevision: 1 })
+  const recovered = (await f.command(0, 'resume')).activeGame.combat
+  assert.deepEqual(recovered.self.dice, roll.map((die, i) => ({ ...die, zone: zones[i] })))
+  assert.equal(recovered.self.ready, false)
+  assert.equal((await ready(1, true)).activeGame.combat.stage, 'PLAY')
+  f.advance(120)
+  const impact = (await ready(0, true)).activeGame.combat
+  assert.equal(impact.stage, 'IMPACT')
+  assert.equal(impact.impactStartedAt, f.time())
+  assert.equal(impact.self.impact.attack, Math.floor(roll[0].value * impact.self.attackPercent / 100))
+  assert.deepEqual(impact.opponent.impact, { attack: 0, defense: 0, loss: impact.self.impact.attack })
+  await assert.rejects(ready(0, false), { code: 'COMBAT_CLOSED' })
+})
+
+test('倒计时结束时不可取消准备，未准备的一方按已摆骰子结算', async () => {
+  const f = await fixture(2)
+  const gameId = await f.startRoom()
+  await f.act(0, gameId, 1, 'combat-ready', { subRound: 1, ready: true })
+  const { self } = (await f.act(1, gameId, 1, 'combat-roll', { subRound: 1 })).activeGame.combat
+  await f.act(1, gameId, 1, 'combat-place', { subRound: 1, dieIndex: 0, zone: 'ATTACK' })
+  f.advance(15000)
+  await assert.rejects(f.act(0, gameId, 1, 'combat-ready', { subRound: 1, ready: false }), { code: 'COMBAT_CLOSED' })
+  const impact = (await f.command(1, 'resume')).activeGame.combat
+  assert.equal(impact.stage, 'IMPACT')
+  assert.equal(impact.impactStartedAt, f.time())
+  assert.equal(impact.self.ready, false)
+  assert.equal(impact.self.impact.attack, Math.floor(self.dice[0].value * self.attackPercent / 100))
+  assert.deepEqual(impact.opponent.dice, [])
 })
 
 test('断线正好达到十分钟且撞上攻防截止，离线者不会再打出已摆骰子', async () => {

@@ -33,7 +33,7 @@ test('微信触控完成守卫战掷骰、技能预览拖用、骰子分配和�
   assert.equal(app.run('presentation'), 'BATTLE')
   assert.ok(app.draw().includes('赌场守卫'))
   assert.ok(app.draw().includes('会客厅'))
-  assert.equal(app.hits('combat_ready').length, 0)
+  assert.equal(app.hits('combat_ready').length, 1)
   assert.equal(app.hits('combat_roll').length, 1)
   await app.tap('combat_roll')
   assert.equal(app.hits('combat_roll').length, 0)
@@ -97,7 +97,7 @@ test('微信触控完成守卫战掷骰、技能预览拖用、骰子分配和�
   assert.ok(app.read('searchVisitState.room.activeArea.visibleItems').some(item => item.cardId === 'ar_013'))
 })
 
-test('真人战斗同场就绪、旧快照防回退及第三位玩家搜索并行', async t => {
+test('真人可未掷骰就绪或取消，部分摆放可开打，旧快照防回退及轮空搜索并行', async t => {
   const sim = await simulation(t, 3, { combatVersion: 1 })
   const [host, second, third] = sim.client
   for (const player of sim.client) await dock(player)
@@ -131,18 +131,27 @@ test('真人战斗同场就绪、旧快照防回退及第三位玩家搜索并�
   assert.equal(searchers.length, 1)
   const [a, b] = fighters
   const old = await a.api.command('resume')
-  for (const player of fighters) {
-    await player.tap('combat_roll')
-    for (let i = 0; i < 3; i++) {
-      await player.tap('combat_die', hit => hit.data === i)
-      await player.tap('combat_zone', hit => hit.data === 'DEFENSE')
-    }
-    await player.tap('combat_ready')
-  }
+  await a.tap('combat_ready')
+  assert.ok(a.draw().includes('取消准备'))
+  assert.equal(a.hits('combat_roll').length, 0)
+  assert.equal(a.run('interactiveBattle.self.dice.length'), 0)
+  await heartbeat(b)
+  assert.equal(b.run('interactiveBattle.opponent.ready'), true)
+  await a.tap('combat_ready')
+  assert.ok(a.draw().includes('准备就绪'))
+  await heartbeat(b)
+  assert.equal(b.run('interactiveBattle.opponent.ready'), false)
+  await a.tap('combat_roll')
+  await a.tap('combat_die', hit => hit.data === 0)
+  await a.tap('combat_zone', hit => hit.data === 'DEFENSE')
+  await a.tap('combat_ready')
+  assert.ok(a.draw().includes('取消准备'))
+  await b.tap('combat_ready')
   a.run(`applyAccountResponse(${JSON.stringify(old)})`)
   assert.equal(a.run('interactiveBattle.self.ready'), true)
-  assert.equal(a.run('interactiveBattle.self.dice.length'), 3)
+  assert.deepEqual(a.read('interactiveBattle.self.dice.map(die => die.zone)'), ['DEFENSE', 'TRAY', 'TRAY'])
   assert.equal(b.run('interactiveBattle.stage'), 'IMPACT')
+  assert.deepEqual(b.read('interactiveBattle.self.impact'), { attack: 0, defense: 0, loss: 0 })
   assert.equal(searchers[0].run('presentation'), 'ROOM')
   const scores = b.read('[interactiveBattle.self.impact, interactiveBattle.opponent.impact]')
   const labels = b.draw()
@@ -151,7 +160,7 @@ test('真人战斗同场就绪、旧快照防回退及第三位玩家搜索并�
     assert.ok(labels.includes(`攻击 ${score.attack}`))
     assert.ok(labels.includes(`防御 ${score.defense}`))
   }
-  assert.ok(['掷骰子', '准备就绪', '骰子托盘', '技能卡槽', '放弃对局'].every(label => !labels.includes(label)))
+  assert.ok(['掷骰子', '准备就绪', '取消准备', '骰子托盘', '技能卡槽', '放弃对局'].every(label => !labels.includes(label)))
   assert.ok(b.read('ui.hotspots').every(hit => hit.id === 'card_preview'))
   sim.tick(1999)
   await heartbeat(b)

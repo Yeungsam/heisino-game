@@ -165,8 +165,9 @@ function drawCombatScreen({ context, width, height, battle, now, roomName, asset
   }
 
   const canRoll = editable && !battle.self.dice.length
-  const canReady = editable && battle.self.dice.length === 3 && battle.self.dice.every(value => value.zone !== 'TRAY')
-  for (const [id, value, y, active] of [['combat_roll', '掷骰子', 298, canRoll], ['combat_ready', '准备就绪', 358, canReady]]) {
+  const canReady = playing && !busy
+  const readyLabel = battle.self.ready ? '取消准备' : '准备就绪'
+  for (const [id, value, y, active] of [['combat_roll', '掷骰子', 298, canRoll], ['combat_ready', readyLabel, 358, canReady]]) {
     const r = [715, y, 202, 47]
     if (!active) box(r, { fill: 'rgba(29,27,37,.74)', stroke: '#8c7c65', radius: 9 })
     label(value, 835, y + 23, 22, { color: active ? '#4b1c0a' : '#dbd0bf', width: 116 })

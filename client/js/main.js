@@ -391,7 +391,7 @@ function accountError(error) {
     COMBAT_CLOSED: '本次操作已截止，正在同步战斗。',
     COMBAT_ALREADY_READY: '已经就绪，等待对方。',
     DICE_ALREADY_ROLLED: '本小回合已掷骰。',
-    DICE_UNPLACED: '请摆放所有骰子后再就绪。',
+    COMBAT_READY_INVALID: '准备状态提交失败，请重试。',
     DICE_PLACEMENT_INVALID: '请将骰子放入攻防区或托盘。',
     STALE_SUB_ROUND: '小回合已推进，正在同步战斗。',
     SKILL_ALREADY_USED: '本小回合已使用技能卡。',
@@ -2960,8 +2960,13 @@ function handleAction(action) {
   if (interactiveBattle && presentation === 'BATTLE') {
     if (action.id === 'combat_roll') { sendCombatAction('combat-roll'); return }
     if (action.id === 'combat_ready') {
-      const zones = combatDice().map(die => die.zone)
-      if (zones.length === 3 && !zones.includes('TRAY')) sendCombatAction('combat-ready', { zones })
+      const { ready, dice, placementRevision } = interactiveBattle.self
+      const payload = { ready: !ready }
+      if (!ready && dice.length) {
+        payload.zones = combatDice().map(die => die.zone)
+        payload.placementRevision = combatDraft?.revision ?? placementRevision
+      }
+      sendCombatAction('combat-ready', payload)
       return
     }
     if (action.id === 'combat_die') {
