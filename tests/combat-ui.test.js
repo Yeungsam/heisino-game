@@ -65,7 +65,7 @@ test('微信触控完成守卫战掷骰、技能预览拖用、骰子分配和�
   await edit(game => {
     game.state.players[1].hp = 1
     game.combat.sides.P1.dice.forEach(die => { die.value = 6 })
-    game.combat.sides.P2.dice = [{ value: 1, zone: 'ATTACK' }, { value: 1, zone: 'DEFENSE' }, { value: 1, zone: 'DEFENSE' }]
+    game.combat.sides.P2.dice = [{ value: 1, zone: 'ATTACK' }, { value: 1, zone: 'DEFENSE' }]
   })
   await heartbeat(app)
   for (let i = 0; i < 3; i++) {

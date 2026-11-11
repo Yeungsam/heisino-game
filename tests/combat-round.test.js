@@ -320,7 +320,7 @@ test('单人战斗断线跨过战利品和移动截止时自动原地，不能�
     game.state.players[1].hp = 1
     game.combat.sides.P1.dice = Array.from({ length: 3 }, () => ({ value: 6, zone: 'ATTACK' }))
     game.combat.sides.P1.readyAt = f.time() + 15000
-    game.combat.sides.P2.dice = [{ value: 1, zone: 'ATTACK' }, { value: 1, zone: 'DEFENSE' }, { value: 1, zone: 'DEFENSE' }]
+    game.combat.sides.P2.dice = [{ value: 1, zone: 'ATTACK' }, { value: 1, zone: 'DEFENSE' }]
   })
   await f.command(0, 'suspend')
   f.advance(100000)
@@ -341,8 +341,9 @@ test('存活败者只损失最高两件且同价按背包顺序，平局对奇�
   engine.start(participants)
   engine.getPlayer('P2').hp = 10
   const won = Battle.createCombat(engine, { playerIds: ['P1', 'P2'], nodeId: 'n_1_0', itemIds: [] }, 1000)
-  assert.equal(won.sides.P1.defensePercent, 15)
-  assert.equal(won.sides.P2.attackPercent, 20)
+  assert.equal(won.sides.P1.attackPercent, 60)
+  assert.equal(won.sides.P1.defensePercent, 40)
+  assert.equal(won.sides.P2.attackPercent, 40)
   assert.equal(won.sides.P2.defensePercent, 80)
   const firstLoot = engine.createItem('loot_019', null, 'IN_INVENTORY', 'P2')
   engine.getPlayer('P2').inventory.push(firstLoot.instanceId)
@@ -404,7 +405,7 @@ test('守卫获胜没收最高两件，存活玩家保留其余资产并继续',
   assert.equal(engine.droppedItemsAt('n_1_0').length, 0)
 })
 
-test('单人原地停留重新判定满血守卫，守卫固定一攻两防，拾取同类装备前须先丢旧装备', async () => {
+test('单人原地停留重新判定满血守卫，守卫固定一攻一防，拾取同类装备前须先丢旧装备', async () => {
   const f = await fixture(1)
   await assert.rejects(f.command(0, 'start', { mode: 'SINGLE', combatVersion: 1, cardIds: ['wp_006', 'wp_005'] }), { code: 'WEAPON_LIMIT' })
   const gameId = (await f.command(0, 'start', { mode: 'SINGLE', combatVersion: 1, cardIds: ['wp_006'] })).activeGame.gameId
@@ -414,12 +415,11 @@ test('单人原地停留重新判定满血守卫，守卫固定一攻两防，�
   assert.equal(first.combat.opponent.isBot, true)
   assert.equal(first.combat.opponent.ready, true)
   const persistedGuard = (await f.store.get(f.accounts[0].id)).activeGame.combat.sides.P2
-  assert.equal(persistedGuard.dice.filter(d => d.zone === 'ATTACK').length, 1)
-  assert.equal(persistedGuard.dice.filter(d => d.zone === 'DEFENSE').length, 2)
+  assert.deepEqual(persistedGuard.dice.map(d => d.zone).sort(), ['ATTACK', 'DEFENSE'])
   await f.soloEdit(game => {
     game.state.players[1].hp = 1
     game.combat.sides.P1.dice = Array.from({ length: 3 }, () => ({ value: 6, zone: 'ATTACK' }))
-    game.combat.sides.P2.dice = [{ value: 1, zone: 'ATTACK' }, { value: 1, zone: 'DEFENSE' }, { value: 1, zone: 'DEFENSE' }]
+    game.combat.sides.P2.dice = [{ value: 1, zone: 'ATTACK' }, { value: 1, zone: 'DEFENSE' }]
   })
   await f.act(0, gameId, 1, 'combat-ready', { subRound: 1 })
   await f.command(0, 'suspend')
@@ -440,6 +440,36 @@ test('单人原地停留重新判定满血守卫，守卫固定一攻两防，�
   const state = (await f.store.get(f.accounts[0].id)).activeGame.state
   assert.equal(state.roomStock.visited.filter(id => id === again.combat.nodeId).length, 1)
   assert.equal(state.players.filter(p => p.isBot).length, 1)
+})
+
+test('空手玩家按 40% 攻防实际结算，旧对局在下一小回合采用新数值', async () => {
+  const f = await fixture(1)
+  const gameId = (await f.command(0, 'start', { mode: 'SINGLE', combatVersion: 1, cardIds: [] })).activeGame.gameId
+  await f.soloEdit(game => { game.rngState = 0 })
+  const first = (await f.act(0, gameId, 1, 'move', { target: { x: 1, y: 0 } })).activeGame.combat
+  assert.equal(first.self.attackPercent, 40)
+  assert.equal(first.self.defensePercent, 40)
+  await f.soloEdit(game => {
+    // Reproduce a game saved in PLAY just before the balance update.
+    Object.assign(game.combat.sides.P1, { attackPercent: 20, defensePercent: 15 })
+    game.combat.sides.P2.dice.push({ value: 1, zone: 'DEFENSE' })
+  })
+  const resumed = (await f.command(0, 'resume')).activeGame.combat
+  assert.equal(resumed.self.attackPercent, 20)
+  f.advance(15000)
+  const impact = (await f.command(0, 'heartbeat')).activeGame.combat
+  assert.equal(impact.opponent.dice.length, 3)
+  f.advance(2000)
+  const rolled = (await f.act(0, gameId, 1, 'combat-roll', { subRound: 2 })).activeGame.combat
+  assert.equal(rolled.self.dice.length, 3)
+  assert.equal(rolled.self.attackPercent, 40)
+  assert.equal(rolled.self.defensePercent, 40)
+  const zones = ['ATTACK', 'ATTACK', 'DEFENSE']
+  const next = (await f.act(0, gameId, 1, 'combat-ready', { subRound: 2, zones })).activeGame.combat
+  assert.deepEqual(next.opponent.dice.map(d => d.zone).sort(), ['ATTACK', 'DEFENSE'])
+  const [a, b, c] = rolled.self.dice.map(d => d.value)
+  assert.equal(next.self.impact.attack, Math.floor((a + b) * 0.4))
+  assert.equal(next.self.impact.defense, Math.floor(c * 0.4))
 })
 
 test('混合新旧客户端的房间保留旧战斗协议', async () => {

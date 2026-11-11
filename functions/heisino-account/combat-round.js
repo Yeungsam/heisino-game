@@ -6,6 +6,7 @@ const PLAY_MS = 15000
 const IMPACT_MS = 2000
 const RESULT_MS = 2000
 const LOOT_MS = 20000
+const UNEQUIPPED_MULTIPLIER = 0.4
 const ACTIONS = new Set(['combat-roll', 'combat-place', 'combat-ready', 'combat-skill'])
 const ZONES = new Set(['ATTACK', 'DEFENSE', 'TRAY'])
 // Defense percentages on the card faces. Guard shield shares the casino shield face.
@@ -34,13 +35,13 @@ function equipment(engine, player) {
   const armor = cards.find(card => card.category === 'ARMOR')
   return {
     weaponId: weapon?.cardId ?? null, armorId: armor?.cardId ?? null,
-    attackPercent: Math.round((weapon?.attackMultiplier ?? 0.20) * 100),
-    defensePercent: DEFENSE_PERCENT[armor?.cardId] ?? Math.round((armor?.defenseMultiplier ?? 0.15) * 100)
+    attackPercent: Math.round((weapon?.attackMultiplier ?? UNEQUIPPED_MULTIPLIER) * 100),
+    defensePercent: DEFENSE_PERCENT[armor?.cardId] ?? Math.round((armor?.defenseMultiplier ?? UNEQUIPPED_MULTIPLIER) * 100)
   }
 }
 
-function roll(side, engine) {
-  side.dice = Array.from({ length: 3 }, () => ({ value: randomInt(engine.rng, 6) + 1, zone: 'TRAY' }))
+function roll(side, engine, count = 3) {
+  side.dice = Array.from({ length: count }, () => ({ value: randomInt(engine.rng, 6) + 1, zone: 'TRAY' }))
 }
 
 function beginRound(combat, engine, at) {
@@ -49,11 +50,12 @@ function beginRound(combat, engine, at) {
   combat.impact = null
   combat.impactStartedAt = null
   for (const id of combat.playerIds) {
+    const player = engine.getPlayer(id)
     const side = combat.sides[id]
-    Object.assign(side, { dice: [], readyAt: null, skillCardId: null, placementRevision: 0 })
-    if (engine.getPlayer(id).isBot) {
-      roll(side, engine)
-      const attack = randomInt(engine.rng, 3)
+    Object.assign(side, equipment(engine, player), { dice: [], readyAt: null, skillCardId: null, placementRevision: 0 })
+    if (player.isBot) {
+      roll(side, engine, 2)
+      const attack = randomInt(engine.rng, side.dice.length)
       side.dice.forEach((die, i) => { die.zone = i === attack ? 'ATTACK' : 'DEFENSE' })
       side.readyAt = at
     }
