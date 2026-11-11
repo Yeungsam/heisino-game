@@ -1,7 +1,10 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
-const { simulation, dock, heartbeat, move, center } = require('./helpers/account-ui-simulation')
+const { simulation: simulateAccounts, dock, heartbeat, move, center } = require('./helpers/account-ui-simulation')
 const { MOVEMENT_REPLAY_LEAD_MS, MOVEMENT_REPLAY_MS } = require('../client/js/core/constants')
+const { combatVersion } = require('../client/js/config')
+
+const simulation = (t, count) => simulateAccounts(t, count, { combatVersion })
 
 async function refresh(app) {
   await app.run('refreshLobby()')
@@ -45,6 +48,37 @@ test('第1轮：大厅满房、释放座位、房主转让、隐藏已开局房�
   const deployed = [...sim.store.ledger.values()].filter(entry => entry.gameId === roomId && entry.type === 'DEPLOY')
   assert.equal(deployed.length, 3)
   assert.ok([second, third, spectator].every(app => app.run('accountProfile.quantities.wp_006') === 0))
+})
+
+test('开局时弹窗显示缺少版本标记的玩家昵称，更新并重新加入后可开局', async t => {
+  const sim = await simulation(t, 2)
+  const dialogs = []
+  const host = await sim.mount(0, { showModal: dialog => dialogs.push(dialog) })
+  const outdatedGuest = await sim.mount(1, { clientCombatVersion: 0 })
+  await Promise.all([host, outdatedGuest].map(dock))
+  await host.tap('lobby_create')
+  const roomId = host.run('lobbyRoom.roomId')
+  await refresh(outdatedGuest)
+  await outdatedGuest.tap('lobby_join')
+  await refresh(host)
+  await host.tap('lobby_start')
+
+  assert.deepEqual(Array.from(dialogs, dialog => dialog.content), ['测试玩家2游戏版本过低，请更新到最新版本后重试'])
+  assert.equal(host.requests.find(req => req.input?.op === 'start').status, 409)
+  assert.equal(host.run('scene'), 'LOBBY')
+  assert.equal(host.run('accountProfile.quantities.wp_006'), 1)
+  assert.equal(outdatedGuest.run('accountProfile.quantities.wp_006'), 1)
+
+  await outdatedGuest.tap('lobby_leave')
+  const updatedGuest = await sim.mount(1)
+  await dock(updatedGuest)
+  await updatedGuest.tap('lobby_join', hit => hit.data.roomId === roomId)
+  await refresh(host)
+  await host.tap('lobby_start')
+  await refresh(updatedGuest)
+  assert.equal(host.run('accountGame.combatVersion'), combatVersion)
+  assert.equal(updatedGuest.run('accountGame.gameId'), roomId)
+  assert.equal(dialogs.length, 1)
 })
 
 async function startTogether(apps) {
@@ -245,9 +279,10 @@ test('所有玩家同屏回放，较晚恢复只播放剩余时间，结束时�
   await Promise.all([host.idle(), recovered.idle()])
 })
 
-test('第3轮：三人同房分流、真实拖拽拾取与搜索换轮', async t => {
+test('第3轮：恢复旧版三人同房对局、分流、真实拖拽拾取与搜索换轮', async t => {
   const sim = await simulation(t)
   const roomId = await startTogether(sim.client)
+  delete sim.store.rooms.get(roomId).game.combatVersion
   const routes = [
     [[1, 0], [1, 1], [1, 1], [1, 1]],
     [[1, 4], [1, 3], [1, 2], [1, 1]],
@@ -374,7 +409,7 @@ test('第5轮：独立撤离返仓、连续开局与结算确认防串局', asyn
   const sim = await simulation(t, 2)
   const [host, guest] = sim.client
   const roomId = await startTogether(sim.client)
-  sim.store.rooms.get(roomId).game.state.roomStock.seed = 0
+  sim.store.rooms.get(roomId).game.state.roomStock.seed = 2
   const route = [[1, 0], [2, 0], [3, 0], [4, 0], [4, 1], [4, 2], [4, 3], [4, 4]]
   let lootCardId
   for (const [step, target] of route.entries()) {
@@ -396,6 +431,7 @@ test('第5轮：独立撤离返仓、连续开局与结算确认防串局', asyn
       host.touch('move', bagX, y)
       host.touch('end', bagX, bagY)
       await host.idle()
+      assert.equal(host.requests.find(req => req.input?.action === 'pickup')?.status, 200)
       await host.tap('search_finish')
     }
     if (step < route.length - 1) {

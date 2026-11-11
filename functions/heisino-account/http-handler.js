@@ -51,7 +51,10 @@ function createAccountHandler(service) {
       response.setHeader('Access-Control-Expose-Headers', 'Server-Timing')
       send(response, 200, { ok: true, data })
     } catch (error) {
-      send(response, error.statusCode || 500, { ok: false, error: error.code && error.statusCode ? error.code : 'INTERNAL_ERROR' })
+      const code = error.code && error.statusCode ? error.code : 'INTERNAL_ERROR'
+      const payload = { ok: false, error: code }
+      if (code === 'PLAYER_VERSION_TOO_LOW') payload.outdatedNicknames = error.outdatedNicknames
+      send(response, error.statusCode || 500, payload)
     }
     return true
   }

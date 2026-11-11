@@ -17,7 +17,7 @@ async function fixture(size = 3) {
     return { token: login.token, id: login.profile.accountId }
   }))
   const command = (index, action, input) => service.execute(players[index].token, action, input)
-  const lobby = (index, op, data = {}) => command(index, 'lobby', { op, requestId: `lobby-test-${++sequence}`, ...data })
+  const lobby = (index, op, data = {}) => command(index, 'lobby', { op, combatVersion: 1, requestId: `lobby-test-${++sequence}`, ...data })
   const game = (index, roomId, turn, action, data = {}) => command(index, 'game', { gameId: roomId, turn, action, requestId: `game-test-${++sequence}`, ...data })
   const create = (index = 0, cardIds = ['wp_006']) => lobby(index, 'create', { cardIds })
   const join = (index, roomId, cardIds = ['wp_006']) => lobby(index, 'join', { roomId, cardIds })
@@ -152,7 +152,7 @@ test('多人移动区分真正的重复提交与截止后原地停留，已成�
   assert.equal((await f.command(1, 'resume')).activeGame.search.visit.roomNodeId, 'n_0_4')
 })
 
-test('多人回放共享时刻和权威轨迹，期间禁止搜索，旧版混合房间可立即进房', async () => {
+test('多人回放共享时刻和权威轨迹，期间禁止搜索，缺少回放能力标记时可立即进房', async () => {
   for (const guestSupportsReplay of [true, false]) {
     const f = await fixture(2)
     const { lobbyRoom: { roomId } } = await f.lobby(0, 'create', { cardIds: [], movementReplay: true })
@@ -208,10 +208,11 @@ test('多人房间超过12回合后仍可移动，并按存活玩家活跃时间
   assert.equal((await f.game(1, roomId, 13, 'move', { target: { x: 2, y: 4 } })).activeGame.waiting, 'MOVES')
 })
 
-test('三人同房分流给独立物资，同一张卡只能入一人的背包一次', async () => {
+test('已开局的旧版三人对局可继续分流和拾取，同一张卡只能入一人的背包一次', async () => {
   const f = await fixture()
   const roomId = await f.startRoom()
   const room = f.store.rooms.get(roomId)
+  delete room.game.combatVersion
   room.game.state.roomStock.seed = 6
   room.game.state.players.forEach((player, index) => { player.position = [{ x: 0, y: 1 }, { x: 2, y: 1 }, { x: 1, y: 2 }][index] })
   const move = index => f.game(index, roomId, 1, 'move', { target: { x: 1, y: 1 } })

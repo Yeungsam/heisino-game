@@ -30,11 +30,11 @@ async function fixture(size) {
     update(room.game)
     tx.saveRoom(room)
   })
-  async function startRoom({ mixed = false, replay = false, hp = 30, withItems = true } = {}) {
+  async function startRoom({ replay = false, hp = 30, withItems = true } = {}) {
     const options = { cardIds: ['wp_006', 'sk_001'], movementReplay: replay, combatVersion: 1 }
     const { lobbyRoom: { roomId } } = await command(0, 'lobby', { op: 'create', ...options })
     for (let i = 1; i < size; i++) {
-      await command(i, 'lobby', { op: 'join', roomId, ...options, combatVersion: mixed && i === size - 1 ? undefined : 1 })
+      await command(i, 'lobby', { op: 'join', roomId, ...options })
     }
     await command(0, 'lobby', { op: 'start', roomId })
     await roomEdit(roomId, game => {
@@ -472,11 +472,25 @@ test('空手玩家按 40% 攻防实际结算，旧对局在下一小回合采用
   assert.equal(next.self.impact.defense, Math.floor(c * 0.4))
 })
 
-test('混合新旧客户端的房间保留旧战斗协议', async () => {
-  const f = await fixture(2)
-  const gameId = await f.startRoom({ mixed: true })
-  const game = f.store.rooms.get(gameId).game
-  assert.equal(game.combatVersion, undefined)
-  assert.equal(game.state.encounters[0].type, 'BATTLE')
-  assert.equal(game.state.players.filter(player => player.status === 'ACTIVE').length, 1)
+test('多人房主缺少战斗版本且有成员版本不匹配时，拒绝开局并保留全部战备', async () => {
+  const f = await fixture(3)
+  const cardIds = ['wp_006']
+  const { lobbyRoom: { roomId } } = await f.command(0, 'lobby', { op: 'create', cardIds })
+  await f.command(1, 'lobby', { op: 'join', roomId, cardIds, combatVersion: 1 })
+  await f.command(2, 'lobby', { op: 'join', roomId, cardIds, combatVersion: 99 })
+  const start = { op: 'start', roomId, requestId: f.requestId() }
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await assert.rejects(f.command(0, 'lobby', start), {
+      code: 'PLAYER_VERSION_TOO_LOW', statusCode: 409, outdatedNicknames: ['玩家1', '玩家3']
+    })
+  }
+  const room = f.store.rooms.get(roomId)
+  assert.equal(room.status, 'WAITING')
+  assert.equal(room.game, undefined)
+  for (const { id } of f.accounts) {
+    const document = await f.store.get(id)
+    assert.equal(document.quantities.wp_006, 1)
+    assert.equal(document.activeGame, null)
+  }
+  assert.ok(![...f.store.ledger.values()].some(entry => entry.type === 'DEPLOY'))
 })

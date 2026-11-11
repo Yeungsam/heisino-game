@@ -160,12 +160,16 @@ class Multiplayer {
   }
 
   async start(tx, room, host, now) {
+    const outdatedNicknames = room.members.filter(member => member.combatVersion !== Battle.VERSION).map(member => member.nickname)
+    if (outdatedNicknames.length) {
+      throw Object.assign(fault('PLAYER_VERSION_TOO_LOW', 409), { outdatedNicknames })
+    }
     const game = {
       gameId: room.roomId, mode: 'MULTIPLAYER', rngState: crypto.randomBytes(4).readUInt32BE(), state: null,
       moveSelections: {}, done: [], visits: {}, requests: {}, seen: {},
+      combatVersion: Battle.VERSION,
       replayEnabled: room.members.every(member => member.movementReplay)
     }
-    if (room.members.every(member => member.combatVersion === Battle.VERSION)) game.combatVersion = Battle.VERSION
     const engine = this.account.restore(game)
     for (let index = 0; index < room.members.length; index += 1) {
       const member = room.members[index]

@@ -34,7 +34,8 @@ async function simulation(t, count = 3, { combatVersion } = {}) {
     return { code, token, id: profile.accountId }
   }))
 
-  async function mount(index, { width = 812, height = 375, blockResponse, loginCode, showModal = args => args.success({ confirm: true }) } = {}) {
+  async function mount(index, { width = 812, height = 375, blockResponse, loginCode,
+    clientCombatVersion = combatVersion, showModal = args => args.success?.({ confirm: true }) } = {}) {
     const account = accounts[index]
     const events = {}
     const labels = []
@@ -78,7 +79,7 @@ async function simulation(t, count = 3, { combatVersion } = {}) {
         operation.finally(() => pending.delete(operation))
       }
     }
-    const config = { gameApiBaseUrl: origin, cardAssetBaseUrl: origin, cardApiBaseUrl: origin, combatVersion }
+    const config = { gameApiBaseUrl: origin, cardAssetBaseUrl: origin, cardApiBaseUrl: origin, combatVersion: clientCombatVersion }
     const globals = { wx, console, setTimeout, clearTimeout, requestAnimationFrame: noop,
       Date: class extends Date { static now() { return clock.now } } }
     const api = vm.runInNewContext(apiSource + '\nmodule.exports', { ...globals, module: { exports: {} },

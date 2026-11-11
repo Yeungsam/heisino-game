@@ -370,6 +370,10 @@ function finishBoot() {
 }
 
 function accountError(error) {
+  if (error.code === 'PLAYER_VERSION_TOO_LOW') {
+    const players = error.outdatedNicknames?.join('、') || '有玩家'
+    return `${players}游戏版本过低，请更新到最新版本后重试`
+  }
   const messages = {
     ACCOUNT_UNAVAILABLE: '游戏账号服务暂不可用，请稍后重试。',
     ACCOUNT_CHANGED: '微信账号已切换，请重新登录。',
@@ -1516,7 +1520,12 @@ async function lobbyAction(op, roomId) {
       if (combatVersion) input.combatVersion = combatVersion
     }
     consumeLobbyResponse(await accountApi.command('lobby', input))
-  } catch (error) { addToast(accountError(error), 2600) }
+  } catch (error) {
+    const message = accountError(error)
+    if (error.code === 'PLAYER_VERSION_TOO_LOW' && wx.showModal) {
+      wx.showModal({ title: '请更新游戏', content: message, showCancel: false })
+    } else addToast(message, 2600)
+  }
   finally { endAccountRequest() }
   refreshLobby()
 }

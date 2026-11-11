@@ -33,7 +33,11 @@ function request(action, data, method = 'POST', queuedAt = Date.now()) {
       recordPerformance(action, queuedAt, startedAt, response)
       if (response.statusCode === 200 && response.data && response.data.ok) return resolve(response.data.data)
       const code = response.statusCode === 404 ? 'ACCOUNT_UNAVAILABLE' : response.data && response.data.error || 'ACCOUNT_UNAVAILABLE'
-      reject(Object.assign(new Error(code), { code, statusCode: response.statusCode }))
+      const error = Object.assign(new Error(code), { code, statusCode: response.statusCode })
+      if (code === 'PLAYER_VERSION_TOO_LOW' && Array.isArray(response.data.outdatedNicknames)) {
+        error.outdatedNicknames = response.data.outdatedNicknames
+      }
+      reject(error)
     },
     fail(result) {
       recordPerformance(action, queuedAt, startedAt)
