@@ -199,7 +199,6 @@ let combatGesture = null
 let combatDraft = null
 let combatPlacementRevision = 0
 let combatSelectedDie = null
-let combatSelectedSkill = null
 let combatSkillsOpen = false
 let combatArtworkPromise = null
 const combatArtwork = {}
@@ -213,7 +212,10 @@ let loadoutGesture = null
 let loadoutScrollY = 0
 let warehouseFilter = 'ALL'
 let warehouseScrollY = 0
-let warehousePreviewCardId = null
+const CARD_TAP_MAX_MS = 450
+const CARD_TAP_DISTANCE = 7
+let cardPreviewId = null
+let cardPreviewTouch = null
 let warehouseGesture = null
 let searchAuthority = 'ACCOUNT'
 let searchVisitState = null
@@ -254,6 +256,10 @@ function setScene(nextScene) {
   nicknameInput.close()
   profileConfirmationOpen = false
   if (userInfoButton) { userInfoButton.destroy(); userInfoButton = null }
+  if (scene !== nextScene) {
+    cardPreviewId = null
+    cardPreviewTouch = null
+  }
   scene = nextScene
   sceneEnteredAt = Date.now()
   ui.hotspots = []
@@ -1008,7 +1014,6 @@ function enterLoadout() {
 function enterWarehouse() {
   warehouseFilter = 'ALL'
   warehouseScrollY = 0
-  warehousePreviewCardId = null
   warehouseGesture = null
   setScene('WAREHOUSE')
 }
@@ -1022,13 +1027,6 @@ function cardColor(card) {
     SPECIAL: '#d9a43e'
   }
   return colors[card.rarity] || '#9b8d99'
-}
-
-function cardMeta(card) {
-  if (card.category === 'WEAPON') return `武器卡 · 攻击倍率 ${Math.round((card.attackMultiplier || 0) * 100)}%`
-  if (card.category === 'ARMOR') return '防具卡'
-  if (card.category === 'SKILL') return `技能卡 · ${card.description}`
-  return `物资卡 · ${card.value !== null ? formatGold(card.value) : '价值待定'}`
 }
 
 function drawWrappedText(value, x, y, maxWidth, lineHeight, size = 10, color = PALETTE.cream, maxLines = 2) {
@@ -1290,40 +1288,24 @@ function drawWarehouse() {
     if (!rectsIntersect(rect, gridViewport)) return
     const card = filteredCards[index]
     drawLoadoutCard(card, rect, false, 'WAREHOUSE', card.quantity)
-    ui.hotspots.push({ id: 'warehouse_card', rect: intersectionRect(rect, gridViewport), data: card.cardId })
+    ui.hotspots.push({ id: 'warehouse_card', rect: intersectionRect(rect, gridViewport), data: card.cardId, previewCardId: card.cardId })
   })
   context.restore()
   drawScrollIndicator(gridViewport, grid.contentHeight, warehouseScrollY)
 
   button('warehouse_home', '返回首页', { x: 14, y: viewHeight - 43, width: 124, height: 31 }, { top: '#554653', bottom: '#2a222c', stroke: '#a692a4', size: 11 })
   text(`当前分类 ${filteredCards.length} 张 · 上下滑动浏览 · 点击卡牌查看大图`, viewWidth / 2, viewHeight - 28, 9, '#c6b8c8', 'center')
-  drawWarehousePreview()
 }
 
-function drawWarehousePreview() {
-  const card = cardById(warehousePreviewCardId)
-  if (!card) return
-  context.fillStyle = 'rgba(7,4,12,.92)'
+function drawCardPreview() {
+  if (!cardPreviewId) return
+  const card = cardById(cardPreviewId)
+  if (!card) { cardPreviewId = null; return }
+  context.fillStyle = 'rgba(0,0,0,.9)'
   context.fillRect(0, 0, viewWidth, viewHeight)
-
-  const detailHeight = Math.min(112, viewHeight * 0.23)
-  const detailY = viewHeight - detailHeight - 10
-  const availableHeight = detailY - 22
-  const cardWidth = Math.min(viewWidth * 0.34, availableHeight * CARD_ASPECT_RATIO)
-  const cardHeight = cardWidth / CARD_ASPECT_RATIO
-  const cardRect = {
-    x: (viewWidth - cardWidth) / 2,
-    y: 12 + Math.max(0, (availableHeight - cardHeight) / 2),
-    width: cardWidth,
-    height: cardHeight
-  }
+  const cardRect = fitAspectRect({ x: 18, y: 18, width: viewWidth - 36, height: viewHeight - 36 }, CARD_ASPECT_RATIO)
   drawCardArt(card, cardRect, { radius: 14, inset: 3, stroke: '#ffe199', lineWidth: 2.5 })
-  text('点击屏幕任意位置返回仓库', viewWidth - 18, 19, 9, '#d8c6d4', 'right', 'bold')
-
-  panel(18, detailY, viewWidth - 36, detailHeight, { fill: 'rgba(32,20,38,.98)', stroke: '#d5a84e', lineWidth: 2, radius: 14 })
-  text(card.name, 34, detailY + 23, 16, cardColor(card), 'left', 'bold')
-  text(cardMeta(card), viewWidth - 34, detailY + 23, 10, '#ffe9bd', 'right', 'bold')
-  drawWrappedText(card.description || cardMeta(card), 34, detailY + 49, viewWidth - 68, 18, 10, '#d9cbd8', 3)
+  ui.hotspots = [{ id: 'card_preview_close', rect: { x: 0, y: 0, width: viewWidth, height: viewHeight } }]
 }
 
 function drawLoadout() {
@@ -1404,7 +1386,7 @@ function drawLoadout() {
     drawLoadoutCard(card, rect, selected, 'WAREHOUSE', warehouseStacks[index].quantity)
     const visibleRect = intersectionRect(rect, gridViewport)
     ui.loadoutWarehouseRects.push({ ...visibleRect, cardId })
-    ui.hotspots.push({ id: 'loadout_warehouse_card', rect: visibleRect, data: cardId })
+    ui.hotspots.push({ id: 'loadout_warehouse_card', rect: visibleRect, data: cardId, previewCardId: cardId })
   })
   context.restore()
   drawScrollIndicator(gridViewport, grid.contentHeight, loadoutScrollY)
@@ -1414,8 +1396,11 @@ function drawLoadout() {
   const detailY = warehouseRect.y + warehouseRect.height - detailHeight
   context.fillStyle = 'rgba(255,255,255,.035)'
   context.fillRect(warehouseRect.x + 1, detailY, warehouseRect.width - 2, detailHeight - 1)
-  text(selectedCard ? selectedCard.name : '操作提示', warehouseRect.x + 13, detailY + 12, 10, selectedCard ? cardColor(selectedCard) : '#b9a9b7', 'left', 'bold')
-  text(selectedCard ? `${cardMeta(selectedCard)} · 再次点击${loadoutSelection.source === 'WAREHOUSE' ? '放入背包' : '放回仓库'}` : '拖拽卡牌，或点开后再次点击', warehouseRect.x + 13, detailY + 27, 8, '#d4c5d1')
+  if (selectedCard) {
+    text(selectedCard.name, warehouseRect.x + 13, detailY + 18, 10, cardColor(selectedCard), 'left', 'bold', warehouseRect.width - 116)
+    button('loadout_transfer', loadoutSelection.source === 'WAREHOUSE' ? '放入背包' : '放回仓库',
+      { x: warehouseRect.x + warehouseRect.width - 96, y: detailY + 5, width: 86, height: 26 }, { size: 10 })
+  } else text('点击查看大图，拖动可移动卡牌', warehouseRect.x + 13, detailY + 18, 9, '#d4c5d1')
 
   panel(backpackRect.x, backpackRect.y, backpackRect.width, backpackRect.height, { fill: 'rgba(27,19,34,.96)', stroke: 'rgba(154,112,208,.82)', radius: 15 })
   text('行动背包', backpackRect.x + 12, backpackRect.y + 18, 14, '#e9d7ff', 'left', 'bold')
@@ -1446,7 +1431,7 @@ function drawLoadout() {
       const selected = loadoutSelection && loadoutSelection.cardId === cardId && loadoutSelection.source === 'BACKPACK'
       drawLoadoutCard(card, rect, selected, 'BACKPACK', selectedStacks[index].quantity)
       ui.loadoutBackpackRects.push({ ...rect, cardId })
-      ui.hotspots.push({ id: 'loadout_backpack_card', rect, data: cardId })
+      ui.hotspots.push({ id: 'loadout_backpack_card', rect, data: cardId, previewCardId: cardId })
     } else if (index < C.LOADOUT_CARD_LIMIT) {
       text(`携带位 ${index + 1}`, rect.x + rect.width / 2, rect.y + rect.height / 2, 8, '#8f7899', 'center')
     } else {
@@ -1777,7 +1762,10 @@ function drawInventory(state, x, y, width, interactive = true) {
   const weaponCard = weapon && cardById(weapon.cardId)
   panel(x + 10, y + 38, width - 20, 46, { fill: 'rgba(98,30,40,.55)', stroke: '#b57962', radius: 8 })
   const equippedArtRect = { x: x + 14, y: y + 42, width: 30, height: 38 }
-  if (weaponCard) drawCardArt(weaponCard, equippedArtRect, { radius: 5, inset: 1, lineWidth: 1 })
+  if (weaponCard) {
+    drawCardArt(weaponCard, equippedArtRect, { radius: 5, inset: 1, lineWidth: 1 })
+    ui.hotspots.push({ id: 'card_preview', rect: equippedArtRect, previewCardId: weaponCard.cardId, data: weapon.instanceId })
+  }
   const weaponTextX = weaponCard ? x + 51 : x + 20
   text(weaponCard ? weaponCard.name : '徒手', weaponTextX, y + 54, 12, '#fff2d5', 'left', 'bold')
   text(weaponCard ? `攻击倍率 ${weaponCard.attackMultiplier}` : '攻击倍率 0.3', weaponTextX, y + 72, 9, '#d7bca9')
@@ -1804,6 +1792,7 @@ function drawInventory(state, x, y, width, interactive = true) {
       const item = state.items.find(candidate => candidate.instanceId === instanceId)
       const card = item && cardById(item.cardId)
       drawCardArt(card, rect, { radius: 6, inset: 2, stroke: 'rgba(230,198,125,.55)', lineWidth: 1 })
+      if (card) ui.hotspots.push({ id: 'card_preview', rect, previewCardId: card.cardId, data: instanceId })
       if (item && item.state === 'EQUIPPED') {
         context.fillStyle = 'rgba(74,18,25,.84)'
         context.fillRect(rect.x + 2, rect.y + rect.height - 14, rect.width - 4, 12)
@@ -2262,7 +2251,6 @@ function resetCombatInput() {
   combatDraft = null
   combatPlacementRevision = 0
   combatSelectedDie = null
-  combatSelectedSkill = null
   combatSkillsOpen = false
 }
 
@@ -2278,8 +2266,7 @@ function drawInteractiveBattle() {
   combatLayout = drawCombatScreen({
     context, width: viewWidth, height: viewHeight, battle, now: Date.now(), roomName: roomTypeForNode(battle.nodeId),
     assets: combatArtwork, panel, text, cardById, drawCard: drawCardArt, avatar: profileAvatarImage,
-    wrap: (value, x, y, width, size, color, lines) => drawWrappedText(value, x, y, width, size * 1.25, size, color, lines),
-    selectedDie: combatSelectedDie, skillsOpen: combatSkillsOpen, selectedSkill: combatSelectedSkill, drag, busy: accountBusy
+    selectedDie: combatSelectedDie, skillsOpen: combatSkillsOpen, drag, busy: accountBusy
   })
   ui.hotspots.push(...combatLayout.hits)
 }
@@ -2312,7 +2299,6 @@ function placeCombatDie(index, zone) {
 
 async function useCombatSkill(instanceId) {
   if (await sendCombatAction('combat-skill', { instanceId })) {
-    combatSelectedSkill = null
     if (!interactiveBattle?.self.skills.length) combatSkillsOpen = false
     addToast('技能卡已使用，本期不产生效果。')
   }
@@ -2564,7 +2550,9 @@ function drawSearchInventoryPanel(rect) {
     else panel(slot.x, slot.y, slot.width, slot.height, { fill: 'rgba(255,255,255,.045)', stroke: 'rgba(236,201,126,.32)', radius: 7 })
     const item = inventory[offset + index]
     if (item) {
-      drawCardArt(cardById(item.cardId), fitAspectRect(slot, CARD_ASPECT_RATIO), { radius: 7, inset: 1, stroke: 'rgba(255,226,157,.72)', lineWidth: 1 })
+      const cardRect = fitAspectRect(slot, CARD_ASPECT_RATIO)
+      drawCardArt(cardById(item.cardId), cardRect, { radius: 7, inset: 1, stroke: 'rgba(255,226,157,.72)', lineWidth: 1 })
+      ui.hotspots.push({ id: 'card_preview', rect: cardRect, previewCardId: item.cardId, data: item.instanceId })
       ui.searchInventoryRects.push({ ...slot, instanceId: item.instanceId, cardId: item.cardId })
     } else {
       if (assets.searchSlotPattern) drawImageSourceInRect(assets.searchSlotPattern, SEARCH_ASSET_CROPS.slotPattern, { x: slot.x + slot.width * 0.35, y: slot.y + slot.height * 0.32, width: slot.width * 0.3, height: slot.height * 0.36 })
@@ -2637,7 +2625,10 @@ function drawSearchRoomPanel(rect) {
       const cardRect = fitAspectRect(slot, CARD_ASPECT_RATIO)
       drawCardArt(cardById(item.cardId), cardRect, { radius: 8, inset: 1, stroke: '#ffe09a', lineWidth: 1.5 })
       const visibleRect = intersectionRect(slot, gridViewport)
-      if (visibleRect) ui.searchItemRects.push({ ...visibleRect, instanceId: item.instanceId, cardId: item.cardId })
+      if (visibleRect) {
+        ui.searchItemRects.push({ ...visibleRect, instanceId: item.instanceId, cardId: item.cardId })
+        ui.hotspots.push({ id: 'card_preview', rect: visibleRect, previewCardId: item.cardId, data: item.instanceId })
+      }
     } else if (assets.searchSlotPattern) {
       drawImageSourceInRect(assets.searchSlotPattern, SEARCH_ASSET_CROPS.slotPattern, { x: slot.x + slot.width * 0.35, y: slot.y + slot.height * 0.32, width: slot.width * 0.3, height: slot.height * 0.36 })
     }
@@ -2852,6 +2843,7 @@ function draw() {
   }
   drawToast()
   drawPendingRequest()
+  drawCardPreview()
 }
 
 function drawPendingRequest() {
@@ -2987,8 +2979,7 @@ function handleAction(action) {
       return
     }
     if (action.id === 'combat_skills') { combatSkillsOpen = true; return }
-    if (action.id === 'combat_skills_close') { combatSkillsOpen = false; combatSelectedSkill = null; return }
-    if (action.id === 'combat_skill') { combatSelectedSkill = action.data.instanceId; return }
+    if (action.id === 'combat_skills_close') { combatSkillsOpen = false; return }
   }
   if (action.id === 'home_start') enterLoadout()
   if (action.id === 'home_shop') addToast('商店暂未开放。')
@@ -3014,16 +3005,11 @@ function handleAction(action) {
     warehouseFilter = 'LOOT'
     warehouseScrollY = 0
   }
-  if (action.id === 'warehouse_card') warehousePreviewCardId = action.data
   if (action.id === 'loadout_home') setScene('HOME')
   if (action.id === 'loadout_match') enterLobby()
-  if (action.id === 'loadout_warehouse_card') {
-    if (loadoutSelection && loadoutSelection.cardId === action.data && loadoutSelection.source === 'WAREHOUSE') addLoadoutCard(action.data)
-    else loadoutSelection = { cardId: action.data, source: 'WAREHOUSE' }
-  }
-  if (action.id === 'loadout_backpack_card') {
-    if (loadoutSelection && loadoutSelection.cardId === action.data && loadoutSelection.source === 'BACKPACK') removeLoadoutCard(action.data)
-    else loadoutSelection = { cardId: action.data, source: 'BACKPACK' }
+  if (action.id === 'loadout_transfer' && loadoutSelection) {
+    if (loadoutSelection.source === 'WAREHOUSE') addLoadoutCard(loadoutSelection.cardId)
+    else removeLoadoutCard(loadoutSelection.cardId)
   }
   if (action.id === 'lobby_back') setScene('LOADOUT')
   if (action.id === 'lobby_create') lobbyAction('create')
@@ -3065,20 +3051,45 @@ function hotspotAt(point) {
   return ui.hotspots.slice().reverse().find(candidate => pointInRect(point, candidate.rect))
 }
 
+function isCardTap(touch, point, event) {
+  return !touch.moved && event.changedTouches.length === 1 && event.touches.length === 0 &&
+    Date.now() - touch.startedAt < CARD_TAP_MAX_MS &&
+    Math.hypot(point.x - touch.start.x, point.y - touch.start.y) < CARD_TAP_DISTANCE
+}
+
+function handleTouchTap(target, touch, point, event) {
+  if (!touch && !target?.previewCardId) {
+    handleAction(target)
+    return
+  }
+  const original = touch?.target
+  if (!original || !target || original.id !== target.id || original.previewCardId !== target.previewCardId ||
+      (target.id === 'combat_skill' ? original.data.instanceId !== target.data.instanceId : original.data !== target.data) ||
+      touch.scene !== scene || (scene === 'GAME' && touch.presentation !== presentation) || !isCardTap(touch, point, event)) return
+  if (target.id === 'loadout_warehouse_card' || target.id === 'loadout_backpack_card') {
+    loadoutSelection = { cardId: target.previewCardId, source: target.id === 'loadout_warehouse_card' ? 'WAREHOUSE' : 'BACKPACK' }
+  }
+  cardPreviewId = target.previewCardId
+}
+
 wx.onTouchStart(event => {
   cancelledGameTouch = scene === 'GAME' && presentation === 'REPLAY'
   const point = touchPoint(event, false)
   tapFeedback.add(point, Date.now())
+  const target = hotspotAt(point)
+  cardPreviewTouch = event.touches.length === 1 && (cardPreviewId || target?.previewCardId)
+    ? { start: point, startedAt: Date.now(), target, scene, presentation, closing: Boolean(cardPreviewId), moved: false }
+    : null
+  if (cardPreviewId) return
   if (cancelledGameTouch) return
   if (scene === 'GAME' && presentation === 'BATTLE' && interactiveBattle) {
-    const target = hotspotAt(point)
     const kind = target?.id === 'combat_die' ? 'die' : target?.id === 'combat_skill' ? 'skill' : 'tap'
     combatGesture = { kind, target, start: point, point, index: kind === 'die' ? target.data : undefined,
       ...(kind === 'skill' ? target.data : {}), dragging: false }
     return
   }
   if (scene === 'WAREHOUSE') {
-    warehouseGesture = { start: point, last: point, mode: warehousePreviewCardId ? 'PREVIEW' : 'PENDING' }
+    warehouseGesture = { start: point, last: point, mode: 'PENDING' }
     return
   }
   if (scene === 'LOADOUT') {
@@ -3120,12 +3131,15 @@ wx.onTouchStart(event => {
 wx.onTouchMove(event => {
   invalidateFrame()
   const point = touchPoint(event, false)
+  if (cardPreviewTouch && (event.touches.length !== 1 ||
+      Math.hypot(point.x - cardPreviewTouch.start.x, point.y - cardPreviewTouch.start.y) >= CARD_TAP_DISTANCE)) cardPreviewTouch.moved = true
+  if (cardPreviewId) return
   if (combatGesture) {
     if (Math.hypot(point.x - combatGesture.start.x, point.y - combatGesture.start.y) >= 7) combatGesture.dragging = true
     combatGesture.point = point
     return
   }
-  if (scene === 'WAREHOUSE' && warehouseGesture && warehouseGesture.mode !== 'PREVIEW') {
+  if (scene === 'WAREHOUSE' && warehouseGesture) {
     if (warehouseGesture.mode === 'PENDING' && Math.hypot(point.x - warehouseGesture.start.x, point.y - warehouseGesture.start.y) >= 7) warehouseGesture.mode = 'SCROLL'
     if (warehouseGesture.mode === 'SCROLL') {
       warehouseScrollY = clamp(warehouseScrollY + warehouseGesture.last.y - point.y, 0, ui.warehouseMaxScroll)
@@ -3172,11 +3186,17 @@ wx.onTouchMove(event => {
 
 wx.onTouchEnd(event => {
   invalidateFrame()
+  const previewTouch = cardPreviewTouch
+  cardPreviewTouch = null
+  const point = touchPoint(event)
+  if (cardPreviewId) {
+    if (previewTouch?.closing && isCardTap(previewTouch, point, event)) cardPreviewId = null
+    return
+  }
   if (cancelledGameTouch) {
     cancelledGameTouch = false
     return
   }
-  const point = touchPoint(event)
   if (combatGesture) {
     const gesture = combatGesture
     combatGesture = null
@@ -3189,15 +3209,12 @@ wx.onTouchEnd(event => {
     }
     const target = hotspotAt(point)
     if (target && target.id === gesture.target?.id &&
-        (gesture.kind === 'skill' ? target.data.instanceId === gesture.instanceId : target.data === gesture.target.data)) handleAction(target)
+        (gesture.kind === 'skill' ? target.data.instanceId === gesture.instanceId : target.data === gesture.target.data)) {
+      handleTouchTap(target, previewTouch, point, event)
+    }
     return
   }
   if (scene === 'GAME' && presentation === 'BATTLE' && interactiveBattle) return
-  if (scene === 'WAREHOUSE' && warehousePreviewCardId) {
-    warehousePreviewCardId = null
-    warehouseGesture = null
-    return
-  }
   if (scene === 'WAREHOUSE' && warehouseGesture) {
     const scrolled = warehouseGesture.mode === 'SCROLL'
     warehouseGesture = null
@@ -3247,6 +3264,7 @@ wx.onTouchEnd(event => {
       dropDraggedInventoryItem(dragged.instanceId)
       return
     }
+    return
   }
   if (draggingItemId && ui.discardRect && pointInRect(point, ui.discardRect) && engine) {
     dropDraggedInventoryItem(draggingItemId)
@@ -3254,7 +3272,7 @@ wx.onTouchEnd(event => {
     return
   }
   draggingItemId = null
-  handleAction(hotspotAt(point))
+  handleTouchTap(hotspotAt(point), previewTouch, point, event)
 })
 
 // Desktop runtimes may emit mouse events without synthesizing mobile touches.
@@ -3272,6 +3290,8 @@ if (typeof wx.onMouseUp === 'function') wx.onMouseUp(event => {
 })
 
 function cancelInputGesture() {
+  if (cardPreviewTouch) cancelledGameTouch = true
+  cardPreviewTouch = null
   warehouseGesture = null
   loadoutGesture = null
   loadoutDragging = null

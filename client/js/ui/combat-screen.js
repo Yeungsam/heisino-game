@@ -36,12 +36,12 @@ function createCombatLayout(width, height) {
   }
 }
 
-function drawCombatScreen({ context, width, height, battle, now, roomName, assets, panel, text, wrap, drawCard,
-  avatar, cardById, selectedDie, skillsOpen, selectedSkill, drag, busy }) {
+function drawCombatScreen({ context, width, height, battle, now, roomName, assets, panel, text, drawCard,
+  avatar, cardById, selectedDie, skillsOpen, drag, busy }) {
   const layout = createCombatLayout(width, height)
   const { rect, scale } = layout
   const hits = []
-  const addHit = (id, bounds, data) => hits.push({ id, rect: rect(bounds), data })
+  const addHit = (id, bounds, data, previewCardId) => hits.push({ id, rect: rect(bounds), data, previewCardId })
   const image = (key, bounds = ART[key]) => {
     const source = assets[key]
     if (!source) return false
@@ -120,7 +120,9 @@ function drawCombatScreen({ context, width, height, battle, now, roomName, asset
     label(data.name, nameX, 243, 14, { width: 145 })
     const gearX = prefix === 'red' ? [96, 151] : [763, 818]
     for (const [i, id] of [data.weaponId, data.armorId].entries()) {
-      if (id) drawCard(cardById(id), rect([gearX[i], 167, 32, 38]), { inset: 1, radius: 4 })
+      if (!id) continue
+      drawCard(cardById(id), rect([gearX[i], 167, 32, 38]), { inset: 1, radius: 4 })
+      addHit('card_preview', [gearX[i] + offset * rush, 167, 32, 38], `${prefix}-${i}`, id)
     }
     context.restore()
   }
@@ -173,9 +175,13 @@ function drawCombatScreen({ context, width, height, battle, now, roomName, asset
   const inventory = battle.self.skills
   box([28, 288, 122, 130], { fill: '#50170f', stroke: '#af713d', radius: 7 })
   if (inventory.length) {
-    drawCard(cardById(inventory[0].cardId), rect([55, 292, 68, 100]), { inset: 1, radius: 5 })
+    const { cardId, instanceId } = inventory[0]
+    const bounds = [55, 292, 68, 100]
+    drawCard(cardById(cardId), rect(bounds), { inset: 1, radius: 5 })
+    addHit('card_preview', bounds, instanceId, cardId)
+    box([34, 394, 110, 24], fallbackPanel)
     label(`技能卡 ×${inventory.length}`, 89, 407, 13)
-    addHit('combat_skills', [28, 288, 122, 130])
+    addHit('combat_skills', [34, 394, 110, 24])
   } else label('技能卡槽', 89, 353, 14, { color: '#cca581' })
 
   const spot = { ATTACK: [223, 299, 43, 51], DEFENSE: [223, 365, 43, 51], TRAY: [428, 329, 64, 84] }
@@ -214,19 +220,11 @@ function drawCombatScreen({ context, width, height, battle, now, roomName, asset
     const first = (956 - inventory.length * (cardWidth + gap) + gap) / 2
     for (const [i, item] of inventory.entries()) {
       const bounds = [first + i * (cardWidth + gap), 234, cardWidth, cardWidth * 1.41]
-      if (drag?.kind !== 'skill' || drag.instanceId !== item.instanceId) drawCard(cardById(item.cardId), rect(bounds), {
-        stroke: selectedSkill === item.instanceId ? '#fff1a8' : undefined
-      })
-      addHit('combat_skill', bounds, item)
+      if (drag?.kind !== 'skill' || drag.instanceId !== item.instanceId) drawCard(cardById(item.cardId), rect(bounds))
+      addHit('combat_skill', bounds, item, item.cardId)
     }
     label('关闭', 889, 226, 15)
     addHit('combat_skills_close', [851, 211, 72, 23])
-    const selected = inventory.find(item => item.instanceId === selectedSkill)
-    const card = selected && cardById(selected.cardId)
-    if (card) {
-      const r = rect([49, 379, 857, 37])
-      wrap(`${card.name} · ${card.description}`, r.x, r.y, r.width, Math.max(9, 15 * scale), '#fff0c9', 2)
-    }
   }
   if (drag?.kind === 'die' && battle.self.dice[drag.index]) {
     const size = 43 * scale

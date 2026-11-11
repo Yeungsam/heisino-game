@@ -58,6 +58,7 @@ async function simulation(t, count = 3, { combatVersion } = {}) {
       onTouchStart: fn => { events.start = fn },
       onTouchMove: fn => { events.move = fn },
       onTouchEnd: fn => { events.end = fn },
+      onTouchCancel: fn => { events.cancel = fn },
       onHide: fn => { events.hide = fn },
       onShow: fn => { events.show = fn },
       request(options) {
@@ -95,7 +96,7 @@ async function simulation(t, count = 3, { combatVersion } = {}) {
     const hits = id => { draw(); return read('ui.hotspots').filter(hit => hit.id === id) }
     const touch = (event, x, y) => {
       const point = { clientX: x, clientY: y }
-      events[event]({ touches: [point], changedTouches: [point] })
+      events[event]({ touches: ['end', 'cancel'].includes(event) ? [] : [point], changedTouches: [point] })
     }
     const idle = async () => {
       for (let attempt = 0; attempt < 30; attempt += 1) {
@@ -124,10 +125,15 @@ async function simulation(t, count = 3, { combatVersion } = {}) {
 
 async function dock(app) {
   await app.tap('home_start')
-  await app.tap('loadout_warehouse_card', hit => hit.data === 'wp_006')
-  await app.tap('loadout_warehouse_card', hit => hit.data === 'wp_006')
+  await transferLoadoutCard(app, 'wp_006')
   await app.tap('loadout_match')
   assert.equal(app.run('scene'), 'LOBBY')
+}
+
+async function transferLoadoutCard(app, cardId, source = 'warehouse') {
+  await app.tap(`loadout_${source}_card`, hit => hit.data === cardId)
+  await app.tap('card_preview_close')
+  await app.tap('loadout_transfer')
 }
 
 async function heartbeat(app) {
@@ -144,4 +150,4 @@ function center(rect) {
   return [rect.x + rect.width / 2, rect.y + rect.height / 2]
 }
 
-module.exports = { simulation, dock, heartbeat, move, center }
+module.exports = { simulation, dock, heartbeat, move, center, transferLoadoutCard }

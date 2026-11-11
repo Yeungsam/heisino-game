@@ -1,6 +1,6 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
-const { simulation, dock, heartbeat, move, center } = require('./helpers/account-ui-simulation')
+const { simulation, dock, heartbeat, move, center, transferLoadoutCard } = require('./helpers/account-ui-simulation')
 const { ASSETS, drawCombatScreen } = require('../client/js/ui/combat-screen')
 const fs = require('node:fs')
 const path = require('node:path')
@@ -20,10 +20,7 @@ test('微信触控完成守卫战掷骰、技能预览拖用、骰子分配和�
   const sim = await simulation(t, 1, { combatVersion: 1 })
   const [app] = sim.client
   await app.tap('home_start')
-  for (const id of ['wp_006', 'sk_001']) {
-    await app.tap('loadout_warehouse_card', hit => hit.data === id)
-    await app.tap('loadout_warehouse_card', hit => hit.data === id)
-  }
+  for (const id of ['wp_006', 'sk_001']) await transferLoadoutCard(app, id)
   await app.tap('loadout_match')
   await app.tap('lobby_single')
   const edit = async update => {
@@ -42,9 +39,19 @@ test('微信触控完成守卫战掷骰、技能预览拖用、骰子分配和�
   assert.equal(app.hits('combat_roll').length, 0)
   assert.equal(app.hits('combat_die').length, 3)
 
+  await app.tap('card_preview', hit => hit.previewCardId === 'wp_006')
+  assert.equal(app.run('cardPreviewId'), 'wp_006')
+  await app.tap('card_preview_close')
+  await app.tap('card_preview', hit => hit.previewCardId === 'sk_001')
+  assert.equal(app.run('cardPreviewId'), 'sk_001')
+  assert.equal(app.run('combatSkillsOpen'), false)
+  await app.tap('card_preview_close')
   await app.tap('combat_skills')
   await app.tap('combat_skill')
-  assert.match(app.draw().join(' '), /对子加倍/)
+  assert.equal(app.run('cardPreviewId'), 'sk_001')
+  assert.ok(!app.draw().includes('对子加倍'))
+  await app.tap('card_preview_close')
+  assert.equal(app.run('combatSkillsOpen'), true)
   const drag = async (hit, end) => {
     app.touch('start', ...center(hit.rect))
     app.touch('move', ...end)
@@ -52,6 +59,7 @@ test('微信触控完成守卫战掷骰、技能预览拖用、骰子分配和�
     await app.idle()
   }
   await drag(app.hits('combat_skill')[0], center(app.read('combatLayout.drop')))
+  assert.equal(app.run('cardPreviewId'), null)
   assert.match(app.draw().join(' '), /本期不产生效果/)
   assert.equal(app.hits('combat_skills').length, 0)
   assert.ok(app.draw().includes('技能卡槽'))
@@ -144,7 +152,7 @@ test('真人战斗同场就绪、旧快照防回退及第三位玩家搜索并�
     assert.ok(labels.includes(`防御 ${score.defense}`))
   }
   assert.ok(['掷骰子', '准备就绪', '骰子托盘', '技能卡槽', '放弃对局'].every(label => !labels.includes(label)))
-  assert.deepEqual(b.read('ui.hotspots'), [])
+  assert.ok(b.read('ui.hotspots').every(hit => hit.id === 'card_preview'))
   sim.tick(1999)
   await heartbeat(b)
   assert.equal(b.run('interactiveBattle.stage'), 'IMPACT')
