@@ -196,7 +196,8 @@ let activeBattle = null
 let interactiveBattle = null
 let combatLayout = null
 let combatGesture = null
-let combatDraftZones = null
+let combatDraft = null
+let combatPlacementRevision = 0
 let combatSelectedDie = null
 let combatSelectedSkill = null
 let combatSkillsOpen = false
@@ -497,6 +498,7 @@ function applyAccountResponse(response) {
     const sameBattleDeadline = battle && previousGame?.gameId === accountGame.gameId &&
       battle.deadlineAt === previousGame.combat?.deadlineAt && previousBattle
     interactiveBattle = battle ? { ...battle, deadlineAt: sameBattleDeadline ? Math.min(battleDeadline, previousBattle.deadlineAt) : battleDeadline } : null
+    if (combatDraft && battle?.self.placementRevision >= combatDraft.revision) combatDraft = null
     if (interactiveBattle) loadCombatArtwork()
     engine.moveDeadlineAt += clockOffset
     engine.turnDeadlineAt += clockOffset
@@ -2255,7 +2257,8 @@ function decidePostMove() {
 function resetCombatInput() {
   if (combatGesture) cancelledGameTouch = true
   combatGesture = null
-  combatDraftZones = null
+  combatDraft = null
+  combatPlacementRevision = 0
   combatSelectedDie = null
   combatSelectedSkill = null
   combatSkillsOpen = false
@@ -2263,7 +2266,7 @@ function resetCombatInput() {
 
 function combatDice() {
   const dice = interactiveBattle.self.dice
-  return combatDraftZones ? dice.map((die, i) => ({ ...die, zone: combatDraftZones[i] })) : dice
+  return combatDraft ? dice.map((die, i) => ({ ...die, zone: combatDraft.zones[i] })) : dice
 }
 
 function drawInteractiveBattle() {
@@ -2287,9 +2290,22 @@ function sendCombatAction(action, payload = {}) {
 function placeCombatDie(index, zone) {
   if (!interactiveBattle || interactiveBattle.stage !== 'PLAY' || interactiveBattle.self.ready ||
       Date.now() >= interactiveBattle.deadlineAt || accountBusy || !interactiveBattle.self.dice[index]) return
-  combatDraftZones ??= interactiveBattle.self.dice.map(die => die.zone)
-  combatDraftZones[index] = zone
+  const zones = combatDice().map(die => die.zone)
   combatSelectedDie = null
+  if (zones[index] === zone) return
+  zones[index] = zone
+  combatPlacementRevision = Math.max(combatPlacementRevision, interactiveBattle.self.placementRevision ?? 0) + 1
+  const draft = combatDraft = { zones, revision: combatPlacementRevision }
+  const { gameId, state: { turn } } = accountGame
+  accountApi.command('game', { gameId, turn, subRound: interactiveBattle.subRound, action: 'combat-place',
+    zones, placementRevision: draft.revision }, { parallelPlacement: true })
+    .then(applyAccountResponse)
+    .catch(error => {
+      if (combatDraft !== draft || ['COMBAT_ALREADY_READY', 'COMBAT_CLOSED', 'STALE_TURN', 'STALE_SUB_ROUND'].includes(error.code)) return
+      combatDraft = null
+      addToast('骰子位置同步失败，请重试。', 1800)
+      invalidateFrame()
+    })
 }
 
 async function useCombatSkill(instanceId) {

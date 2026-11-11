@@ -144,17 +144,18 @@ test('真人超时不补掷不补摆，50 秒后开放拾取，70 秒时准时�
   const f = await fixture(2)
   const gameId = await f.startRoom()
   const start = f.time()
+  await f.roomEdit(gameId, game => { game.combat.sides.P1.defensePercent = 100 })
   const roll = await f.act(0, gameId, 1, 'combat-roll', { subRound: 1 })
   const lastDie = roll.activeGame.combat.self.dice[2].value
   await f.act(0, gameId, 1, 'combat-place', { subRound: 1, dieIndex: 2, zone: 'DEFENSE' })
   f.advance(15000)
   const impact = (await f.command(0, 'resume')).activeGame.combat
   assert.equal(impact.stage, 'IMPACT')
-  assert.deepEqual(impact.self.dice.map(d => d.zone), ['TRAY', 'TRAY', 'TRAY'])
+  assert.deepEqual(impact.self.dice.map(d => d.zone), ['TRAY', 'TRAY', 'DEFENSE'])
   assert.equal(impact.self.dice[2].value, lastDie)
   assert.deepEqual(impact.opponent.dice, [])
   assert.deepEqual(impact.opponent.impact, { attack: 0, defense: 0, loss: 0 })
-  assert.deepEqual(impact.self.impact, { attack: 0, defense: 0, loss: 0 })
+  assert.deepEqual(impact.self.impact, { attack: 0, defense: lastDie, loss: 0 })
   f.advance(35000)
   const snapshots = await Promise.all([0, 1].map(i => f.command(i, 'resume')))
   const qualified = snapshots.findIndex(result => result.activeGame?.search?.visit.kind === 'LOOT')
@@ -167,6 +168,39 @@ test('真人超时不补掷不补摆，50 秒后开放拾取，70 秒时准时�
   const next = (await f.command(qualified, 'resume')).activeGame
   assert.equal(next.state.turn, 2)
   assert.equal(next.state.moveDeadlineAt, start + 85000)
+})
+
+test('整组摆放可独立生效，迟到旧位置不回滚，未就绪也按已摆骰子攻击', async () => {
+  const f = await fixture(2)
+  const gameId = await f.startRoom()
+  await f.act(0, gameId, 1, 'combat-roll', { subRound: 1 })
+  await f.roomEdit(gameId, game => {
+    game.combat.sides.P1.attackPercent = 100
+    game.combat.sides.P1.dice[0].value = 5
+  })
+  const latest = ['ATTACK', 'TRAY', 'TRAY']
+  const place = (placementRevision, zones, requestId) => f.act(0, gameId, 1, 'combat-place', {
+    subRound: 1, placementRevision, zones, ...(requestId ? { requestId } : {})
+  })
+  await assert.rejects(place(0, latest), { code: 'DICE_PLACEMENT_INVALID' })
+  await assert.rejects(place(2, ['ATTACK', 5, 'TRAY']), { code: 'DICE_PLACEMENT_INVALID' })
+  const id = 'placement-retry-test'
+  await place(2, latest, id)
+  await place(1, ['DEFENSE', 'TRAY', 'TRAY'])
+  await place(2, latest, id)
+  await assert.rejects(place(2, ['TRAY', 'TRAY', 'TRAY'], id), { code: 'REQUEST_ID_REUSED' })
+  const current = (await f.command(0, 'resume')).activeGame.combat
+  assert.equal(current.stage, 'PLAY')
+  assert.equal(current.self.ready, false)
+  assert.equal(current.self.placementRevision, 2)
+  assert.deepEqual(current.self.dice.map(die => die.zone), latest)
+  f.advance(15000)
+  await assert.rejects(place(3, ['TRAY', 'TRAY', 'TRAY']), { code: 'COMBAT_CLOSED' })
+  const impact = (await f.command(0, 'resume')).activeGame.combat
+  assert.equal(impact.stage, 'IMPACT')
+  assert.equal(impact.self.impact.attack, 5)
+  assert.equal(impact.opponent.impact.loss, 5)
+  assert.deepEqual(impact.opponent.dice, [])
 })
 
 test('就绪一次提交三颗分配：先掷骰、整组校验、不能改点数、同请求可重试', async () => {

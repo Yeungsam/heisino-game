@@ -166,15 +166,18 @@ test('第一小回合按下掷骰后跨阶段抬手，下一小回合不会误�
   assert.equal(app.read('interactiveBattle.self.dice').length, 3)
 })
 
-test('慢心跳期间可连续摆放三颗骰子，快照不回滚且就绪一次提交', async t => {
+test('慢心跳和慢摆放回包不会阻塞后续拖动及就绪', { timeout: 3000 }, async t => {
   const sim = await simulation(t, 1, { combatVersion: 1 })
   await enterGuardRoom(sim)
-  let unblock, markHeartbeat, markReady
+  let unblock, markHeartbeat, markReady, markLatest
   const blocked = new Promise(resolve => { unblock = resolve })
   const heartbeatReceived = new Promise(resolve => { markHeartbeat = resolve })
   const readyReceived = new Promise(resolve => { markReady = resolve })
+  const latestReceived = new Promise(resolve => { markLatest = resolve })
   const app = await sim.mount(0, { blockResponse: async request => {
     if (request.route.endsWith('/heartbeat')) { markHeartbeat(); await blocked }
+    if (request.input?.action === 'combat-place' && request.input.placementRevision === 1) await blocked
+    if (request.input?.action === 'combat-place' && request.input.placementRevision === 3) markLatest(request)
     if (request.input?.action === 'combat-ready') markReady(request)
   } })
   try {
@@ -191,7 +194,7 @@ test('慢心跳期间可连续摆放三颗骰子，快照不回滚且就绪一�
     }
     assert.deepEqual(app.read('combatDice().map(die => die.zone)'), zones)
     assert.deepEqual(app.read('interactiveBattle.self.dice.map(die => die.zone)'), ['TRAY', 'TRAY', 'TRAY'])
-    assert.ok(app.requests.every(request => request.input?.action !== 'combat-place'))
+    assert.deepEqual((await latestReceived).input.zones, zones)
     await app.tap('combat_ready', undefined, false)
     assert.deepEqual((await readyReceived).input.zones, zones)
     unblock()
@@ -202,17 +205,17 @@ test('慢心跳期间可连续摆放三颗骰子，快照不回滚且就绪一�
   } finally { unblock() }
 })
 
-test('同回合恢复保留当前页面草稿，未点就绪超时则攻防清空', async t => {
+test('未点就绪也同步摆放，重进后按已放进攻防区的骰子结算', async t => {
   const sim = await simulation(t, 1, { combatVersion: 1 })
   const app = await enterGuardRoom(sim)
   await app.tap('combat_roll')
   await app.tap('combat_die', hit => hit.data === 0)
   await app.tap('combat_zone', hit => hit.data === 'DEFENSE')
-  await heartbeat(app)
-  assert.equal(app.read('combatDice()')[0].zone, 'DEFENSE')
+  const reopened = await sim.mount(0)
+  assert.equal(reopened.read('interactiveBattle.self.dice')[0].zone, 'DEFENSE')
+  assert.equal(reopened.run('interactiveBattle.self.ready'), false)
   sim.tick(15000)
-  await heartbeat(app)
-  assert.equal(app.run('interactiveBattle.stage'), 'IMPACT')
-  assert.deepEqual(app.read('combatDice().map(die => die.zone)'), ['TRAY', 'TRAY', 'TRAY'])
-  assert.equal(app.read('interactiveBattle.self.impact').defense, 0)
+  await heartbeat(reopened)
+  assert.equal(reopened.run('interactiveBattle.stage'), 'IMPACT')
+  assert.deepEqual(reopened.read('combatDice().map(die => die.zone)'), ['DEFENSE', 'TRAY', 'TRAY'])
 })

@@ -49,7 +49,7 @@ function beginRound(combat, engine, at) {
   combat.impact = null
   for (const id of combat.playerIds) {
     const side = combat.sides[id]
-    Object.assign(side, { dice: [], readyAt: null, skillCardId: null })
+    Object.assign(side, { dice: [], readyAt: null, skillCardId: null, placementRevision: 0 })
     if (engine.getPlayer(id).isBot) {
       roll(side, engine)
       const attack = randomInt(engine.rng, 3)
@@ -69,7 +69,6 @@ function createCombat(engine, encounter, at) {
 function resolveImpact(combat, engine, at) {
   const scores = combat.playerIds.map(id => {
     const side = combat.sides[id]
-    if (side.readyAt === null) for (const die of side.dice) die.zone = 'TRAY'
     const sum = zone => side.dice.filter(die => die.zone === zone).reduce((total, die) => total + die.value, 0)
     return {
       id, attack: Math.floor(sum('ATTACK') * side.attackPercent / 100),
@@ -215,8 +214,18 @@ function combatAction(combat, engine, id, input, now) {
     if (side.dice.length) throw fault('DICE_ALREADY_ROLLED', 409)
     roll(side, engine)
   } else if (input.action === 'combat-place') {
-    if (!Number.isInteger(input.dieIndex) || !side.dice[input.dieIndex] || !ZONES.has(input.zone)) throw fault('DICE_PLACEMENT_INVALID')
-    side.dice[input.dieIndex].zone = input.zone
+    if (input.zones !== undefined) {
+      const { zones, placementRevision } = input
+      if (side.dice.length !== 3 || !Array.isArray(zones) || zones.length !== 3 || zones.some(zone => !ZONES.has(zone)) ||
+          !Number.isSafeInteger(placementRevision) || placementRevision <= 0) throw fault('DICE_PLACEMENT_INVALID')
+      if (placementRevision > (side.placementRevision ?? 0)) {
+        side.dice.forEach((die, index) => { die.zone = zones[index] })
+        side.placementRevision = placementRevision
+      }
+    } else {
+      if (!Number.isInteger(input.dieIndex) || !side.dice[input.dieIndex] || !ZONES.has(input.zone)) throw fault('DICE_PLACEMENT_INVALID')
+      side.dice[input.dieIndex].zone = input.zone
+    }
   } else if (input.action === 'combat-ready') {
     if (side.dice.length !== 3) throw fault('DICE_UNPLACED', 409)
     if (input.zones !== undefined) {
@@ -251,7 +260,7 @@ function combatView(combat, engine, id) {
   const side = combat.sides[id]
   return {
     nodeId: combat.nodeId, turn: combat.turn, subRound: combat.round, stage: combat.stage, deadlineAt: combat.deadlineAt,
-    self: { ...info(self), dice: side.dice || [], attackPercent: side.attackPercent, defensePercent: side.defensePercent,
+    self: { ...info(self), dice: side.dice || [], placementRevision: side.placementRevision ?? 0, attackPercent: side.attackPercent, defensePercent: side.defensePercent,
       skillUsed: Boolean(side.skillCardId), skills: inventory(engine, self).filter(item => engine.cardById[item.cardId]?.category === 'SKILL')
         .map(item => ({ instanceId: item.instanceId, cardId: item.cardId })) },
     opponent: { ...info(opponent), dice: combat.impact ? combat.sides[opponentId].dice : [] },
@@ -262,6 +271,7 @@ function combatView(combat, engine, id) {
 function combatFingerprint(input) {
   const fields = [input.subRound, input.dieIndex, input.zone]
   if (input.action === 'combat-ready' && input.zones !== undefined) fields.push(input.zones)
+  if (input.action === 'combat-place' && input.zones !== undefined) fields.push(input.zones, input.placementRevision)
   return fields
 }
 

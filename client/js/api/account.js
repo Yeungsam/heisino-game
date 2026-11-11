@@ -75,8 +75,8 @@ async function login(expectedAccountId) {
   return result
 }
 
-function command(action, data = {}, { bypassHeartbeat = false } = {}) {
-  // Retries reuse the exact payload and id. Only time-sensitive moves and their recovery bypass a heartbeat.
+function command(action, data = {}, { bypassHeartbeat = false, parallelPlacement = false } = {}) {
+  // Retries reuse the exact payload and id. The server orders combat layouts by revision.
   const input = { ...data, requestId: data.requestId || requestId() }
   const queuedAt = Date.now()
   const accountId = sessionAccountId()
@@ -98,6 +98,9 @@ function command(action, data = {}, { bypassHeartbeat = false } = {}) {
     }
     requireAccount(accountId)
     return response
+  }
+  if (parallelPlacement && action === 'game' && data.action === 'combat-place' && Number.isSafeInteger(data.placementRevision)) {
+    return Promise.resolve().then(run)
   }
   const ready = bypassHeartbeat ? queue : Promise.all([queue, heartbeatQueue])
   const next = ready.then(run)
