@@ -1353,7 +1353,7 @@ function drawLoadout() {
   text('准备好了再出发。', speechRect.x + 10, speechRect.y + 66, 9, '#3a2830', 'left', 'bold')
 
   panel(warehouseRect.x, warehouseRect.y, warehouseRect.width, warehouseRect.height, { fill: 'rgba(31,20,35,.94)', stroke: 'rgba(247,201,92,.74)', radius: 15 })
-  text('玩家仓库', warehouseRect.x + 14, warehouseRect.y + 18, 14, PALETTE.paleGold, 'left', 'bold')
+  text('仓库', warehouseRect.x + 14, warehouseRect.y + 18, 14, PALETTE.paleGold, 'left', 'bold')
   text(`武器/防具/技能 · ${state.warehouseCardIds.length}张`, warehouseRect.x + warehouseRect.width - 12, warehouseRect.y + 18, 8, '#c9b9ca', 'right', 'bold')
   ui.loadoutWarehouseDropRect = warehouseRect
   const detailHeight = 36
