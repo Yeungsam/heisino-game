@@ -84,16 +84,19 @@ test('多人手动掷骰、摆放、技能消耗及就绪由服务端校验，�
   await assert.rejects(f.act(0, gameId, 1, 'combat-place', { subRound: 1, dieIndex: 0, zone: 'ATTACK' }), { code: 'COMBAT_ALREADY_READY' })
   const impact = (await ready(1)).activeGame.combat
   assert.equal(impact.stage, 'IMPACT')
-  assert.equal(impact.deadlineAt, f.time() + 1000)
+  assert.equal(impact.impactStartedAt, f.time())
+  assert.equal(impact.deadlineAt, f.time() + 2000)
   assert.equal(impact.opponent.dice.length, 3)
   assert.equal(impact.self.impact.defense, 0)
   assert.equal(impact.opponent.impact.attack, 0)
-  f.advance(1000)
+  f.advance(1999)
+  assert.equal((await f.command(0, 'resume')).activeGame.combat.stage, 'IMPACT')
+  f.advance(1)
   assert.equal((await f.command(0, 'resume')).activeGame.combat.subRound, 2)
   await assert.rejects(f.act(0, gameId, 1, 'combat-roll', { subRound: 1 }), { code: 'STALE_SUB_ROUND' })
 })
 
-test('提前击倒后两秒结算再立即拾取，轮空搜索与战利品窗口权限互斥', async () => {
+test('提前击倒后先碰撞两秒再展示终局，轮空搜索与战利品窗口权限互斥', async () => {
   const f = await fixture(3)
   const gameId = await f.startRoom({ hp: 2 })
   const combat = f.store.rooms.get(gameId).game.combat
@@ -113,14 +116,14 @@ test('提前击倒后两秒结算再立即拾取，轮空搜索与战利品窗�
   await f.act(winner, gameId, 1, 'combat-ready', { subRound: 1 })
   const hit = await f.act(loser, gameId, 1, 'combat-ready', { subRound: 1 })
   assert.equal(hit.activeGame.combat.self.hp, 0)
-  f.advance(1000)
+  f.advance(2000)
   assert.equal((await f.command(winner, 'resume')).activeGame.combat.outcome, 'WIN')
   f.advance(2000)
   const observed = await f.act(winner, gameId, 1, 'observe', { areaId: 'MAIN_TABLE' })
   const loot = observed.activeGame.search
   assert.equal(loot.visit.kind, 'LOOT')
-  assert.equal(loot.visit.startedAt, start + 3000)
-  assert.equal(loot.visit.deadlineAt, start + 23000)
+  assert.equal(loot.visit.startedAt, start + 4000)
+  assert.equal(loot.visit.deadlineAt, start + 24000)
   const ids = loot.room.activeArea.visibleItems.map(item => item.instanceId)
   assert.ok(loot.room.activeArea.visibleItems.some(item => item.cardId === 'loot_002' && item.state === 'DROPPED'))
   assert.ok(loot.room.activeArea.visibleItems.some(item => item.cardId === 'loot_001' && item.state === 'DROPPED'))
@@ -140,7 +143,7 @@ test('提前击倒后两秒结算再立即拾取，轮空搜索与战利品窗�
   assert.equal(persisted.find(item => item.cardId === 'loot_010').state, 'DESTROYED')
 })
 
-test('真人超时不补掷不补摆，50 秒后开放拾取，70 秒时准时结束窗口', async () => {
+test('真人超时不补掷不补摆，碰撞结束后保留完整 20 秒拾取窗口', async () => {
   const f = await fixture(2)
   const gameId = await f.startRoom()
   const start = f.time()
@@ -156,18 +159,22 @@ test('真人超时不补掷不补摆，50 秒后开放拾取，70 秒时准时�
   assert.deepEqual(impact.opponent.dice, [])
   assert.deepEqual(impact.opponent.impact, { attack: 0, defense: 0, loss: 0 })
   assert.deepEqual(impact.self.impact, { attack: 0, defense: lastDie, loss: 0 })
-  f.advance(35000)
+  f.advance(37999)
+  const result = (await f.command(0, 'resume')).activeGame
+  assert.equal(result.combat.stage, 'RESULT')
+  assert.equal(result.search, null)
+  f.advance(1)
   const snapshots = await Promise.all([0, 1].map(i => f.command(i, 'resume')))
   const qualified = snapshots.findIndex(result => result.activeGame?.search?.visit.kind === 'LOOT')
   assert.ok(qualified >= 0)
   const visit = snapshots[qualified].activeGame.search.visit
-  assert.equal(visit.startedAt, start + 50000)
-  assert.equal(visit.deadlineAt, start + 70000)
+  assert.equal(visit.startedAt, start + 53000)
+  assert.equal(visit.deadlineAt, start + 73000)
   f.advance(20000)
   await assert.rejects(f.act(qualified, gameId, 1, 'observe', { areaId: 'MAIN_TABLE' }), { code: 'STALE_TURN' })
   const next = (await f.command(qualified, 'resume')).activeGame
   assert.equal(next.state.turn, 2)
-  assert.equal(next.state.moveDeadlineAt, start + 85000)
+  assert.equal(next.state.moveDeadlineAt, start + 88000)
 })
 
 test('整组摆放可独立生效，迟到旧位置不回滚，未就绪也按已摆骰子攻击', async () => {
@@ -271,7 +278,7 @@ test('同时归零不发战利品，主动弃权只结算一次且胜者可拾�
     side.dice = Array.from({ length: 3 }, () => ({ value: 6, zone: 'ATTACK' }))
     side.readyAt = 16000
   }
-  Battle.advanceCombat(direct, engine, 19000)
+  Battle.advanceCombat(direct, engine, 20000)
   assert.equal(direct.result.bothDown, true)
   assert.deepEqual(direct.lootPlayers, [])
   assert.deepEqual(engine.players.map(p => p.status), ['DEFEATED', 'DEFEATED'])
@@ -285,6 +292,23 @@ test('同时归零不发战利品，主动弃权只结算一次且胜者可拾�
   f.advance(2000)
   const search = (await f.act(1, gameId, 1, 'observe', { areaId: 'MAIN_TABLE' })).activeGame.search
   assert.equal(search.room.activeArea.visibleItems.filter(item => item.state === 'DROPPED').length, 2)
+})
+
+test('碰撞中弃权不跳过已开始的动画，胜者随后进入终局展示', async () => {
+  const f = await fixture(2)
+  const gameId = await f.startRoom()
+  f.advance(15000)
+  const impact = (await f.command(0, 'heartbeat')).activeGame.combat
+  f.advance(1000)
+  assert.equal((await f.act(1, gameId, 1, 'abandon')).lastSettlement.status, 'ABANDONED')
+  const during = (await f.command(0, 'resume')).activeGame.combat
+  assert.equal(during.stage, 'IMPACT')
+  assert.equal(during.deadlineAt, impact.deadlineAt)
+  assert.equal(during.outcome, null)
+  f.advance(1000)
+  const result = (await f.command(0, 'resume')).activeGame.combat
+  assert.equal(result.stage, 'RESULT')
+  assert.equal(result.outcome, 'WIN')
 })
 
 test('单人战斗断线跨过战利品和移动截止时自动原地，不能补交超时移动', async () => {
@@ -323,7 +347,7 @@ test('存活败者只损失最高两件且同价按背包顺序，平局对奇�
   const firstLoot = engine.createItem('loot_019', null, 'IN_INVENTORY', 'P2')
   engine.getPlayer('P2').inventory.push(firstLoot.instanceId)
   for (let round = 1; round <= 3; round++) {
-    const at = 1000 + (round - 1) * 1000
+    const at = 1000 + (round - 1) * 2000
     Battle.advanceCombat(won, engine, at)
     for (const side of Object.values(won.sides)) {
       side.dice = Array.from({ length: 3 }, () => ({ value: 6, zone: 'DEFENSE' }))
@@ -331,7 +355,7 @@ test('存活败者只损失最高两件且同价按背包顺序，平局对奇�
     }
     Battle.advanceCombat(won, engine, at)
   }
-  Battle.advanceCombat(won, engine, 6000)
+  Battle.advanceCombat(won, engine, 9000)
   assert.equal(won.result.winnerId, 'P1')
   assert.equal(engine.getPlayer('P2').hp, 10)
   assert.equal(engine.getPlayer('P2').status, 'ACTIVE')
@@ -341,7 +365,7 @@ test('存活败者只损失最高两件且同价按背包顺序，平局对奇�
   engine.start(participants.map(player => ({ ...player, cardIds: [] })))
   const items = Array.from({ length: 5 }, () => engine.createItem('loot_015', 'n_1_0', 'HIDDEN'))
   const draw = Battle.createCombat(engine, { playerIds: ['P1', 'P2'], nodeId: 'n_1_0', itemIds: items.map(item => item.instanceId) }, 1000)
-  Battle.advanceCombat(draw, engine, 51000)
+  Battle.advanceCombat(draw, engine, 54000)
   assert.equal(draw.result.winnerId, null)
   assert.equal(draw.result.bothDown, false)
   assert.deepEqual(draw.lootPlayers, ['P1', 'P2'])
@@ -363,13 +387,13 @@ test('守卫获胜没收最高两件，存活玩家保留其余资产并继续',
   const roomItem = engine.createItem('loot_015', 'n_1_0', 'HIDDEN')
   const combat = Battle.createCombat(engine, { playerIds: [player.id, guard.id], nodeId: 'n_1_0', itemIds: [roomItem.instanceId] }, 1000)
   for (let round = 0; round < 3; round++) {
-    const at = 1000 + round * 1000
+    const at = 1000 + round * 2000
     Battle.advanceCombat(combat, engine, at)
     combat.sides.P1.dice = Array.from({ length: 3 }, () => ({ value: 1, zone: 'DEFENSE' }))
     combat.sides.P1.readyAt = at
     Battle.advanceCombat(combat, engine, at)
   }
-  Battle.advanceCombat(combat, engine, 6000)
+  Battle.advanceCombat(combat, engine, 9000)
   assert.equal(combat.result.winnerId, guard.id)
   assert.equal(player.status, 'ACTIVE')
   assert.ok(player.hp > 0 && player.hp < 30)
@@ -399,7 +423,7 @@ test('单人原地停留重新判定满血守卫，守卫固定一攻两防，�
   })
   await f.act(0, gameId, 1, 'combat-ready', { subRound: 1 })
   await f.command(0, 'suspend')
-  f.advance(3000)
+  f.advance(4000)
   const loot = (await f.act(0, gameId, 1, 'observe', { areaId: 'MAIN_TABLE' })).activeGame.search
   const blueWeapon = loot.room.activeArea.visibleItems.find(item => item.cardId === 'wp_004')
   assert.ok(blueWeapon)

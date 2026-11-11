@@ -3,7 +3,7 @@ const { randomInt, shuffled, constants: C } = require('./runtime')
 
 const VERSION = 1
 const PLAY_MS = 15000
-const IMPACT_MS = 1000
+const IMPACT_MS = 2000
 const RESULT_MS = 2000
 const LOOT_MS = 20000
 const ACTIONS = new Set(['combat-roll', 'combat-place', 'combat-ready', 'combat-skill'])
@@ -47,6 +47,7 @@ function beginRound(combat, engine, at) {
   combat.stage = 'PLAY'
   combat.deadlineAt = at + PLAY_MS
   combat.impact = null
+  combat.impactStartedAt = null
   for (const id of combat.playerIds) {
     const side = combat.sides[id]
     Object.assign(side, { dice: [], readyAt: null, skillCardId: null, placementRevision: 0 })
@@ -83,6 +84,7 @@ function resolveImpact(combat, engine, at) {
     return [score.id, { attack: score.attack, defense: score.defense, loss }]
   }))
   combat.stage = 'IMPACT'
+  combat.impactStartedAt = at
   combat.deadlineAt = at + IMPACT_MS
 }
 
@@ -158,8 +160,8 @@ function advanceCombat(combat, engine, now) {
     if (combat.stage === 'PENDING') beginRound(combat, engine, at)
     else if (combat.stage === 'PLAY') resolveImpact(combat, engine, at)
     else if (combat.stage === 'IMPACT') {
-      if (combat.round === C.BATTLE_SUB_ROUNDS || combat.playerIds.some(id => engine.getPlayer(id).hp === 0)) {
-        combat.result = resultFor(combat, engine)
+      if (combat.result || combat.round === C.BATTLE_SUB_ROUNDS || combat.playerIds.some(id => engine.getPlayer(id).hp === 0)) {
+        combat.result ??= resultFor(combat, engine)
         combat.stage = 'RESULT'
         combat.deadlineAt = at + RESULT_MS
       } else {
@@ -182,8 +184,10 @@ function forfeit(combat, engine, id, at) {
   combat.result = engine.getPlayer(opponent).hp > 0
     ? { winnerId: opponent, loserId: id, bothDown: false, forfeitedId: id }
     : { winnerId: null, loserId: null, bothDown: true, forfeitedId: id }
-  combat.stage = 'RESULT'
-  combat.deadlineAt = Math.min(Math.max(at, combat.startedAt) + RESULT_MS, combat.startedAt + C.SEARCH_DURATION_MS)
+  if (combat.stage !== 'IMPACT') {
+    combat.stage = 'RESULT'
+    combat.deadlineAt = Math.max(at, combat.startedAt) + RESULT_MS
+  }
   // Resolve immediately so an abandoning account can settle even if it never polls again.
   combat.lootPlayers = award(combat, engine)
   combat.awarded = true
@@ -260,11 +264,12 @@ function combatView(combat, engine, id) {
   const side = combat.sides[id]
   return {
     nodeId: combat.nodeId, turn: combat.turn, subRound: combat.round, stage: combat.stage, deadlineAt: combat.deadlineAt,
+    ...(combat.stage === 'IMPACT' ? { impactStartedAt: combat.impactStartedAt ?? combat.deadlineAt - 1000 } : {}),
     self: { ...info(self), dice: side.dice || [], placementRevision: side.placementRevision ?? 0, attackPercent: side.attackPercent, defensePercent: side.defensePercent,
       skillUsed: Boolean(side.skillCardId), skills: inventory(engine, self).filter(item => engine.cardById[item.cardId]?.category === 'SKILL')
         .map(item => ({ instanceId: item.instanceId, cardId: item.cardId })) },
     opponent: { ...info(opponent), dice: combat.impact ? combat.sides[opponentId].dice : [] },
-    outcome: combat.result ? combat.result.bothDown ? 'DOUBLE_KO' : !combat.result.winnerId ? 'DRAW' : combat.result.winnerId === id ? 'WIN' : 'LOSS' : null
+    outcome: combat.stage === 'RESULT' && combat.result ? combat.result.bothDown ? 'DOUBLE_KO' : !combat.result.winnerId ? 'DRAW' : combat.result.winnerId === id ? 'WIN' : 'LOSS' : null
   }
 }
 

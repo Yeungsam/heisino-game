@@ -494,10 +494,12 @@ function applyAccountResponse(response) {
         battle?.stage !== previousBattle?.stage || battle?.self.ready !== previousBattle?.self.ready || previousGame?.gameId !== accountGame.gameId) {
       resetCombatInput()
     }
-    const battleDeadline = battle && battle.deadlineAt + clockOffset
     const sameBattleDeadline = battle && previousGame?.gameId === accountGame.gameId &&
       battle.deadlineAt === previousGame.combat?.deadlineAt && previousBattle
-    interactiveBattle = battle ? { ...battle, deadlineAt: sameBattleDeadline ? Math.min(battleDeadline, previousBattle.deadlineAt) : battleDeadline } : null
+    const battleDeadline = battle && Math.min(battle.deadlineAt + clockOffset, sameBattleDeadline ? previousBattle.deadlineAt : Infinity)
+    interactiveBattle = battle ? { ...battle, deadlineAt: battleDeadline,
+      ...(Number.isFinite(battle.impactStartedAt) ? { impactStartedAt: battleDeadline - (battle.deadlineAt - battle.impactStartedAt) } : {})
+    } : null
     if (combatDraft && battle?.self.placementRevision >= combatDraft.revision) combatDraft = null
     if (interactiveBattle) loadCombatArtwork()
     engine.moveDeadlineAt += clockOffset
@@ -2738,7 +2740,8 @@ function drawGame() {
   if (presentation === 'SEARCH') drawSearch(state)
   if (presentation === 'ROUND_RESULT') drawRoundResult(state)
   if (presentation === 'SETTLEMENT') drawSettlement(state)
-  if (accountGame && presentation !== 'SETTLEMENT' && !combatSkillsOpen) {
+  if (accountGame && presentation !== 'SETTLEMENT' && !combatSkillsOpen &&
+      (presentation !== 'BATTLE' || !interactiveBattle || interactiveBattle.stage === 'PLAY')) {
     const abandonY = interactiveBattle ? Math.max(34, viewHeight * .58) : viewHeight - 30
     button('account_abandon', '放弃对局', { x: 10, y: abandonY, width: 86, height: 24 }, { size: 9, top: '#46303d', bottom: '#281d2a' })
   }
@@ -2849,6 +2852,7 @@ function draw() {
 
 function drawPendingRequest() {
   if (!accountBusy || Date.now() - accountBusySince < 180) return
+  if (presentation === 'BATTLE' && ['IMPACT', 'RESULT'].includes(interactiveBattle?.stage)) return
   const width = Math.min(240, viewWidth - 40), x = (viewWidth - width) / 2, y = viewHeight - 78
   panel(x, y, width, 26, { fill: 'rgba(24,15,29,.88)', stroke: 'rgba(247,201,92,.4)', radius: 13 })
   const dots = '.'.repeat(1 + Math.floor(Date.now() / 350) % 3)

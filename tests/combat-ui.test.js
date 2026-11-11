@@ -1,7 +1,7 @@
 const test = require('node:test')
 const assert = require('node:assert/strict')
 const { simulation, dock, heartbeat, move, center } = require('./helpers/account-ui-simulation')
-const { ASSETS } = require('../client/js/ui/combat-screen')
+const { ASSETS, drawCombatScreen } = require('../client/js/ui/combat-screen')
 const fs = require('node:fs')
 const path = require('node:path')
 
@@ -76,9 +76,10 @@ test('微信触控完成守卫战掷骰、技能预览拖用、骰子分配和�
   await app.tap('combat_ready')
   assert.equal(app.hits('combat_ready').length, 0)
   assert.equal(app.run('interactiveBattle.stage'), 'IMPACT')
-  sim.tick(1000)
+  sim.tick(2000)
   await heartbeat(app)
   assert.ok(app.draw().includes('战斗胜利'))
+  assert.ok(!app.draw().includes('骰子托盘'))
   sim.tick(2000)
   await heartbeat(app)
   assert.equal(app.run('presentation'), 'ROOM')
@@ -135,6 +136,50 @@ test('真人战斗同场就绪、旧快照防回退及第三位玩家搜索并�
   assert.equal(a.run('interactiveBattle.self.dice.length'), 3)
   assert.equal(b.run('interactiveBattle.stage'), 'IMPACT')
   assert.equal(searchers[0].run('presentation'), 'ROOM')
+  const scores = b.read('[interactiveBattle.self.impact, interactiveBattle.opponent.impact]')
+  const labels = b.draw()
+  assert.ok(labels.includes('你'))
+  for (const score of scores) {
+    assert.ok(labels.includes(`攻击 ${score.attack}`))
+    assert.ok(labels.includes(`防御 ${score.defense}`))
+  }
+  assert.ok(['掷骰子', '准备就绪', '骰子托盘', '技能卡槽', '放弃对局'].every(label => !labels.includes(label)))
+  assert.deepEqual(b.read('ui.hotspots'), [])
+  sim.tick(1999)
+  await heartbeat(b)
+  assert.equal(b.run('interactiveBattle.stage'), 'IMPACT')
+  sim.tick(1)
+  await heartbeat(b)
+  assert.equal(b.run('interactiveBattle.subRound'), 2)
+  assert.equal(b.hits('combat_roll').length, 1)
+  await b.tap('combat_roll')
+  assert.ok(b.draw().includes('骰子托盘'))
+  assert.ok(!b.draw().some(label => /双方.*就绪/.test(label)))
+})
+
+test('碰撞动画中双方从两侧靠拢一次再退开，血量在接触时才下降', () => {
+  const deadlineAt = 2000
+  const self = { name: '甲', hp: 25, maxHp: 30, impact: { attack: 5, defense: 0, loss: 5 } }
+  const battle = { turn: 1, subRound: 1, stage: 'IMPACT', impactStartedAt: 0, deadlineAt, self, opponent: { ...self, name: '乙' } }
+  const drawAt = now => {
+    const offsets = [], labels = []
+    const gradient = { addColorStop() {} }
+    const context = new Proxy({ translate: x => offsets.push(x), createRadialGradient: () => gradient },
+      { get: (target, key) => target[key] ?? (() => {}) })
+    drawCombatScreen({ context, width: 956, height: 440, assets: {}, now, battle, roomName: '会客厅',
+      panel() {}, text: label => labels.push(label), drawCard() {} })
+    return { offsets, labels }
+  }
+  assert.deepEqual(drawAt(0).offsets, [])
+  const approach = drawAt(400)
+  const contact = drawAt(720)
+  const retreat = drawAt(1200)
+  assert.ok(approach.offsets[0] > 0 && approach.offsets[1] < 0)
+  assert.ok(contact.offsets[0] > approach.offsets[0] && contact.offsets[1] < approach.offsets[1])
+  assert.ok(retreat.offsets[0] < contact.offsets[0] && retreat.offsets[1] > contact.offsets[1])
+  assert.deepEqual(drawAt(1999).offsets, [])
+  assert.ok(approach.labels.includes('HP 30/30'))
+  assert.ok(retreat.labels.includes('HP 25/30'))
 })
 
 async function enterGuardRoom(sim) {
@@ -154,7 +199,7 @@ test('第一小回合按下掷骰后跨阶段抬手，下一小回合不会误�
   sim.tick(14900)
   const roll = center(app.hits('combat_roll')[0].rect)
   app.touch('start', ...roll)
-  sim.tick(1100)
+  sim.tick(2100)
   await heartbeat(app)
   assert.equal(app.run('interactiveBattle.subRound'), 2)
   assert.equal(app.hits('combat_roll').length, 1)

@@ -21,6 +21,8 @@ const ART = Object.freeze({
 const ASSETS = Object.keys(ART).concat(Array.from({ length: 6 }, (_, i) => `die-${i + 1}`))
 const ZONE_RECTS = { ATTACK: [155, 287, 240, 66], DEFENSE: [155, 353, 240, 66], TRAY: [401, 288, 291, 132] }
 const DROP_RECT = [260, 62, 436, 130]
+const CONTACT = 0.36
+const clamp01 = value => Math.min(1, Math.max(0, value))
 
 function createCombatLayout(width, height) {
   const scale = Math.min(width / 956, height / 440)
@@ -67,19 +69,29 @@ function drawCombatScreen({ context, width, height, battle, now, roomName, asset
     label(value, bounds[0] + bounds[2] / 2, bounds[1] + bounds[3] / 2, 25, { color: '#8e1921' })
   }
   const remaining = Math.max(0, battle.deadlineAt - now)
+  const impacting = battle.stage === 'IMPACT'
+  const resolving = impacting || battle.stage === 'RESULT'
+  const impactDuration = impacting ? Math.max(1, battle.deadlineAt - (battle.impactStartedAt ?? (battle.deadlineAt - 2000))) : 0
+  const impactTime = impacting ? clamp01(1 - remaining / impactDuration) : 0
+  const rush = impacting ? (impactTime <= CONTACT
+    ? (impactTime / CONTACT) ** 2
+    : (1 - clamp01((impactTime - CONTACT) / 0.38)) ** 2) : 0
   const playing = battle.stage === 'PLAY' && remaining > 0
   const editable = playing && !battle.self.ready && !busy
-  const sides = [{ data: battle.self, prefix: 'red', x: 74, fillFrom: 149, nameX: 174 },
-    { data: battle.opponent, prefix: 'blue', x: 706, fillFrom: 692, nameX: 784 }]
+  const sides = [{ data: battle.self, prefix: 'red', x: 74, fillFrom: 149, nameX: 174, offset: 215 },
+    { data: battle.opponent, prefix: 'blue', x: 706, fillFrom: 692, nameX: 784, offset: -204 }]
   const fallbackPanel = { fill: 'rgba(73,24,28,.93)', stroke: '#e0b66b', radius: 9 }
-  if (!image('deck')) box([20, 280, 922, 144], fallbackPanel)
-  for (const key of ['attack', 'defense', 'tray', 'actions', 'round-plate', 'room-plate', 'time-plate']) {
+  if (!resolving) {
+    if (!image('deck')) box([20, 280, 922, 144], fallbackPanel)
+    for (const key of ['attack', 'defense', 'tray', 'actions']) if (!image(key)) box(ART[key], fallbackPanel)
+  }
+  for (const key of ['round-plate', 'room-plate', 'time-plate']) {
     if (!image(key)) box(ART[key], fallbackPanel)
   }
   for (const key of ['round-icon', 'room-icon', 'time-icon', 'time-track']) image(key)
   label(`第 ${battle.turn} 回合`, 243, 39, 15, { width: 91 })
   label(roomName, 501, 39, 15, { width: 142 })
-  const progress = Math.min(1, remaining / (battle.stage === 'PLAY' ? 15000 : battle.stage === 'IMPACT' ? 1000 : 2000))
+  const progress = clamp01(remaining / (battle.stage === 'PLAY' ? 15000 : impacting ? impactDuration : 2000))
   if (progress > 0) {
     const r = rect([677, 35, 71 * progress, 9.5])
     context.save()
@@ -91,13 +103,15 @@ function drawCombatScreen({ context, width, height, battle, now, roomName, asset
   }
   label(`${Math.ceil(remaining / 1000)}s`, 772, 39, 13)
 
-  for (const { data, prefix, x, fillFrom, nameX } of sides) {
+  for (const { data, prefix, x, fillFrom, nameX, offset } of sides) {
+    context.save()
+    if (rush) context.translate(offset * scale * rush, 0)
     if (!image(`${prefix}-panel`)) box([x, 86, 176, 142], fallbackPanel)
     if (prefix === 'red' && avatar) {
       const r = rect([92, 103, 50, 49])
       context.drawImage(avatar, r.x, r.y, r.width, r.height)
     } else image(`${prefix}-avatar`)
-    const lossProgress = battle.stage === 'IMPACT' ? Math.min(1, (1000 - remaining) / 450) : 1
+    const lossProgress = impacting ? clamp01((impactTime - CONTACT) / 0.23) : 1
     const hp = data.hp + (data.impact?.loss || 0) * (1 - lossProgress)
     const fraction = Math.max(0, Math.min(1, hp / data.maxHp))
     const empty = 98 * (1 - fraction)
@@ -108,21 +122,45 @@ function drawCombatScreen({ context, width, height, battle, now, roomName, asset
     for (const [i, id] of [data.weaponId, data.armorId].entries()) {
       if (id) drawCard(cardById(id), rect([gearX[i], 167, 32, 38]), { inset: 1, radius: 4 })
     }
+    context.restore()
   }
-  label(`小回合 ${battle.subRound}/3`, 478, 104, 19)
+  label(`小回合 ${battle.subRound}/3`, 478, impacting ? 84 : 104, 19)
   if (battle.outcome) {
     const outcome = { WIN: '战斗胜利', LOSS: '战斗失败', DRAW: '平局', DOUBLE_KO: '双方同时倒下' }
     box([345, 138, 266, 62], { ...fallbackPanel, fill: 'rgba(32,19,28,.96)' })
     label(outcome[battle.outcome], 478, 168, 30)
-  } else if (battle.stage === 'IMPACT') {
-    label('⚔', 478, 163, 41)
-    for (const [i, side] of [battle.self, battle.opponent].entries()) {
-      const loss = side.impact?.loss
-      if (loss !== undefined) label(loss ? `−${loss} HP` : '格挡', i === 0 ? 298 : 652, 163 - (1000 - remaining) / 65, 23,
+  } else if (impacting && impactTime >= CONTACT) {
+    const sinceHit = (impactTime - CONTACT) / (1 - CONTACT)
+    const flash = 1 - clamp01(sinceHit * 3.5)
+    if (flash > 0) {
+      const { x, y } = rect([478, 160, 0, 0])
+      const radius = (40 + 30 * (1 - flash)) * scale
+      const light = context.createRadialGradient(x, y, 0, x, y, radius)
+      light.addColorStop(0, `rgba(255,237,172,${0.85 * flash})`)
+      light.addColorStop(1, 'rgba(255,171,83,0)')
+      context.fillStyle = light
+      context.fillRect(x - radius, y - radius, radius * 2, radius * 2)
+    }
+    for (const { data, nameX, offset } of sides) {
+      const loss = data.impact?.loss
+      if (loss !== undefined) label(loss ? `−${loss} HP` : '无伤害', nameX + offset * rush, 79 - 14 * sinceHit, 19,
         { color: loss ? '#ff8b78' : '#a4e1fb' })
     }
-  } else if (battle.self.ready) label('等待对方就绪', 478, 171, 18)
-  else if (playing && battle.self.dice.length) label('双方就绪可提前开打', 478, 171, 15)
+  } else if (playing && battle.self.ready) label('等待对方就绪', 478, 171, 18)
+
+  if (resolving) {
+    if (battle.self.impact && battle.opponent.impact) {
+      for (const [i, { data }] of sides.entries()) {
+        const x = i === 0 ? 144 : 491
+        const accent = i === 0 ? '#ffad90' : '#a4e1fb'
+        box([x, 305, 322, 101], { fill: 'rgba(32,19,28,.96)', stroke: accent, radius: 10 })
+        label(i === 0 ? '你' : data.name, x + 161, 328, 17, { color: accent, width: 288 })
+        label(`攻击 ${data.impact.attack}`, x + 84, 371, 22, { width: 136 })
+        label(`防御 ${data.impact.defense}`, x + 238, 371, 22, { width: 136 })
+      }
+    }
+    return { hits, zones: {}, drop: null }
+  }
 
   const canRoll = editable && !battle.self.dice.length
   const canReady = editable && battle.self.dice.length === 3 && battle.self.dice.every(value => value.zone !== 'TRAY')
