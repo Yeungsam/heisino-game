@@ -230,6 +230,36 @@ test('存活败者只损失最高两件且同价按背包顺序，平局对奇�
   assert.equal(new Set(shares.flat()).size, 5)
 })
 
+test('守卫获胜没收最高两件，存活玩家保留其余资产并继续', () => {
+  const engine = new GameEngine({ cards, rng: () => 0.99 })
+  engine.start([
+    { id: 'P1', name: '玩家', x: 1, y: 0, cardIds: ['wp_006', 'sk_001'] },
+    { id: 'P2', name: '赌场守卫', x: 1, y: 0, cardIds: ['wp_004', 'ar_013'] }
+  ])
+  const player = engine.getPlayer('P1')
+  const guard = engine.getPlayer('P2')
+  guard.isBot = true
+  player.inventory.push(engine.createItem('loot_023', null, 'IN_INVENTORY', player.id).instanceId)
+  const roomItem = engine.createItem('loot_015', 'n_1_0', 'HIDDEN')
+  const combat = Battle.createCombat(engine, { playerIds: [player.id, guard.id], nodeId: 'n_1_0', itemIds: [roomItem.instanceId] }, 1000)
+  for (let round = 0; round < 3; round++) {
+    const at = 1000 + round * 1000
+    Battle.advanceCombat(combat, engine, at)
+    combat.sides.P1.dice = Array.from({ length: 3 }, () => ({ value: 1, zone: 'DEFENSE' }))
+    combat.sides.P1.readyAt = at
+    Battle.advanceCombat(combat, engine, at)
+  }
+  Battle.advanceCombat(combat, engine, 6000)
+  assert.equal(combat.result.winnerId, guard.id)
+  assert.equal(player.status, 'ACTIVE')
+  assert.ok(player.hp > 0 && player.hp < 30)
+  assert.equal(guard.status, 'DEPARTED')
+  assert.deepEqual(combat.lootPlayers, [])
+  assert.deepEqual(player.inventory.map(id => engine.items.find(item => item.instanceId === id).cardId), ['sk_001'])
+  assert.equal(roomItem.state, 'HIDDEN')
+  assert.equal(engine.droppedItemsAt('n_1_0').length, 0)
+})
+
 test('单人原地停留重新判定满血守卫，守卫固定一攻两防，拾取同类装备前须先丢旧装备', async () => {
   const f = await fixture(1)
   await assert.rejects(f.command(0, 'start', { mode: 'SINGLE', combatVersion: 1, cardIds: ['wp_006', 'wp_005'] }), { code: 'WEAPON_LIMIT' })
