@@ -247,8 +247,12 @@ class AccountService {
       game.lastSeenAt = this.now()
     }
     const engine = this.restore(game)
-    if (engine.phase === 'MOVE_SELECTION' && this.now() >= engine.moveDeadlineAt) this.move(engine, game, engine.getPlayer('P1').position)
-    if (game.combatVersion === Battle.VERSION && engine.phase === 'SEARCH') this.advanceSoloActions(game, engine)
+    const interactive = game.combatVersion === Battle.VERSION
+    if (interactive && engine.phase === 'SEARCH') this.advanceSoloActions(game, engine)
+    if (engine.phase === 'MOVE_SELECTION' && this.now() >= engine.moveDeadlineAt) {
+      this.move(engine, game, engine.getPlayer('P1').position)
+      if (interactive && engine.phase === 'SEARCH') this.advanceSoloActions(game, engine)
+    }
     if (game.visit && this.now() >= game.visit.deadlineAt && engine.phase !== 'GAME_OVER') {
       must(engine.finishTurn())
       game.visit = null
@@ -305,7 +309,7 @@ class AccountService {
       if (combat.stage === 'COMPLETE') {
         for (const id of combat.lootPlayers) {
           const at = combat.completedAt
-          game.visits[id] = this.createVisit(game, engine, id, at, at + Battle.LOOT_MS, 'LOOT')
+          if (engine.getPlayer(id).status === 'ACTIVE') game.visits[id] = this.createVisit(game, engine, id, at, at + Battle.LOOT_MS, 'LOOT')
         }
         if (combat.lootPlayers.length) engine.turnDeadlineAt = Math.max(engine.turnDeadlineAt, combat.completedAt + Battle.LOOT_MS)
       }
@@ -394,7 +398,10 @@ class AccountService {
     if (input.action !== 'abandon' && input.turn !== engine.turn) throw fault('STALE_TURN', 409)
     const visit = game.combatVersion === Battle.VERSION ? this.activeVisit(game, 'P1') : game.visit
     this.reveal(engine, visit)
-    if (input.action === 'move') this.move(engine, game, input.target || {})
+    if (input.action === 'move') {
+      if (game.combatVersion && this.now() >= engine.moveDeadlineAt) throw fault('MOVE_DEADLINE_EXCEEDED', 409)
+      this.move(engine, game, input.target || {})
+    }
     else if (input.action === 'abandon') {
       Battle.forfeit(game.combat, engine, 'P1', this.now())
       engine.getPlayer('P1').status = 'ABANDONED'

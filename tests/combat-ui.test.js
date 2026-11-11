@@ -58,9 +58,9 @@ test('微信触控完成守卫战掷骰、技能预览拖用、骰子分配和�
   assert.equal(app.run('interactiveBattle.self.dice.length'), 3)
   await app.tap('combat_die', hit => hit.data === 0)
   await app.tap('combat_zone', hit => hit.data === 'DEFENSE')
-  assert.equal(app.run('interactiveBattle.self.dice[0].zone'), 'DEFENSE')
+  assert.equal(app.run('combatDice()[0].zone'), 'DEFENSE')
   await drag(app.hits('combat_die').find(hit => hit.data === 0), center(app.read('combatLayout.zones.TRAY')))
-  assert.equal(app.run('interactiveBattle.self.dice[0].zone'), 'TRAY')
+  assert.equal(app.run('combatDice()[0].zone'), 'TRAY')
 
   await edit(game => {
     game.state.players[1].hp = 1
@@ -135,4 +135,84 @@ test('真人战斗同场就绪、旧快照防回退及第三位玩家搜索并�
   assert.equal(a.run('interactiveBattle.self.dice.length'), 3)
   assert.equal(b.run('interactiveBattle.stage'), 'IMPACT')
   assert.equal(searchers[0].run('presentation'), 'ROOM')
+})
+
+async function enterGuardRoom(sim) {
+  const [app] = sim.client
+  await dock(app)
+  await app.tap('lobby_single')
+  const doc = await sim.store.get(app.account.id)
+  doc.activeGame.rngState = 0
+  assert.ok(await sim.store.replace({ ...doc, version: doc.version + 1 }, doc.version))
+  await move(app, 1, 0)
+  return app
+}
+
+test('第一小回合按下掷骰后跨阶段抬手，下一小回合不会误掷', async t => {
+  const sim = await simulation(t, 1, { combatVersion: 1 })
+  const app = await enterGuardRoom(sim)
+  sim.tick(14900)
+  const roll = center(app.hits('combat_roll')[0].rect)
+  app.touch('start', ...roll)
+  sim.tick(1100)
+  await heartbeat(app)
+  assert.equal(app.run('interactiveBattle.subRound'), 2)
+  assert.equal(app.hits('combat_roll').length, 1)
+  app.touch('end', ...roll)
+  await app.idle()
+  assert.ok(app.requests.every(request => request.input?.action !== 'combat-roll'))
+  assert.deepEqual(app.read('interactiveBattle.self.dice'), [])
+  await app.tap('combat_roll')
+  assert.equal(app.read('interactiveBattle.self.dice').length, 3)
+})
+
+test('慢心跳期间可连续摆放三颗骰子，快照不回滚且就绪一次提交', async t => {
+  const sim = await simulation(t, 1, { combatVersion: 1 })
+  await enterGuardRoom(sim)
+  let unblock, markHeartbeat, markReady
+  const blocked = new Promise(resolve => { unblock = resolve })
+  const heartbeatReceived = new Promise(resolve => { markHeartbeat = resolve })
+  const readyReceived = new Promise(resolve => { markReady = resolve })
+  const app = await sim.mount(0, { blockResponse: async request => {
+    if (request.route.endsWith('/heartbeat')) { markHeartbeat(); await blocked }
+    if (request.input?.action === 'combat-ready') markReady(request)
+  } })
+  try {
+    await app.tap('combat_roll')
+    const delayedHeartbeat = app.run('heartbeatAccount()')
+    await heartbeatReceived
+    const zones = ['ATTACK', 'DEFENSE', 'DEFENSE']
+    for (let i = 0; i < 3; i++) {
+      const hit = app.hits('combat_die').find(candidate => candidate.data === i)
+      const zone = center(app.read('combatLayout.zones')[zones[i]])
+      app.touch('start', ...center(hit.rect))
+      app.touch('move', ...zone)
+      app.touch('end', ...zone)
+    }
+    assert.deepEqual(app.read('combatDice().map(die => die.zone)'), zones)
+    assert.deepEqual(app.read('interactiveBattle.self.dice.map(die => die.zone)'), ['TRAY', 'TRAY', 'TRAY'])
+    assert.ok(app.requests.every(request => request.input?.action !== 'combat-place'))
+    await app.tap('combat_ready', undefined, false)
+    assert.deepEqual((await readyReceived).input.zones, zones)
+    unblock()
+    await delayedHeartbeat
+    await app.idle()
+    assert.equal(app.run('interactiveBattle.stage'), 'IMPACT')
+    assert.deepEqual(app.read('interactiveBattle.self.dice.map(die => die.zone)'), zones)
+  } finally { unblock() }
+})
+
+test('同回合恢复保留当前页面草稿，未点就绪超时则攻防清空', async t => {
+  const sim = await simulation(t, 1, { combatVersion: 1 })
+  const app = await enterGuardRoom(sim)
+  await app.tap('combat_roll')
+  await app.tap('combat_die', hit => hit.data === 0)
+  await app.tap('combat_zone', hit => hit.data === 'DEFENSE')
+  await heartbeat(app)
+  assert.equal(app.read('combatDice()')[0].zone, 'DEFENSE')
+  sim.tick(15000)
+  await heartbeat(app)
+  assert.equal(app.run('interactiveBattle.stage'), 'IMPACT')
+  assert.deepEqual(app.read('combatDice().map(die => die.zone)'), ['TRAY', 'TRAY', 'TRAY'])
+  assert.equal(app.read('interactiveBattle.self.impact').defense, 0)
 })

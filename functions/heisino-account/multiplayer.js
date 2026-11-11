@@ -260,12 +260,12 @@ class Multiplayer {
       const moving = engine.phase === 'MOVE_SELECTION'
       const disconnectedAt = Math.min(...players.map(player => game.seen[player.id] + WAIT_MS))
       if (!moving && game.combatVersion) {
-        const finishedAt = this.account.advanceActions(game, engine, Math.min(now, disconnectedAt))
+        const finishedAt = this.account.advanceActions(game, engine, Math.min(now, disconnectedAt - 1))
         if (finishedAt === null && disconnectedAt > now) return
         if (finishedAt === null) {
-          for (const player of players.filter(candidate => candidate.status === 'ACTIVE')) {
-            if (game.seen[player.id] + WAIT_MS <= disconnectedAt) this.endPlayer(game, engine, player, 'DISCONNECTED', disconnectedAt)
-          }
+          const expired = engine.activePlayers().filter(player => game.seen[player.id] + WAIT_MS <= disconnectedAt)
+          for (const player of expired) this.endPlayer(game, engine, player, 'DISCONNECTED', disconnectedAt)
+          Battle.expireParticipants(game.combat, engine, expired.map(player => player.id), disconnectedAt)
           continue
         }
         const defeated = players.filter(player => player.status !== 'ACTIVE')

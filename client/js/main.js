@@ -196,6 +196,7 @@ let activeBattle = null
 let interactiveBattle = null
 let combatLayout = null
 let combatGesture = null
+let combatDraftZones = null
 let combatSelectedDie = null
 let combatSelectedSkill = null
 let combatSkillsOpen = false
@@ -490,7 +491,6 @@ function applyAccountResponse(response) {
     const battle = accountGame.combat
     if (battle?.turn !== previousBattle?.turn || battle?.subRound !== previousBattle?.subRound ||
         battle?.stage !== previousBattle?.stage || battle?.self.ready !== previousBattle?.self.ready || previousGame?.gameId !== accountGame.gameId) {
-      if (combatGesture) cancelledGameTouch = true
       resetCombatInput()
     }
     const battleDeadline = battle && battle.deadlineAt + clockOffset
@@ -2253,14 +2253,21 @@ function decidePostMove() {
 }
 
 function resetCombatInput() {
+  if (combatGesture) cancelledGameTouch = true
   combatGesture = null
+  combatDraftZones = null
   combatSelectedDie = null
   combatSelectedSkill = null
   combatSkillsOpen = false
 }
 
+function combatDice() {
+  const dice = interactiveBattle.self.dice
+  return combatDraftZones ? dice.map((die, i) => ({ ...die, zone: combatDraftZones[i] })) : dice
+}
+
 function drawInteractiveBattle() {
-  const battle = interactiveBattle
+  const battle = { ...interactiveBattle, self: { ...interactiveBattle.self, dice: combatDice() } }
   drawRoomArtwork(battle.nodeId)
   const drag = combatGesture?.dragging ? combatGesture : null
   combatLayout = drawCombatScreen({
@@ -2273,12 +2280,16 @@ function drawInteractiveBattle() {
 }
 
 function sendCombatAction(action, payload = {}) {
-  if (!interactiveBattle) return Promise.resolve(false)
+  if (!interactiveBattle || interactiveBattle.stage !== 'PLAY' || Date.now() >= interactiveBattle.deadlineAt) return Promise.resolve(false)
   return accountAction(action, { subRound: interactiveBattle.subRound, ...payload })
 }
 
-async function placeCombatDie(index, zone) {
-  if (await sendCombatAction('combat-place', { dieIndex: index, zone })) combatSelectedDie = null
+function placeCombatDie(index, zone) {
+  if (!interactiveBattle || interactiveBattle.stage !== 'PLAY' || interactiveBattle.self.ready ||
+      Date.now() >= interactiveBattle.deadlineAt || accountBusy || !interactiveBattle.self.dice[index]) return
+  combatDraftZones ??= interactiveBattle.self.dice.map(die => die.zone)
+  combatDraftZones[index] = zone
+  combatSelectedDie = null
 }
 
 async function useCombatSkill(instanceId) {
@@ -2934,10 +2945,15 @@ function handleAction(action) {
   if (accountBusy) { addToast('上一操作处理中，请稍候。', 900); return }
   if (interactiveBattle && presentation === 'BATTLE') {
     if (action.id === 'combat_roll') { sendCombatAction('combat-roll'); return }
-    if (action.id === 'combat_ready') { sendCombatAction('combat-ready'); return }
+    if (action.id === 'combat_ready') {
+      const zones = combatDice().map(die => die.zone)
+      if (zones.length === 3 && !zones.includes('TRAY')) sendCombatAction('combat-ready', { zones })
+      return
+    }
     if (action.id === 'combat_die') {
-      const target = interactiveBattle.self.dice[action.data]
-      const selected = interactiveBattle.self.dice[combatSelectedDie]
+      const dice = combatDice()
+      const target = dice[action.data]
+      const selected = dice[combatSelectedDie]
       if (selected && target && selected.zone !== target.zone) placeCombatDie(combatSelectedDie, target.zone)
       else combatSelectedDie = action.data
       return
@@ -3021,18 +3037,20 @@ function handleAction(action) {
   }
 }
 
+function hotspotAt(point) {
+  return ui.hotspots.slice().reverse().find(candidate => pointInRect(point, candidate.rect))
+}
+
 wx.onTouchStart(event => {
   cancelledGameTouch = scene === 'GAME' && presentation === 'REPLAY'
   const point = touchPoint(event, false)
   tapFeedback.add(point, Date.now())
   if (cancelledGameTouch) return
   if (scene === 'GAME' && presentation === 'BATTLE' && interactiveBattle) {
-    const target = ui.hotspots.find(hit => (hit.id === 'combat_die' || hit.id === 'combat_skill') && pointInRect(point, hit.rect))
-    if (target?.id === 'combat_die') {
-      combatGesture = { kind: 'die', start: point, point, index: target.data, dragging: false }
-    } else if (target?.id === 'combat_skill') {
-      combatGesture = { kind: 'skill', start: point, point, ...target.data, dragging: false }
-    }
+    const target = hotspotAt(point)
+    const kind = target?.id === 'combat_die' ? 'die' : target?.id === 'combat_skill' ? 'skill' : 'tap'
+    combatGesture = { kind, target, start: point, point, index: kind === 'die' ? target.data : undefined,
+      ...(kind === 'skill' ? target.data : {}), dragging: false }
     return
   }
   if (scene === 'WAREHOUSE') {
@@ -3142,10 +3160,15 @@ wx.onTouchEnd(event => {
       if (gesture.kind === 'die') {
         const zone = Object.entries(combatLayout?.zones || {}).find(([, bounds]) => pointInRect(point, bounds))?.[0]
         if (zone) placeCombatDie(gesture.index, zone)
-      } else if (pointInRect(point, combatLayout?.drop)) useCombatSkill(gesture.instanceId)
+      } else if (gesture.kind === 'skill' && pointInRect(point, combatLayout?.drop)) useCombatSkill(gesture.instanceId)
       return
     }
+    const target = hotspotAt(point)
+    if (target && target.id === gesture.target?.id &&
+        (gesture.kind === 'skill' ? target.data.instanceId === gesture.instanceId : target.data === gesture.target.data)) handleAction(target)
+    return
   }
+  if (scene === 'GAME' && presentation === 'BATTLE' && interactiveBattle) return
   if (scene === 'WAREHOUSE' && warehousePreviewCardId) {
     warehousePreviewCardId = null
     warehouseGesture = null
@@ -3207,8 +3230,7 @@ wx.onTouchEnd(event => {
     return
   }
   draggingItemId = null
-  const action = ui.hotspots.slice().reverse().find(candidate => pointInRect(point, candidate.rect))
-  handleAction(action)
+  handleAction(hotspotAt(point))
 })
 
 // Desktop runtimes may emit mouse events without synthesizing mobile touches.

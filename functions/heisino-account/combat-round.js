@@ -69,8 +69,7 @@ function createCombat(engine, encounter, at) {
 function resolveImpact(combat, engine, at) {
   const scores = combat.playerIds.map(id => {
     const side = combat.sides[id]
-    if (!side.dice.length) roll(side, engine)
-    for (const die of side.dice) if (die.zone === 'TRAY') die.zone = 'ATTACK'
+    if (side.readyAt === null) for (const die of side.dice) die.zone = 'TRAY'
     const sum = zone => side.dice.filter(die => die.zone === zone).reduce((total, die) => total + die.value, 0)
     return {
       id, attack: Math.floor(sum('ATTACK') * side.attackPercent / 100),
@@ -185,11 +184,26 @@ function forfeit(combat, engine, id, at) {
     ? { winnerId: opponent, loserId: id, bothDown: false, forfeitedId: id }
     : { winnerId: null, loserId: null, bothDown: true, forfeitedId: id }
   combat.stage = 'RESULT'
-  combat.deadlineAt = Math.min(at + RESULT_MS, combat.startedAt + C.SEARCH_DURATION_MS)
+  combat.deadlineAt = Math.min(Math.max(at, combat.startedAt) + RESULT_MS, combat.startedAt + C.SEARCH_DURATION_MS)
   // Resolve immediately so an abandoning account can settle even if it never polls again.
   combat.lootPlayers = award(combat, engine)
   combat.awarded = true
   return true
+}
+
+function expireParticipants(combat, engine, expiredIds, at) {
+  if (!combat || combat.stage === 'COMPLETE') return
+  const expired = combat.playerIds.filter(id => expiredIds.includes(id))
+  if (!expired.length) return
+  if (combat.playerIds.every(id => engine.getPlayer(id).status !== 'ACTIVE')) {
+    combat.stage = 'COMPLETE'
+    combat.completedAt = at
+    combat.lootPlayers = []
+    return
+  }
+  // A hit resolved before the disconnect deadline still stands. A player
+  // whose session has expired must never take part in a subsequent hit.
+  if (engine.getPlayer(expired[0]).hp > 0) forfeit(combat, engine, expired[0], at)
 }
 
 function combatAction(combat, engine, id, input, now) {
@@ -204,7 +218,12 @@ function combatAction(combat, engine, id, input, now) {
     if (!Number.isInteger(input.dieIndex) || !side.dice[input.dieIndex] || !ZONES.has(input.zone)) throw fault('DICE_PLACEMENT_INVALID')
     side.dice[input.dieIndex].zone = input.zone
   } else if (input.action === 'combat-ready') {
-    if (side.dice.length !== 3 || side.dice.some(die => die.zone === 'TRAY')) throw fault('DICE_UNPLACED', 409)
+    if (side.dice.length !== 3) throw fault('DICE_UNPLACED', 409)
+    if (input.zones !== undefined) {
+      if (!Array.isArray(input.zones) || input.zones.length !== side.dice.length ||
+          input.zones.some(zone => zone !== 'ATTACK' && zone !== 'DEFENSE')) throw fault('DICE_PLACEMENT_INVALID')
+      side.dice.forEach((die, index) => { die.zone = input.zones[index] })
+    } else if (side.dice.some(die => die.zone === 'TRAY')) throw fault('DICE_UNPLACED', 409)
     side.readyAt = now
   } else {
     if (side.skillCardId) throw fault('SKILL_ALREADY_USED', 409)
@@ -241,7 +260,9 @@ function combatView(combat, engine, id) {
 }
 
 function combatFingerprint(input) {
-  return [input.subRound, input.dieIndex, input.zone]
+  const fields = [input.subRound, input.dieIndex, input.zone]
+  if (input.action === 'combat-ready' && input.zones !== undefined) fields.push(input.zones)
+  return fields
 }
 
-module.exports = { VERSION, LOOT_MS, ACTIONS, createCombat, advanceCombat, combatAction, combatView, forfeit, combatFingerprint }
+module.exports = { VERSION, LOOT_MS, ACTIONS, createCombat, advanceCombat, combatAction, combatView, forfeit, expireParticipants, combatFingerprint }

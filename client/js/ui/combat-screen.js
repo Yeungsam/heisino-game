@@ -122,6 +122,7 @@ function drawCombatScreen({ context, width, height, battle, now, roomName, asset
         { color: loss ? '#ff8b78' : '#a4e1fb' })
     }
   } else if (battle.self.ready) label('等待对方就绪', 478, 171, 18)
+  else if (playing && battle.self.dice.length) label('摆好骰子后点准备就绪', 478, 171, 15)
 
   const canRoll = editable && !battle.self.dice.length
   const canReady = editable && battle.self.dice.length === 3 && battle.self.dice.every(value => value.zone !== 'TRAY')
