@@ -1695,7 +1695,6 @@ function gameLayout() {
 }
 
 function drawMapGrid(state, layout) {
-  const local = state.players.find(player => player.id === 'P1')
   const legal = engine.legalMoves('P1').map(position => `${position.x},${position.y}`)
   const selecting = state.phase === 'MOVE_SELECTION'
   panel(layout.gridX - 8, layout.gridY - 8, layout.gridSize + 16, layout.gridSize + 16, { fill: 'rgba(13,26,39,.53)', stroke: 'rgba(255,224,135,.72)', radius: 15 })
@@ -1759,7 +1758,6 @@ function drawMapGrid(state, layout) {
     })
   }
   text(selecting ? '敌方位置已隐藏 · 锁定后统一公布' : '本回合移动轨迹', layout.gridX + layout.gridSize / 2, layout.gridY + layout.gridSize + 18, 10, '#fff0c4', 'center')
-  if (local.extractionRequestedTurn !== null) text('白鸽接应中', layout.gridX + layout.gridSize / 2, layout.gridY - 18, 10, '#a7f4d1', 'center', 'bold')
 }
 
 function drawInventory(state, x, y, width, interactive = true) {
@@ -2489,6 +2487,7 @@ function drawRoom(state) {
   const node = currentRoomNodeId()
   const layout = drawRoomArtwork(node)
   const visitOpen = canActInRoom()
+  const atExit = node === C.EXTRACTION_NODE_ID
   const roomName = roomTypeForNode(node)
   // Hit testing goes from last to first: background regions sit below buttons.
   ui.roomAreaRects = layout.areas
@@ -2499,16 +2498,18 @@ function drawRoom(state) {
   drawDesignAsset('searchRoomTitleSpade', layout, { x: 133, y: 95, width: 134, height: 90 })
   const title = searchVisitState?.visit.kind === 'LOOT' ? '战利品搜索' : roomName
   text(title, layout.offsetX + 428 * layout.scale, layout.offsetY + 135 * layout.scale, Math.max(18, 48 * layout.scale), '#fff1c1', 'center', 'bold')
+  if (atExit) {
+    text('本轮结束时，存活玩家自动撤离', layout.offsetX + 428 * layout.scale, layout.offsetY + 218 * layout.scale,
+      Math.max(11, 25 * layout.scale), '#baf1d6', 'center', 'bold')
+  }
 
   drawRoomTimer(layout)
 
   drawDesignAsset('searchRoomLeaveButton', layout, { x: 1371, y: 889, width: 292, height: 104 })
   drawDesignAsset('searchRoomLeaveIcon', layout, { x: 1429, y: 911, width: 46, height: 60 })
-  text(searchVisitState && !visitOpen ? '同步回合中…' : '离开房间', layout.offsetX + 1548 * layout.scale, layout.offsetY + 938 * layout.scale, Math.max(12, 29 * layout.scale), '#fff1c1', 'center', 'bold')
+  const leaveLabel = searchVisitState && !visitOpen ? '同步回合中…' : atExit ? '完成本轮' : '离开房间'
+  text(leaveLabel, layout.offsetX + 1548 * layout.scale, layout.offsetY + 938 * layout.scale, Math.max(12, 29 * layout.scale), '#fff1c1', 'center', 'bold')
   ui.hotspots.push({ id: visitOpen && !searchRequestPending ? 'room_leave' : 'room_leave_disabled', rect: layout.leave })
-  if (visitOpen && searchAuthority === 'ACCOUNT' && node === C.EXTRACTION_NODE_ID) {
-    button('request_extraction', '呼叫白鸽 · 撤离', { x: viewWidth / 2 - 90, y: viewHeight - 44, width: 180, height: 33 }, { top: '#2c966b', bottom: '#174c3a', size: 12 })
-  }
 
   if (!searchVisitState) text('正在同步房间物资…', viewWidth / 2, viewHeight / 2, Math.max(12, 24 * layout.scale), '#ffe7b0', 'center', 'bold')
 }
@@ -2674,12 +2675,7 @@ function drawRoundResult(state) {
   text(`第 ${state.turn} 回合结算`, viewWidth / 2, y + 32, 20, PALETTE.paleGold, 'center', 'bold')
   state.log.slice(0, 4).forEach((entry, index) => text(`• ${entry}`, x + 28, y + 68 + index * 24, 10, index === 0 ? '#fff2d3' : '#bfb2c1'))
   const atExit = positionKey(local.position) === C.EXTRACTION_NODE_ID
-  if (atExit) {
-    text(`已到达${roomTypeAt(local.position.x, local.position.y)}，撤离将消耗 1 个回合`, viewWidth / 2, y + height - 62, 10, '#9ce8c5', 'center', 'bold')
-    button('request_extraction', '呼叫白鸽 · 撤离', { x: viewWidth / 2 - 92, y: y + height - 47, width: 184, height: 34 }, { top: '#2d9c71', bottom: '#175842', stroke: '#b5ffe0', size: 12 })
-  } else {
-    button('next_turn', '进入下一回合', { x: viewWidth / 2 - 82, y: y + height - 50, width: 164, height: 35 }, { size: 12 })
-  }
+  button('next_turn', atExit ? '完成本轮' : '进入下一回合', { x: viewWidth / 2 - 82, y: y + height - 50, width: 164, height: 35 }, { size: 12 })
 }
 
 function drawSettlement(state) {
@@ -3039,9 +3035,6 @@ function handleAction(action) {
   if (action.id === 'search_finish' && presentation === 'SEARCH' && canActInRoom()) finishSearchOverlay()
   if (action.id === 'search_backpack_page' && presentation === 'SEARCH' && canActInRoom()) searchBackpackPage += action.data
   if (action.id === 'next_turn') nextTurn()
-  if (action.id === 'request_extraction' && canActInRoom()) {
-    accountAction('extract')
-  }
   if (action.id === 'settlement_home' || action.id === 'settlement_replay') {
     if (accountSettlement) accountApi.command('acknowledge', { settlementId: accountSettlement.settlementId }).catch(() => {})
     pendingResume = false

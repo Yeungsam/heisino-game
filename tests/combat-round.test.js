@@ -30,7 +30,7 @@ async function fixture(size) {
     update(room.game)
     tx.saveRoom(room)
   })
-  async function startRoom({ replay = false, hp = 30, withItems = true } = {}) {
+  async function startRoom({ replay = false, hp = 30, withItems = true, position = { x: 1, y: 0 } } = {}) {
     const options = { cardIds: ['wp_006', 'sk_001'], movementReplay: replay, combatVersion: 1 }
     const { lobbyRoom: { roomId } } = await command(0, 'lobby', { op: 'create', ...options })
     for (let i = 1; i < size; i++) {
@@ -39,16 +39,64 @@ async function fixture(size) {
     await command(0, 'lobby', { op: 'start', roomId })
     await roomEdit(roomId, game => {
       const engine = service.restore(game)
-      for (const p of engine.players) { p.position = { x: 1, y: 0 }; p.hp = hp }
-      engine.roomStock.visited.push('n_1_0')
-      if (withItems) for (const id of ['loot_001', 'loot_002', 'loot_003', 'loot_004', 'loot_005']) engine.createItem(id, 'n_1_0', 'HIDDEN', null, 'MAIN_TABLE')
+      const nodeId = `n_${position.x}_${position.y}`
+      for (const p of engine.players) { p.position = { ...position }; p.hp = hp }
+      engine.roomStock.visited.push(nodeId)
+      if (withItems) for (const id of ['loot_001', 'loot_002', 'loot_003', 'loot_004', 'loot_005']) engine.createItem(id, nodeId, 'HIDDEN', null, 'MAIN_TABLE')
       game.state = engine.snapshot()
     })
-    for (let i = 0; i < size; i++) await act(i, roomId, 1, 'move', { target: { x: 1, y: 0 } })
+    for (let i = 0; i < size; i++) await act(i, roomId, 1, 'move', { target: position })
     return roomId
   }
   return { store, service, accounts, command, act, soloEdit, roomEdit, startRoom, requestId, time: () => now, advance: ms => { now += ms } }
 }
+
+test('撤离点同房战斗平局，双方活到大回合结束后自动撤离', async () => {
+  const f = await fixture(2)
+  const gameId = await f.startRoom({ position: { x: 4, y: 4 }, withItems: false })
+  for (let subRound = 1; subRound <= 3; subRound++) {
+    await f.act(0, gameId, 1, 'combat-ready', { subRound })
+    await f.act(1, gameId, 1, 'combat-ready', { subRound })
+    f.advance(2000)
+  }
+  const result = await f.command(0, 'heartbeat')
+  assert.equal(result.activeGame.combat.outcome, 'DRAW')
+  assert.equal(result.lastSettlement, null)
+  f.advance(2000)
+  for (const i of [0, 1]) {
+    const response = await f.command(i, 'resume')
+    assert.equal(response.activeGame, null)
+    assert.equal(response.lastSettlement.status, 'EXTRACTED')
+    assert.equal(response.lastSettlement.turn, 1)
+    assert.deepEqual(response.lastSettlement.returned, { wp_006: 1, sk_001: 1 })
+  }
+})
+
+test('撤离点阵亡者失败，胜者保留完整战利品窗口后自动撤离', async () => {
+  const f = await fixture(2)
+  const gameId = await f.startRoom({ hp: 2, position: { x: 4, y: 4 }, withItems: false })
+  await f.roomEdit(gameId, game => {
+    game.combat.sides.P1.dice = [{ value: 6, zone: 'ATTACK' }]
+  })
+  await f.act(0, gameId, 1, 'combat-ready', { subRound: 1 })
+  await f.act(1, gameId, 1, 'combat-ready', { subRound: 1 })
+  f.advance(4000)
+  const observed = await f.act(0, gameId, 1, 'observe', { areaId: 'MAIN_TABLE' })
+  const { visit, room } = observed.activeGame.search
+  assert.equal(visit.kind, 'LOOT')
+  assert.equal(visit.deadlineAt - visit.startedAt, 20000)
+  assert.equal(observed.lastSettlement, null)
+  const dropped = room.activeArea.visibleItems.find(item => item.cardId === 'sk_001')
+  assert.ok(dropped)
+  await f.act(0, gameId, 1, 'pickup', { instanceId: dropped.instanceId })
+  assert.equal((await f.command(1, 'resume')).lastSettlement.status, 'DEFEATED')
+  f.advance(19999)
+  assert.equal((await f.command(0, 'heartbeat')).lastSettlement, null)
+  f.advance(1)
+  const winner = await f.command(0, 'heartbeat')
+  assert.equal(winner.lastSettlement.status, 'EXTRACTED')
+  assert.deepEqual(winner.lastSettlement.returned, { wp_006: 1, sk_001: 2 })
+})
 
 test('多人手动掷骰、摆放、技能消耗及就绪由服务端校验，断线重连保留状态', async () => {
   const f = await fixture(2)

@@ -24,12 +24,13 @@ test('新回合提示只播放一次，毒圈开启和扣至零血都显示实�
 
   sim.store.documents.get(player.account.id).activeGame.state.turn = 9
   await heartbeat(player)
-  for (const [turn, hp] of [[10, 25], [11, 20], [12, 15], [13, 10], [14, 5], [15, 0]]) {
+  for (const [turn, hp] of [[10, 30], [11, 30], [12, 25], [13, 20], [14, 15], [15, 10], [16, 5], [17, 0]]) {
     await player.tap('confirm_move')
     await player.tap('room_leave')
     const labels = player.draw()
     assert.ok(labels.includes(`第 ${turn} 回合开始`))
-    assert.ok(labels.includes(turn === 10 ? '毒圈已开启' : '毒圈伤害生效'))
+    if (turn < 12) assert.ok(!labels.includes('毒圈已开启') && !labels.includes('毒圈伤害生效'))
+    else assert.ok(labels.includes(turn === 12 ? '毒圈已开启' : '毒圈伤害生效'))
     assert.ok(labels.includes(`剩余生命 ${hp}/30`))
     assert.ok(labels.every(label => !/回合.*\/12/.test(label)))
   }
@@ -37,7 +38,7 @@ test('新回合提示只播放一次，毒圈开启和扣至零血都显示实�
   assert.equal(player.run('accountSettlement.status'), 'DEFEATED')
   assert.equal(player.run('accountSettlement.hp'), 0)
   sim.tick(1400)
-  assert.ok(!player.draw().includes('第 15 回合开始'))
+  assert.ok(!player.draw().includes('第 17 回合开始'))
 })
 
 test('单人第1轮：码头入口、开局回包丢失与一次扣仓', async t => {
@@ -315,13 +316,20 @@ test('单人第5轮：守卫圆盾返仓、再次带入与换轮时确认放弃'
     if (step < route.length - 1) await player.tap('room_leave')
   }
   assert.ok(player.draw().includes('撤离点'))
+  assert.ok(player.draw().includes('本轮结束时，存活玩家自动撤离'))
+  assert.equal(player.hits('request_extraction').length, 0)
   assert.ok(!(await sim.store.get(player.account.id)).activeGame.botCheckedRooms.includes('n_4_4'))
-  await player.tap('request_extraction')
+  assert.equal(player.run('accountSettlement'), null)
+  sim.tick(25000)
+  await heartbeat(player)
+  assert.equal(player.run('accountSettlement'), null)
+  sim.tick(25000)
+  await heartbeat(player)
   assert.equal(player.run('accountSettlement.status'), 'EXTRACTED')
   assert.match(player.draw().join('\n'), /撤\s*离\s*成\s*功/)
   assert.equal(player.run('accountProfile.quantities.ar_013'), 1)
   assert.equal(player.run('accountProfile.gold'), 0)
-  await player.api.command('game', player.requests.find(req => req.input?.action === 'extract').input)
+  await player.api.command('game', player.requests.find(req => req.input?.action === 'move' && req.input.turn === 8).input)
   assert.equal([...sim.store.ledger.values()].filter(entry => entry.gameId === gameId && entry.type === 'SETTLEMENT').length, 1)
 
   await player.tap('settlement_replay')

@@ -265,13 +265,39 @@ test('撤离返仓来自服务端物品，展示价值不发金币，重复结�
   })
   response = await f.service.execute(f.token, 'resume')
   const game = response.activeGame
-  response = await f.action(game, 'extract')
+  response = await f.action(game, 'leave')
   assert.equal(response.lastSettlement.success, true)
   assert.deepEqual(response.profile.quantities, { wp_006: 1, ar_001: 1, sk_001: 1, loot_001: 1 })
   assert.equal(response.profile.gold, 0)
-  const duplicate = await f.action(game, 'extract')
+  const duplicate = await f.action(game, 'leave')
   assert.deepEqual(duplicate.profile.quantities, response.profile.quantities)
   assert.equal((await f.store.get(f.id)).ledger.filter(entry => entry.type === 'SETTLEMENT').length, 1)
+})
+
+test('单人第11回合在撤离点等到搜索截止，自动结算且保留剩余生命', async () => {
+  const f = await fixture()
+  const { activeGame } = await f.start({ mode: 'SINGLE', combatVersion: 1 })
+  await f.edit(document => {
+    const state = document.activeGame.state
+    state.turn = 11
+    state.players[0].position = { x: 4, y: 3 }
+    state.players[0].hp = 5
+  })
+  const visit = await f.action({ ...activeGame, state: { turn: 11 } }, 'move', { target: { x: 4, y: 4 } })
+  assert.equal(visit.activeGame.search.visit.roomNodeId, 'n_4_4')
+  assert.equal(visit.lastSettlement, null)
+  const heartbeat = () => f.service.execute(f.token, 'heartbeat')
+  f.advance(25000)
+  await heartbeat()
+  f.advance(24999)
+  assert.equal((await heartbeat()).lastSettlement, null)
+  f.advance(1)
+  const result = await heartbeat()
+  assert.equal(result.activeGame, null)
+  assert.equal(result.lastSettlement.status, 'EXTRACTED')
+  assert.equal(result.lastSettlement.turn, 11)
+  assert.equal(result.lastSettlement.hp, 5)
+  assert.deepEqual(result.lastSettlement.returned, { wp_006: 1, ar_001: 1, sk_001: 1 })
 })
 
 test('重复离开不跨过两轮，回合超时由服务端推进', async () => {

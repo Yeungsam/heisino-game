@@ -440,10 +440,15 @@ test('第5轮：独立撤离返仓、连续开局与结算确认防串局', asyn
     }
   }
   assert.ok(host.draw().includes('撤离点'))
-  await host.tap('request_extraction')
-  assert.equal(host.run('accountGame.waiting'), 'ROUND')
+  assert.ok(host.draw().includes('本轮结束时，存活玩家自动撤离'))
+  assert.equal(host.hits('request_extraction').length, 0)
   await guest.tap('room_leave')
+  sim.tick(49999)
   await heartbeat(host)
+  assert.equal(host.run('accountSettlement'), null)
+  sim.tick(1)
+  await heartbeat(host)
+  await heartbeat(guest)
   assert.match(host.draw().join('\n'), /撤\s*离\s*成\s*功/)
   assert.equal(host.run('accountSettlement.returned.wp_006'), 1)
   assert.equal(host.read('accountSettlement.returned')[lootCardId], 1)
@@ -451,8 +456,8 @@ test('第5轮：独立撤离返仓、连续开局与结算确认防串局', asyn
   assert.equal(guest.run('accountGame.gameId'), roomId)
   assert.equal(guest.run('engine.turn'), 9)
   const priorSettlement = host.run('accountSettlement.settlementId')
-  const originalExtract = host.requests.find(req => req.input?.action === 'extract').input
-  await host.api.command('game', originalExtract)
+  const lastMove = host.requests.find(req => req.input?.action === 'move' && req.input.turn === 8).input
+  await host.api.command('game', lastMove)
   assert.equal([...sim.store.ledger.values()].filter(entry => entry.accountId === host.account.id && entry.type === 'SETTLEMENT').length, 1)
 
   await host.tap('settlement_replay')

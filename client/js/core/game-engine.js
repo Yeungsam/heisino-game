@@ -74,7 +74,7 @@ class GameEngine {
       previousPosition: { x, y },
       inventory,
       equippedWeaponId,
-      extractionRequestedTurn: null
+      extractionRequestedTurn: null // Older clients use null to hide the manual extraction notice.
     }
   }
 
@@ -109,7 +109,6 @@ class GameEngine {
     this.searchAccess = {}
     this.encounters = []
     if (this.turn >= C.ALERT_START_TURN) this.applyAlertDamage()
-    this.completeExtractions()
     const localPlayer = this.getPlayer(this.localPlayerId)
     if ((localPlayer && localPlayer.status !== 'ACTIVE') || this.activePlayers().length === 0) {
       this.phase = 'GAME_OVER'
@@ -137,8 +136,9 @@ class GameEngine {
 
   completeExtractions() {
     this.activePlayers().forEach(player => {
-      if (player.extractionRequestedTurn !== null && this.turn > player.extractionRequestedTurn) {
+      if (player.hp > 0 && positionKey(player.position) === C.EXTRACTION_NODE_ID) {
         player.status = 'EXTRACTED'
+        player.extractedAtTurn = this.turn
         this.addLog(`${player.name}已从白鸽撤离点安全离场。`)
       }
     })
@@ -357,20 +357,14 @@ class GameEngine {
 
   finishTurn() {
     if (!['SEARCH', 'ROUND_RESULT'].includes(this.phase)) return { ok: false, reason: 'INVALID_PHASE' }
-    this.turn += 1
-    this.beginTurn()
+    this.completeExtractions()
+    if (this.getPlayer(this.localPlayerId)?.status === 'EXTRACTED' || !this.activePlayers().length) {
+      this.phase = 'GAME_OVER'
+    } else {
+      this.turn += 1
+      this.beginTurn()
+    }
     return { ok: true, gameOver: this.phase === 'GAME_OVER' }
-  }
-
-  requestExtraction(playerId) {
-    if (!['SEARCH', 'ROUND_RESULT'].includes(this.phase)) return { ok: false, reason: 'INVALID_PHASE' }
-    const player = this.getPlayer(playerId)
-    if (!player || player.status !== 'ACTIVE') return { ok: false, reason: 'NOT_ACTIVE' }
-    if (positionKey(player.position) !== C.EXTRACTION_NODE_ID) return { ok: false, reason: 'NOT_AT_EXTRACTION' }
-    if (player.extractionRequestedTurn !== null) return { ok: false, reason: 'ALREADY_REQUESTED' }
-    player.extractionRequestedTurn = this.turn
-    this.addLog(`${player.name}已呼叫白鸽接应，需消耗 1 回合完成撤离。`)
-    return { ok: true, completesAtTurn: this.turn + 1 }
   }
 
   settlementFor(playerId) {
@@ -387,7 +381,7 @@ class GameEngine {
       success: player.status === 'EXTRACTED',
       status: player.status,
       reason: reasonByStatus[player.status] || player.status,
-      turn: this.turn,
+      turn: player.extractedAtTurn ?? this.turn,
       hp: player.hp,
       itemCount: player.inventory.length,
       lootValue: this.inventoryValue(playerId),

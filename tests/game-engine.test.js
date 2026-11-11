@@ -87,9 +87,9 @@ test('十件同款也会填满对局背包，丢弃指定实例后可拾取', ()
   assert.ok(!player.inventory.includes(removedId) && player.inventory.includes(target.instanceId))
 })
 
-test('毒圈从第10回合开始，每回合立即扣除5点生命', () => {
+test('毒圈从第12回合开始，每回合立即扣除5点生命', () => {
   const { game } = createGame()
-  for (const [turn, hp] of [[9, 30], [10, 25], [11, 20]]) {
+  for (const [turn, hp] of [[10, 30], [11, 30], [12, 25], [13, 20]]) {
     game.turn = turn
     game.beginTurn()
     game.players.forEach(player => assert.equal(player.hp, hp))
@@ -149,7 +149,7 @@ test('新局普通房间抽到零件后不重抽，旧局未访问房间仍按�
 test('警报圈伤害使生命归零时立即战败', () => {
   const { game } = createGame()
   game.players[0].hp = 5
-  game.turn = 10
+  game.turn = 12
   game.beginTurn()
   assert.equal(game.players[0].status, 'DEFEATED')
   assert.equal(game.players[0].hp, 0)
@@ -170,30 +170,30 @@ test('战斗后武器不再消耗耐久或因耐久销毁', () => {
   })
 })
 
-test('到达唯一撤离点后消耗一回合完成撤离', () => {
+test('到达唯一撤离点后，须完成本轮才自动撤离', () => {
   const { game } = createGame()
   const player = game.getPlayer('P1')
-  player.position = { x: 4, y: 4 }
-  game.phase = 'ROUND_RESULT'
-  assert.equal(game.requestExtraction('P1').ok, true)
+  player.position = { x: 4, y: 3 }
+  assert.ok(game.submitMove('P1', { x: 4, y: 4 }).ok)
+  game.resolveMoves()
+  assert.equal(player.status, 'ACTIVE')
   game.finishTurn()
   assert.equal(player.status, 'EXTRACTED')
   assert.equal(game.phase, 'GAME_OVER')
   assert.equal(game.settlementFor('P1').success, true)
 })
 
-test('第10回合警报圈伤害先于撤离完成结算', () => {
+test('第11回合以5点生命完成撤离，不承担第12回合的毒圈伤害', () => {
   const { game } = createGame()
   const player = game.getPlayer('P1')
   player.position = { x: 4, y: 4 }
   player.hp = 5
-  game.turn = 9
+  game.turn = 11
   game.phase = 'ROUND_RESULT'
-  game.requestExtraction('P1')
   game.finishTurn()
-  assert.equal(player.hp, 0)
-  assert.equal(player.status, 'DEFEATED')
-  assert.equal(game.settlementFor('P1').success, false)
+  assert.equal(player.hp, 5)
+  assert.equal(player.status, 'EXTRACTED')
+  assert.equal(game.settlementFor('P1').turn, 11)
 })
 
 test('第12回合后存活玩家可继续行动，毒圈伤害持续', () => {
@@ -207,15 +207,18 @@ test('第12回合后存活玩家可继续行动，毒圈伤害持续', () => {
   assert.equal(game.getPlayer('P1').hp, 25)
 })
 
-test('第12回合发起的撤离在下一回合存活时完成', () => {
+test('第12回合的毒圈在移动前扣血，存活到本轮结束可撤离', () => {
   const { game } = createGame()
   const player = game.getPlayer('P1')
-  player.position = { x: 4, y: 4 }
+  player.position = { x: 4, y: 3 }
+  player.hp = 10
   game.turn = 12
-  game.phase = 'ROUND_RESULT'
-  assert.equal(game.requestExtraction('P1').completesAtTurn, 13)
+  game.beginTurn()
+  assert.equal(player.hp, 5)
+  assert.ok(game.submitMove('P1', { x: 4, y: 4 }).ok)
+  game.resolveMoves()
   game.finishTurn()
-  assert.equal(player.hp, 25)
+  assert.equal(player.hp, 5)
   assert.equal(game.settlementFor('P1').status, 'EXTRACTED')
-  assert.equal(game.settlementFor('P1').turn, 13)
+  assert.equal(game.settlementFor('P1').turn, 12)
 })

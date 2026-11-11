@@ -410,7 +410,8 @@ class AccountService {
     else {
       if (!visit || engine.phase !== 'SEARCH') throw fault('INVALID_PHASE', 409)
       if (input.action === 'leave' || input.action === 'extract') {
-        if (input.action === 'extract') must(engine.requestExtraction('P1'))
+        // Older clients still send this when ending a visit at the exit.
+        if (input.action === 'extract' && visit.roomNodeId !== C.EXTRACTION_NODE_ID) throw fault('NOT_AT_EXTRACTION', 409)
         if (game.combatVersion === Battle.VERSION) this.finishVisit(visit, this.now())
         else {
           must(engine.finishTurn())

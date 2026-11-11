@@ -351,7 +351,7 @@ class Multiplayer {
         const visit = game.combatVersion ? this.account.activeVisit(game, playerId) : game.visits[playerId]
         if (engine.phase !== 'SEARCH' || !visit || now < visit.startedAt || now >= visit.deadlineAt || game.done.includes(playerId)) throw fault('INVALID_PHASE', 409)
         if (input.action === 'leave' || input.action === 'extract') {
-          if (input.action === 'extract') requireSuccess(engine.requestExtraction(playerId))
+          if (input.action === 'extract' && visit.roomNodeId !== C.EXTRACTION_NODE_ID) throw fault('NOT_AT_EXTRACTION', 409)
           if (game.combatVersion) this.account.finishVisit(visit, now)
           else {
             game.done.push(playerId)
