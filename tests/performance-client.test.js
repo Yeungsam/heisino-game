@@ -259,12 +259,18 @@ test('右桌搜索热区与离开房间重叠时，真实触控优先离开，�
   assert.equal(f.run('engine.turn'), turn + 1)
 })
 
-test('移动页绘制25格新名称和七种图例，移动目标与进房标题一致', async () => {
+test('地图格内只显示插图，图例、选点和进房名称仍可用', async () => {
   const f = await fixture({ active: true })
   f.labels.length = 0
-  f.run('selectMovementTarget({ x: 1, y: 0 }); draw()')
+  f.run('draw()')
+  const target = JSON.parse(f.run('JSON.stringify(ui.hotspots.find(hit => hit.id === "map_node" && hit.data.x === 1 && hit.data.y === 0).rect)'))
+  const touches = [{ clientX: target.x + target.width / 2, clientY: target.y + target.height / 2 }]
+  f.touchStart({ touches })
+  f.touchEnd({ touches: [], changedTouches: touches })
+  f.labels.length = 0
+  f.run('draw()')
   const roomNames = ['出生点', '会客厅', '监控室', '仓库', '医疗室', '中央金库', '撤离点']
-  assert.equal(f.labels.filter(label => roomNames.includes(label)).length, 25 + roomNames.length)
+  assert.deepEqual(f.labels.filter(label => roomNames.includes(label)).sort(), roomNames.sort())
   assert.ok(f.labels.includes('目标：会客厅'))
   assert.equal(await f.run('accountAction("move", { target: { x: 1, y: 0 } })'), true)
   f.labels.length = 0

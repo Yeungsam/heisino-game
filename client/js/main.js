@@ -45,7 +45,6 @@ const {
   roomRect,
   roomHighlightStyle,
   roomTypeAt,
-  roomInfoAt,
   ROOM_TYPE_INFO,
   roomKeyForNode,
   roomTypeForNode,
@@ -1866,16 +1865,6 @@ function drawMovementRooms(state, layout, replaying) {
         }
       }
       context.restore()
-
-      const info = roomInfoAt(x, y)
-      const labelWidth = rect.width * 0.72
-      const labelHeight = Math.min(rect.height * 0.3, Math.max(12, 21 * scale))
-      const labelX = rect.x + (rect.width - labelWidth) / 2
-      const labelY = rect.y + rect.height - labelHeight - 3 * scale
-      roundedPath(labelX, labelY, labelWidth, labelHeight, labelHeight / 2)
-      context.fillStyle = 'rgba(20,12,22,.86)'
-      context.fill()
-      text(info.name, rect.x + rect.width / 2, labelY + labelHeight / 2, Math.max(8, 16 * scale), info.color, 'center', 'bold', labelWidth - 6 * scale)
 
       if (selecting && (current || reachable)) ui.hotspots.push({ id: 'map_node', rect: roomRect(layout, x, y), data: { x, y } })
     }
