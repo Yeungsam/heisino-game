@@ -136,7 +136,7 @@ function drag(app, from, to) {
   app.touch('end', targetX, targetY)
 }
 
-test('单人第3轮：逐件曝光、拾取丢弃与搜索截止热区', async t => {
+test('单人第3轮：半秒自动刷新曝光、拾取丢弃与搜索截止热区', async t => {
   const sim = await simulation(t, 1)
   const [player] = sim.client
   await solo(player)
@@ -149,13 +149,19 @@ test('单人第3轮：逐件曝光、拾取丢弃与搜索截止热区', async t
   const game = (await sim.store.get(player.account.id)).activeGame
   const [hiddenId] = game.visit.observation.hiddenIds
   await assert.rejects(player.api.command('game', { gameId: game.gameId, turn: 1, action: 'pickup', instanceId: hiddenId }), { code: 'ITEM_NOT_VISIBLE' })
-  sim.tick(1999)
-  await heartbeat(player)
+  const heartbeatCount = () => player.requests.filter(req => req.route === '/api/account/heartbeat').length
+  const beforeReveal = heartbeatCount()
+  sim.tick(499)
+  player.run('update()')
+  assert.equal(heartbeatCount(), beforeReveal)
   player.draw()
   assert.equal(player.read('ui.searchItemRects').length, 0)
   sim.tick(1)
-  await heartbeat(player)
+  player.run('update()')
+  await player.idle()
+  assert.equal(heartbeatCount(), beforeReveal + 1)
   assert.match(player.draw().join('\n'), /搜索物品\s+1\//)
+  assert.ok(player.draw().includes('每 0.5 秒揭示 1 件'))
   const [loot] = player.read('ui.searchItemRects')
   assert.equal(loot.instanceId, hiddenId)
   drag(player, loot, player.read('ui.searchBackpackRect'))
@@ -177,7 +183,7 @@ test('单人第3轮：逐件曝光、拾取丢弃与搜索截止热区', async t
   const [bagX, bagY] = center(player.read('ui.searchBackpackRect'))
   player.touch('start', x, y)
   player.touch('move', bagX, y)
-  sim.tick(24000)
+  sim.tick(player.run('searchVisitState.visit.deadlineAt - Date.now()'))
   const actionCount = player.requests.filter(req => req.route === '/api/account/game').length
   player.touch('end', bagX, bagY)
   await player.idle()

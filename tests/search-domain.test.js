@@ -85,21 +85,31 @@ test('兼容搜索恢复旧局与请求重试不返回停用技能', async () =>
   await assert.rejects(service.pickup({ ...observe, requestId: 'pickup-retired', instanceId: dropped }), { code: 'ITEM_NOT_VISIBLE' })
 })
 
-test('区域搜索每2秒曝光1件并持续展示该区域全部物品', async () => {
+test('区域搜索每 0.5 秒曝光 1 件并持续展示该区域全部物品', async () => {
   const { service, advance } = fixture()
-  const game = await service.createGame({ gameId: 'game-reveal', playerId: 'P1', loadoutCardIds: [], seed: 'reveal' })
-  const area = roomArea(game, 'n_1_0')
-  const started = await service.startVisit({ gameId: 'game-reveal', playerId: 'P1', roomNodeId: 'n_1_0', turn: 1, requestId: 'visit-1' })
-  await service.observe({ gameId: 'game-reveal', playerId: 'P1', visitId: started.visit.visitId, areaId: area.areaId, requestId: 'observe-1' })
+  const gameId = 'game-reveal-0'
+  const playerId = 'P1'
+  const game = await service.createGame({ gameId, playerId, loadoutCardIds: [], seed: 'reveal-0' })
+  const area = roomArea(game, 'n_1_0', candidate => candidate.itemCount >= 2)
+  assert.ok(area)
+  const started = await service.startVisit({ gameId, playerId, roomNodeId: 'n_1_0', turn: 1, requestId: 'visit-1' })
+  const visit = { gameId, playerId, visitId: started.visit.visitId }
+  await service.observe({ ...visit, areaId: area.areaId, requestId: 'observe-1' })
 
-  advance(REVEAL_INTERVAL_MS - 1)
-  let state = await service.getVisit({ gameId: 'game-reveal', playerId: 'P1', visitId: started.visit.visitId })
+  advance(499)
+  let state = await service.getVisit(visit)
   assert.equal(state.room.visibleItems.length, 0)
   advance(1)
-  state = await service.getVisit({ gameId: 'game-reveal', playerId: 'P1', visitId: started.visit.visitId })
+  state = await service.getVisit(visit)
   assert.equal(state.room.activeArea.visibleItems.length, 1)
+  advance(499)
+  state = await service.getVisit(visit)
+  assert.equal(state.room.activeArea.visibleItems.length, 1)
+  advance(1)
+  state = await service.getVisit(visit)
+  assert.equal(state.room.activeArea.visibleItems.length, 2)
   advance(REVEAL_INTERVAL_MS * area.itemCount)
-  state = await service.getVisit({ gameId: 'game-reveal', playerId: 'P1', visitId: started.visit.visitId })
+  state = await service.getVisit(visit)
   assert.equal(state.room.activeArea.visibleItems.length, area.itemCount)
   assert.equal(state.room.activeArea.unsearchedCount, 0)
 })

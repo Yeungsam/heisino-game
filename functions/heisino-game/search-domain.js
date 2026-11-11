@@ -4,9 +4,9 @@ const core = fs.existsSync(path.join(__dirname, '../../client/js/core/room-loot.
 const { hashSeed } = require(`${core}/rng`)
 const { roomLootAreas, stockRoomLoot } = require(`${core}/room-loot`)
 const { isRetiredCard, removeRetiredItems, removeRetiredObservationItems } = require(`${core}/retired-cards`)
+const { SEARCH_REVEAL_INTERVAL_MS: REVEAL_INTERVAL_MS } = require(`${core}/constants`)
 
 const SEARCH_DURATION_MS = 50000
-const REVEAL_INTERVAL_MS = 2000
 const MAX_VISIBLE_ITEMS = 30
 const ROOM_AREA_CAPACITY = 30
 const BACKPACK_SLOTS = 10

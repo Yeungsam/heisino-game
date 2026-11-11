@@ -13,7 +13,7 @@ console.log('Built account function runtime from shared rules and card catalog.'
 
 const searchTarget = path.join(root, 'functions/heisino-game/runtime')
 fs.mkdirSync(searchTarget, { recursive: true })
-for (const name of ['room-map', 'room-loot', 'rng', 'retired-cards']) {
+for (const name of ['room-map', 'room-loot', 'rng', 'retired-cards', 'constants']) {
   fs.copyFileSync(path.join(root, `client/js/core/${name}.js`), path.join(searchTarget, `${name}.js`))
 }
 fs.copyFileSync(path.join(root, 'data/cards.json'), path.join(searchTarget, 'cards.json'))

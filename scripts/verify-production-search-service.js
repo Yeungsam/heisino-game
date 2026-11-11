@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict')
+const { SEARCH_REVEAL_INTERVAL_MS } = require('../client/js/core/constants')
 
 const origin = process.env.SEARCH_API_ORIGIN || 'https://cloud1-d5ghcmrajdca722b5-1510428576.ap-shanghai.app.tcloudbase.com/api/search'
 const gameId = process.env.SEARCH_SMOKE_GAME_ID || `prod-smoke-${Date.now()}`
@@ -45,16 +46,17 @@ async function main() {
   assert.equal(entered.room.unpickedCount, 3)
   assert.deepEqual(entered.room.visibleItems, [])
   const visitId = entered.visit.visitId
-  await request(`/games/${gameId}/visits/${visitId}/observe`, {
+  const observation = await request(`/games/${gameId}/visits/${visitId}/observe`, {
     method: 'POST',
     requestId: `${gameId}-observe`,
     body: { playerId, areaId: entered.room.areas.find(area => area.itemCount > 0).areaId }
   })
 
-  await new Promise(resolve => setTimeout(resolve, 2200))
+  assert.equal(observation.room.visibleItems.length, 0)
+  await new Promise(resolve => setTimeout(resolve, SEARCH_REVEAL_INTERVAL_MS + 100))
   const observed = await request(`/games/${gameId}/visits/${visitId}?playerId=${encodeURIComponent(playerId)}`)
   assert.equal(observed.visit.status, 'ACTIVE')
-  assert.equal(observed.room.visibleItems.length, 1)
+  assert.ok(observed.room.visibleItems.length >= 1)
 
   const picked = await request(`/games/${gameId}/visits/${visitId}/pickup`, {
     method: 'POST',
@@ -95,7 +97,7 @@ async function main() {
     vaultItems: roomCounts.n_2_2,
     extractionItems: roomCounts.n_4_4,
     areaSchemaVersion: game.schemaVersion,
-    revealedAfterMs: 2200,
+    revealedAfterMs: observed.serverTime - observation.visit.observation.startedAt,
     inventoryAfterPickup: picked.inventory.length,
     finalVisitStatus: left.visit.status
   }, null, 2))

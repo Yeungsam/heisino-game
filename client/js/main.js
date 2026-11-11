@@ -2592,7 +2592,7 @@ function drawSearchRoomPanel(rect) {
   if (assets.searchBriefcaseIcon) drawImageSourceInRect(assets.searchBriefcaseIcon, SEARCH_ASSET_CROPS.briefcaseIcon, { x: rect.x + 58 * scale, y: contentLayout.iconTop + 3 * scale, width: 38 * scale, height: 30 * scale })
   text(`搜索物品  ${visible.length}/${itemCount}`, rect.x + 110 * scale, contentLayout.headerBaselineY, Math.max(10, 26 * scale), PALETTE.paleGold, 'left', 'bold')
   const instant = searchVisitState?.visit.kind === 'LOOT'
-  text(instant ? '战利品立即揭示' : '每 2 秒揭示 1 件', rect.x + rect.width - 58 * scale, contentLayout.headerBaselineY, Math.max(7, 16 * scale), '#d8c1b6', 'right')
+  text(instant ? '战利品立即揭示' : `每 ${C.SEARCH_REVEAL_INTERVAL_MS / 1000} 秒揭示 1 件`, rect.x + rect.width - 58 * scale, contentLayout.headerBaselineY, Math.max(7, 16 * scale), '#d8c1b6', 'right')
   const gridWidth = rect.width - 104 * scale
   const slotGap = 10 * scale
   const slotPadding = 2 * scale
@@ -2807,9 +2807,13 @@ function update() {
       (engine.phase === 'MOVE_SELECTION' ? engine.moveDeadlineAt : engine.turnDeadlineAt)
     const nearDeadline = Number.isFinite(deadline) && deadline - now < 1200
     const awaitingReplay = accountGame.mode === 'MULTIPLAYER' && engine.phase === 'MOVE_SELECTION' && (accountGame.waiting === 'MOVES' || nearDeadline)
+    const area = searchVisitState?.room.activeArea
+    const revealingSearch = presentation === 'SEARCH' && searchVisitState?.visit.kind !== 'LOOT' &&
+      searchVisitState?.visit.observation?.active && area && area.itemCount > area.visibleItems.length
     const interval = awaitingReplay || presentation === 'REPLAY' || interactiveBattle ? 500
-      : presentation === 'SEARCH' || nearDeadline ? 1000 : accountGame.mode === 'MULTIPLAYER' ? 2000 : 5000
-    if (now - accountLastHeartbeat > interval) {
+      : revealingSearch ? C.SEARCH_REVEAL_INTERVAL_MS : presentation === 'SEARCH' || nearDeadline ? 1000
+        : accountGame.mode === 'MULTIPLAYER' ? 2000 : 5000
+    if (now - accountLastHeartbeat >= interval) {
       accountLastHeartbeat = now
       heartbeatAccount()
     }

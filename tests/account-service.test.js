@@ -144,7 +144,10 @@ test('搜索曝光、拾取、丢弃和重复请求使用同一份权威物品',
   const area = response.activeGame.search.room.areas.find(entry => entry.itemCount > 0)
   response = await f.action(response.activeGame, 'observe', { areaId: area.areaId })
   assert.equal(response.activeGame.search.room.activeArea.visibleItems.length, 0)
-  f.advance(2000)
+  f.advance(499)
+  response = await f.service.execute(f.token, 'heartbeat')
+  assert.equal(response.activeGame.search.room.activeArea.visibleItems.length, 0)
+  f.advance(1)
   response = await f.service.execute(f.token, 'heartbeat')
   const item = response.activeGame.search.room.activeArea.visibleItems[0]
   assert.ok(item)

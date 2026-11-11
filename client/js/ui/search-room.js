@@ -1,5 +1,5 @@
-const { SEARCH_DURATION_MS } = require('../core/constants')
-const SEARCH_RIPPLE_PERIOD_MS = 1200
+const { SEARCH_DURATION_MS, SEARCH_REVEAL_INTERVAL_MS } = require('../core/constants')
+const SEARCH_RIPPLE_PERIOD_MS = SEARCH_REVEAL_INTERVAL_MS
 const SEARCH_DESIGN_WIDTH = 1920
 const SEARCH_DESIGN_HEIGHT = 1080
 const SEARCH_PANEL_NINE_SLICE = Object.freeze({ left: 80, right: 80, top: 110, bottom: 78 })
@@ -198,7 +198,7 @@ function createNineSliceGeometry(sourceWidth, sourceHeight, rect, slices, destin
   return segments
 }
 
-function nextSearchRippleIndex(visibleCount, itemCount, elapsedMs, revealIntervalMs = 2000) {
+function nextSearchRippleIndex(visibleCount, itemCount, elapsedMs, revealIntervalMs = SEARCH_REVEAL_INTERVAL_MS) {
   const visible = Math.max(0, Number(visibleCount) || 0)
   const total = Math.max(0, Number(itemCount) || 0)
   if (total === 0) return elapsedMs < revealIntervalMs ? 0 : null

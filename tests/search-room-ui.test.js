@@ -145,11 +145,11 @@ test('搜索面板九宫格缩放保持四角比例不变', () => {
 
 test('水波纹跟随下一个待揭示卡槽，全部揭示或空区域确认后停止', () => {
   assert.equal(nextSearchRippleIndex(0, 4, 0), 0)
-  assert.equal(nextSearchRippleIndex(1, 4, 2100), 1)
-  assert.equal(nextSearchRippleIndex(3, 4, 6100), 3)
-  assert.equal(nextSearchRippleIndex(4, 4, 8100), null)
-  assert.equal(nextSearchRippleIndex(0, 0, 1999), 0)
-  assert.equal(nextSearchRippleIndex(0, 0, 2000), null)
+  assert.equal(nextSearchRippleIndex(1, 4, 500), 1)
+  assert.equal(nextSearchRippleIndex(3, 4, 1500), 3)
+  assert.equal(nextSearchRippleIndex(4, 4, 2000), null)
+  assert.equal(nextSearchRippleIndex(0, 0, 499), 0)
+  assert.equal(nextSearchRippleIndex(0, 0, 500), null)
 })
 
 test('两道同心波纹交错扩散、淡出且不越过卡槽', () => {
