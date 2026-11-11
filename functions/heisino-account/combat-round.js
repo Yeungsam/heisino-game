@@ -69,6 +69,15 @@ function createCombat(engine, encounter, at) {
   }
 }
 
+function roundCombats(game) {
+  const guards = Object.values(game.guardCombats ?? {})
+  return game.combat ? [game.combat, ...guards] : guards
+}
+
+function combatForPlayer(game, playerId) {
+  return game.combat?.playerIds.includes(playerId) ? game.combat : game.guardCombats?.[playerId]
+}
+
 function resolveImpact(combat, engine, at) {
   const scores = combat.playerIds.map(id => {
     const side = combat.sides[id]
@@ -303,4 +312,5 @@ function combatFingerprint(input) {
   return fields
 }
 
-module.exports = { VERSION, LOOT_MS, ACTIONS, createCombat, advanceCombat, combatAction, combatView, forfeit, expireParticipants, combatFingerprint }
+module.exports = { VERSION, LOOT_MS, ACTIONS, createCombat, roundCombats, combatForPlayer, advanceCombat, combatAction, combatView,
+  forfeit, expireParticipants, combatFingerprint }

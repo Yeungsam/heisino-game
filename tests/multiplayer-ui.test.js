@@ -81,7 +81,7 @@ test('开局时弹窗显示缺少版本标记的玩家昵称，更新并重新�
   assert.equal(dialogs.length, 1)
 })
 
-async function startTogether(apps) {
+async function startTogether(sim, apps = sim.client, rngState = 344) {
   const [host, ...guests] = apps
   await Promise.all(apps.map(dock))
   await host.tap('lobby_create')
@@ -94,6 +94,7 @@ async function startTogether(apps) {
   await host.tap('lobby_start')
   await Promise.all(guests.map(refresh))
   assert.ok(apps.every(app => app.run('accountGame.gameId') === roomId))
+  sim.store.rooms.get(roomId).game.rngState = rngState
   return roomId
 }
 
@@ -103,10 +104,35 @@ async function finishReplay(sim, apps) {
   await Promise.all(apps.map(app => app.idle()))
 }
 
+test('多人各自进房时守卫只出现在参战者的战斗画面', async t => {
+  const sim = await simulation(t, 2)
+  const [host, guest] = sim.client
+  await startTogether(sim, sim.client, 0)
+  await move(host, 1, 0)
+  await guest.tap('confirm_move')
+  await heartbeat(host)
+  assert.equal(host.run('presentation'), 'REPLAY')
+  assert.equal(host.run('movementReplay.tracks.length'), 2)
+  await finishReplay(sim, sim.client)
+  await Promise.all(sim.client.map(heartbeat))
+  assert.equal(host.run('presentation'), 'BATTLE')
+  assert.ok(host.draw().includes('赌场守卫'))
+  assert.equal(host.run('interactiveBattle.opponent.isBot'), true)
+  assert.equal(guest.run('presentation'), 'ROOM')
+  assert.ok(!guest.draw().includes('赌场守卫'))
+  await host.tap('combat_roll')
+  assert.equal(host.run('interactiveBattle.self.dice.length'), 3)
+  await host.tap('combat_ready')
+  assert.equal(host.run('interactiveBattle.stage'), 'IMPACT')
+  assert.deepEqual(host.read('interactiveBattle.opponent.dice.map(die => die.zone).sort()'), ['ATTACK', 'DEFENSE'])
+  await guest.tap('room_leave')
+  assert.equal(guest.run('accountGame.waiting'), 'ROUND')
+})
+
 test('第2轮：三端移动截止、等待界面与回合超时', async t => {
   const sim = await simulation(t)
   const [host, late, third] = sim.client
-  const roomId = await startTogether(sim.client)
+  const roomId = await startTogether(sim)
   await move(host, 1, 0)
   await third.tap('confirm_move')
   assert.match(host.draw().join('\n'), /等待其他玩家/)
@@ -157,7 +183,7 @@ test('多人移动优先于慢心跳，重按只提交一次且旧回包不能�
     }
     if (req.input?.action === 'move') return releaseMove.promise
   } })
-  await startTogether([host, guest])
+  await startTogether(sim, [host, guest])
   await move(host, 1, 0)
   await guest.tap('map_node', hit => hit.data.x === 1 && hit.data.y === 4)
   sim.tick(14500)
@@ -207,7 +233,7 @@ test('多人移动晚到明确提示原地停留，成功回包丢失则原请�
       throw new Error('request:fail timeout')
     }
   } })
-  await startTogether([host, guest])
+  await startTogether(sim, [host, guest])
   await move(host, 1, 0)
   sim.tick(14500)
   delayClock = true
@@ -239,7 +265,7 @@ test('多人移动晚到明确提示原地停留，成功回包丢失则原请�
 test('所有玩家同屏回放，较晚恢复只播放剩余时间，结束时同步开放房间', async t => {
   const sim = await simulation(t, 2)
   const [host, guest] = sim.client
-  await startTogether(sim.client)
+  await startTogether(sim)
   await move(host, 1, 0)
   assert.equal(host.run('movementReplay'), null)
   await guest.tap('confirm_move')
@@ -281,7 +307,7 @@ test('所有玩家同屏回放，较晚恢复只播放剩余时间，结束时�
 
 test('第3轮：恢复旧版三人同房对局、分流、真实拖拽拾取与搜索换轮', async t => {
   const sim = await simulation(t)
-  const roomId = await startTogether(sim.client)
+  const roomId = await startTogether(sim)
   delete sim.store.rooms.get(roomId).game.combatVersion
   const routes = [
     [[1, 0], [1, 1], [1, 1], [1, 1]],
@@ -364,7 +390,7 @@ test('第4轮：断线恢复与迟到响应不会把玩家拉回已离开的结�
       await release.promise
     }
   } })
-  const roomId = await startTogether([host, guest])
+  const roomId = await startTogether(sim, [host, guest])
   guest.events.hide()
   await guest.idle()
   await move(host, 1, 0)
@@ -408,7 +434,7 @@ test('第4轮：断线恢复与迟到响应不会把玩家拉回已离开的结�
 test('第5轮：独立撤离返仓、连续开局与结算确认防串局', async t => {
   const sim = await simulation(t, 2)
   const [host, guest] = sim.client
-  const roomId = await startTogether(sim.client)
+  const roomId = await startTogether(sim)
   sim.store.rooms.get(roomId).game.state.roomStock.seed = 2
   const route = [[1, 0], [2, 0], [3, 0], [4, 0], [4, 1], [4, 2], [4, 3], [4, 4]]
   let lootCardId

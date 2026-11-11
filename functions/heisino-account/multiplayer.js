@@ -8,6 +8,7 @@ const SPAWNS = [{ x: 0, y: 0 }, { x: 0, y: 4 }, { x: 4, y: 0 }]
 const LOBBY_ACTIONS = ['list', 'create', 'join', 'leave', 'start']
 const SYNC_ACTIONS = ['me', 'resume', 'heartbeat', 'suspend', 'game', 'acknowledge', 'start']
 const fingerprintOf = fields => crypto.createHash('sha256').update(JSON.stringify(fields)).digest('hex')
+const activeHumans = engine => engine.activePlayers().filter(player => !player.isBot)
 
 function requireSuccess(result) {
   if (!result.ok) throw fault(result.reason, 409)
@@ -31,7 +32,7 @@ function publicState(engine, playerId, visit) {
   delete state.nextItemSequence
   delete state.roomStock
   state.searchAccess = { P1: [] }
-  state.players = state.players.map(player => player.id === playerId ? { ...player, id: 'P1' } : {
+  state.players = state.players.filter(player => !player.isBot).map(player => player.id === playerId ? { ...player, id: 'P1' } : {
     id: alias(player.id), name: player.name, hp: player.hp, maxHp: player.maxHp, status: player.status,
     ...(engine.phase === 'MOVE_SELECTION' ? {} : { position: player.position, previousPosition: player.previousPosition }), inventory: [],
     equippedWeaponId: null, extractionRequestedTurn: null
@@ -237,11 +238,11 @@ class Multiplayer {
       if (player.status === 'ACTIVE' || (replaying && player.status === 'DEFEATED')) continue
       const owner = member.accountId === document.accountId ? document : await tx.account(member.accountId)
       if (!owner || owner.activeGame?.gameId !== gameId) continue
-      const endedAt = game.ended?.[member.playerId] ?? (game.combat?.playerIds.includes(member.playerId) ? game.combat.completedAt : undefined) ?? now
+      const endedAt = game.ended?.[member.playerId] ?? Battle.combatForPlayer(game, member.playerId)?.completedAt ?? now
       this.account.settle(owner, engine, endedAt, member.playerId, publicState(engine, member.playerId, null))
       this.saveAccount(tx, owner)
     }
-    const activePlayers = engine.activePlayers()
+    const activePlayers = activeHumans(engine)
     room.playerCount = activePlayers.length
     if (room.playerCount) room.listUntil = Math.max(...activePlayers.map(player => game.seen[player.id])) + WAIT_MS
     else this.close(room)
@@ -259,7 +260,7 @@ class Multiplayer {
 
   advance(game, engine, now) {
     while (engine.phase !== 'GAME_OVER') {
-      const players = engine.activePlayers()
+      const players = activeHumans(engine)
       if (!players.length) { engine.phase = 'GAME_OVER'; return }
       const moving = engine.phase === 'MOVE_SELECTION'
       const disconnectedAt = Math.min(...players.map(player => game.seen[player.id] + WAIT_MS))
@@ -267,14 +268,19 @@ class Multiplayer {
         const finishedAt = this.account.advanceActions(game, engine, Math.min(now, disconnectedAt - 1))
         if (finishedAt === null && disconnectedAt > now) return
         if (finishedAt === null) {
-          const expired = engine.activePlayers().filter(player => game.seen[player.id] + WAIT_MS <= disconnectedAt)
+          const expired = activeHumans(engine).filter(player => game.seen[player.id] + WAIT_MS <= disconnectedAt)
           for (const player of expired) this.endPlayer(game, engine, player, 'DISCONNECTED', disconnectedAt)
-          Battle.expireParticipants(game.combat, engine, expired.map(player => player.id), disconnectedAt)
+          const expiredIds = expired.map(player => player.id)
+          for (const combat of Battle.roundCombats(game)) Battle.expireParticipants(combat, engine, expiredIds, disconnectedAt)
           continue
         }
         const defeated = players.filter(player => player.status !== 'ACTIVE')
-        for (const player of defeated) this.endPlayer(game, engine, player, player.status, game.combat?.completedAt ?? finishedAt)
-        if (!engine.activePlayers().length) { engine.phase = 'GAME_OVER'; return }
+        for (const player of defeated) {
+          const endedAt = Battle.combatForPlayer(game, player.id)?.completedAt ?? finishedAt
+          this.endPlayer(game, engine, player, player.status, endedAt)
+        }
+        engine.players = engine.players.filter(player => !player.isBot)
+        if (!activeHumans(engine).length) { engine.phase = 'GAME_OVER'; return }
         engine.now = () => finishedAt
         requireSuccess(engine.finishTurn())
         this.account.resetActions(game)
@@ -335,7 +341,7 @@ class Multiplayer {
       return
     }
     if (input.action === 'abandon') {
-      Battle.forfeit(game.combat, engine, playerId, now)
+      Battle.forfeit(Battle.combatForPlayer(game, playerId), engine, playerId, now)
       this.endPlayer(game, engine, engine.getPlayer(playerId), 'ABANDONED', now)
     }
     else {
@@ -346,7 +352,7 @@ class Multiplayer {
         }
         if (engine.moveSelections[playerId]) throw fault('MOVE_ALREADY_SUBMITTED', 409)
         requireSuccess(engine.submitMove(playerId, input.target || {}))
-      } else if (Battle.ACTIONS.has(input.action)) Battle.combatAction(game.combat, engine, playerId, input, now)
+      } else if (Battle.ACTIONS.has(input.action)) Battle.combatAction(Battle.combatForPlayer(game, playerId), engine, playerId, input, now)
       else {
         const visit = game.combatVersion ? this.account.activeVisit(game, playerId) : game.visits[playerId]
         if (engine.phase !== 'SEARCH' || !visit || now < visit.startedAt || now >= visit.deadlineAt || game.done.includes(playerId)) throw fault('INVALID_PHASE', 409)
@@ -372,7 +378,7 @@ class Multiplayer {
     const game = room.game
     const state = engine || this.account.restore(game)
     const visit = game.combatVersion ? this.account.activeVisit(game, playerId) : game.visits[playerId]
-    const combat = Battle.combatView(game.combat, state, playerId)
+    const combat = Battle.combatView(Battle.combatForPlayer(game, playerId), state, playerId)
     const waiting = state.phase === 'MOVE_SELECTION' && game.moveSelections[playerId] ? 'MOVES' :
       state.phase === 'SEARCH' && (game.combatVersion ? !combat && !visit : game.done.includes(playerId)) ? 'ROUND' : null
     const replay = game.movementReplay

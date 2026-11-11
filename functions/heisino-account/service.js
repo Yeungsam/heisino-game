@@ -291,8 +291,19 @@ class AccountService {
     game.actionStartsAt = at
     game.combat = game.encounter ? Battle.createCombat(engine, game.encounter, at) : null
     delete game.encounter
+    if (game.mode === 'MULTIPLAYER') {
+      game.guardCombats = {}
+      for (const encounter of engine.encounters) {
+        if (encounter.type !== 'SEARCH') continue
+        const player = engine.getPlayer(encounter.playerIds[0])
+        if (positionKey(player.previousPosition) === encounter.nodeId) continue
+        const guard = this.createGuardEncounter(engine, game, player)
+        if (guard) game.guardCombats[player.id] = Battle.createCombat(engine, guard, at)
+      }
+    }
+    const fighters = new Set(Battle.roundCombats(game).flatMap(combat => combat.playerIds))
     game.visits = Object.fromEntries(engine.activePlayers()
-      .filter(player => !game.combat?.playerIds.includes(player.id))
+      .filter(player => !fighters.has(player.id))
       .map(player => [player.id, this.createVisit(game, engine, player.id, at)]))
   }
 
@@ -303,8 +314,9 @@ class AccountService {
   }
 
   advanceActions(game, engine, now) {
-    const combat = game.combat
-    if (combat && combat.stage !== 'COMPLETE') {
+    const combats = Battle.roundCombats(game)
+    for (const combat of combats) {
+      if (combat.stage === 'COMPLETE') continue
       Battle.advanceCombat(combat, engine, now)
       if (combat.stage === 'COMPLETE') {
         for (const id of combat.lootPlayers) {
@@ -318,8 +330,8 @@ class AccountService {
     for (const visit of visits) {
       if (visit.status === 'ACTIVE' && visit.deadlineAt <= now) this.finishVisit(visit, visit.deadlineAt)
     }
-    if (now < game.actionStartsAt || combat && combat.stage !== 'COMPLETE' || visits.some(visit => visit.status === 'ACTIVE')) return null
-    return Math.max(game.actionStartsAt, combat?.completedAt ?? 0, ...visits.map(visit => visit.finishedAt))
+    if (now < game.actionStartsAt || combats.some(combat => combat.stage !== 'COMPLETE') || visits.some(visit => visit.status === 'ACTIVE')) return null
+    return Math.max(game.actionStartsAt, ...combats.map(combat => combat.completedAt), ...visits.map(visit => visit.finishedAt))
   }
 
   activeVisit(game, playerId) {
@@ -329,6 +341,7 @@ class AccountService {
 
   resetActions(game) {
     game.combat = null
+    delete game.guardCombats
     game.visits = {}
     game.actionStartsAt = null
   }
@@ -345,8 +358,7 @@ class AccountService {
     must(engine.finishTurn())
   }
 
-  singleEncounter(engine, game) {
-    const player = engine.getPlayer('P1')
+  createGuardEncounter(engine, game, player) {
     const roomId = positionKey(player.position)
     if (roomId === C.EXTRACTION_NODE_ID || SPAWNS.some(spawn => positionKey(spawn) === roomId)) return
     if (!game.combatVersion) {
@@ -354,17 +366,27 @@ class AccountService {
       game.botCheckedRooms.push(roomId)
     }
     if (engine.rng() >= 0.3) return
-    const bot = engine.createPlayer('P2', '赌场守卫', player.position.x, player.position.y, this.blueBotEquipment)
+    const guardId = game.mode === 'MULTIPLAYER' ? `guard-${player.id}` : 'P2'
+    const bot = engine.createPlayer(guardId, '赌场守卫', player.position.x, player.position.y, this.blueBotEquipment)
     bot.isBot = true
     engine.players.push(bot)
+    const encounter = { nodeId: roomId, playerIds: [player.id, bot.id], itemIds: engine.searchAccess[player.id] || [] }
+    if (game.combatVersion === Battle.VERSION) engine.searchAccess[player.id] = []
+    return encounter
+  }
+
+  singleEncounter(engine, game) {
+    const player = engine.getPlayer('P1')
+    const encounter = this.createGuardEncounter(engine, game, player)
+    if (!encounter) return
     if (game.combatVersion === Battle.VERSION) {
-      game.encounter = { nodeId: roomId, playerIds: [player.id, bot.id], itemIds: engine.searchAccess[player.id] || [] }
-      engine.searchAccess[player.id] = []
+      game.encounter = encounter
       return
     }
+    const bot = engine.getPlayer(encounter.playerIds[1])
     bot.diceMode = 'ATTACK'
-    engine.runBattle(player, bot, roomId)
-    engine.grantSearch(player.id, engine.droppedItemsAt(roomId))
+    engine.runBattle(player, bot, encounter.nodeId)
+    engine.grantSearch(player.id, engine.droppedItemsAt(encounter.nodeId))
   }
 
   reveal(engine, visit, playerId = 'P1') {
