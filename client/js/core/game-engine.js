@@ -23,6 +23,8 @@ class GameEngine {
     this.now = options.now || (() => Date.now())
     this.localPlayerId = options.localPlayerId === undefined ? 'P1' : options.localPlayerId
     this.battleResolver = options.battleResolver || resolveBattle
+    this.deferCombat = options.deferCombat
+    this.equipmentLimit = options.equipmentLimit
     this.localLoadoutCardIds = Array.isArray(options.localLoadoutCardIds)
       ? options.localLoadoutCardIds.slice(0, C.LOADOUT_CARD_LIMIT)
       : ['wp_006']
@@ -217,6 +219,10 @@ class GameEngine {
     }
 
     if (players.length === 2) {
+      if (this.deferCombat) {
+        this.deferCombat({ nodeId: roomNodeId, playerIds: players.map(player => player.id), itemIds: roomItems.map(item => item.instanceId) })
+        return
+      }
       const battle = this.runBattle(players[0], players[1], roomNodeId)
       if (battle.winnerId) this.grantSearch(battle.winnerId, roomItems.concat(this.droppedItemsAt(roomNodeId)))
       return
@@ -231,6 +237,10 @@ class GameEngine {
     const battleItems = randomizedItems.slice(0, battleCount)
     const searchItems = randomizedItems.slice(battleCount)
     this.grantSearch(searcher.id, searchItems)
+    if (this.deferCombat) {
+      this.deferCombat({ nodeId: roomNodeId, playerIds: fighters.map(player => player.id), itemIds: battleItems.map(item => item.instanceId) })
+      return
+    }
     const battle = this.runBattle(fighters[0], fighters[1], roomNodeId)
     if (battle.winnerId) {
       const existingItems = new Set(roomItems.map(item => item.instanceId))
@@ -303,6 +313,11 @@ class GameEngine {
       item.state = 'REVEALED'
       item.revealedBy = playerId
       return { ok: true, action: 'REVEALED', item: clone(item) }
+    }
+    const category = this.cardById[item.cardId]?.category
+    if (this.equipmentLimit && ['WEAPON', 'ARMOR'].includes(category) && this.items.some(held =>
+      player.inventory.includes(held.instanceId) && this.cardById[held.cardId]?.category === category)) {
+      return { ok: false, reason: category === 'WEAPON' ? 'WEAPON_LIMIT' : 'ARMOR_LIMIT' }
     }
     if (player.inventory.length >= C.BACKPACK_SLOTS) return { ok: false, reason: 'BACKPACK_FULL' }
     item.state = 'IN_INVENTORY'

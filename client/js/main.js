@@ -6,11 +6,12 @@ const { stackItems, quantitySlots } = require('./core/inventory')
 const accountApi = require('./api/account')
 const { formatDiagnostics } = require('./api/connection-diagnostics')
 const { fetchCardCatalog } = require('./api/cards')
-const { cardAssetBaseUrl, gameApiBaseUrl } = require('./config')
+const { cardAssetBaseUrl, gameApiBaseUrl, combatVersion } = require('./config')
 const { createCardCatalogIndex, resolveCardAssetUrl } = require('./ui/card-art')
 const { createNicknameInput } = require('./ui/nickname-input')
 const { createTapFeedback, createRenderScheduler, createMemo, createLayerCanvas } = require('./ui/render-performance')
 const { createHomeLayout, centeredTextBaseline } = require('./ui/home-screen')
+const { ASSETS: BATTLE_ART, drawCombatScreen } = require('./ui/combat-screen')
 const {
   SEARCH_ASSET_CROPS,
   SEARCH_PANEL_NINE_SLICE,
@@ -182,7 +183,7 @@ let lobbyDeadlineAt = 0
 let lobbyError = ''
 let cards = bundledCards
 let cardsById = createCardCatalogIndex(cards)
-let loadout = new LoadoutSession({ cards })
+let loadout = new LoadoutSession({ cards, equipmentLimit: !!combatVersion })
 let engine = null
 let presentation = 'MAP'
 let selectedMove = null
@@ -192,6 +193,14 @@ let movementReplay = null
 const ROUND_NOTICE_MS = 1400
 let roundNotice = null
 let activeBattle = null
+let interactiveBattle = null
+let combatLayout = null
+let combatGesture = null
+let combatSelectedDie = null
+let combatSelectedSkill = null
+let combatSkillsOpen = false
+let combatArtworkPromise = null
+const combatArtwork = {}
 let toast = ''
 let toastUntil = 0
 let draggingItemId = null
@@ -334,6 +343,20 @@ function loadSearchAssets() {
   return searchAssetsPromise
 }
 
+function loadCombatArtwork() {
+  if (combatArtworkPromise) return combatArtworkPromise
+  combatArtworkPromise = new Promise((resolve, reject) => {
+    if (!wx.loadSubpackage) resolve()
+    else wx.loadSubpackage({ name: 'combat', success: resolve, fail: reject })
+  }).then(() => Promise.all(BATTLE_ART.map(key => new Promise(resolve => {
+    const image = wx.createImage()
+    image.onload = () => { combatArtwork[key] = image; invalidateFrame(); resolve() }
+    image.onerror = resolve
+    image.src = `subpackages/combat/assets/${key}.png`
+  })))).catch(() => { combatArtworkPromise = null })
+  return combatArtworkPromise
+}
+
 function finishBoot() {
   if (scene !== 'LOADING' || !baseAssetsReady || !cardCatalogReady) return
   connectAccount()
@@ -352,6 +375,17 @@ function accountError(error) {
     NOT_OWNED: '仓库数量不足，请重新选择战备。',
     STALE_TURN: '回合已推进，已刷新最新状态。',
     BACKPACK_FULL: '背包已满，物品仍留在房间。',
+    WEAPON_LIMIT: '只能携带一件武器，请先丢弃或移出当前武器。',
+    ARMOR_LIMIT: '只能携带一件防具，请先丢弃或移出当前防具。',
+    COMBAT_CLOSED: '本次操作已截止，正在同步战斗。',
+    COMBAT_ALREADY_READY: '已经就绪，等待对方。',
+    DICE_ALREADY_ROLLED: '本小回合已掷骰。',
+    DICE_UNPLACED: '请摆放所有骰子后再就绪。',
+    DICE_PLACEMENT_INVALID: '请将骰子放入攻防区或托盘。',
+    STALE_SUB_ROUND: '小回合已推进，正在同步战斗。',
+    SKILL_ALREADY_USED: '本小回合已使用技能卡。',
+    SKILL_NOT_OWNED: '这张技能卡已不在背包中。',
+    COMBAT_ENDED: '战斗已结束，正在同步结算。',
     AREA_FULL: '该搜索区域已满。',
     ACTIVE_GAME_EXISTS: '有未完成的对局，请先恢复。',
     ALREADY_IN_ROOM: '请先退出当前房间。',
@@ -421,6 +455,8 @@ function announceRound(gameId, state) {
 
 function applyAccountResponse(response) {
   if (!response || response.revision < accountRevision) return
+  if (response.activeGame?.gameId === accountGame?.gameId &&
+      response.activeGame?.combatRevision < accountGame?.combatRevision) return
   invalidateFrame()
   accountLastHeartbeat = Date.now()
   accountRevision = response.revision
@@ -439,7 +475,7 @@ function applyAccountResponse(response) {
     image.src = accountProfile.avatarUrl
   }
   PLAYER_ACCOUNT_GOLD = accountProfile.gold
-  if (changedAssets) loadout = new LoadoutSession({ cards, quantities: accountProfile.quantities })
+  if (changedAssets) loadout = new LoadoutSession({ cards, quantities: accountProfile.quantities, equipmentLimit: !!combatVersion })
   accountGame = response.activeGame
   accountSettlement = response.lastSettlement
   const changedRound = accountGame && previousGame &&
@@ -450,6 +486,18 @@ function applyAccountResponse(response) {
     Object.assign(engine, accountGame.state)
     const receivedAt = Date.now()
     const clockOffset = receivedAt - response.serverNow
+    const previousBattle = interactiveBattle
+    const battle = accountGame.combat
+    if (battle?.turn !== previousBattle?.turn || battle?.subRound !== previousBattle?.subRound ||
+        battle?.stage !== previousBattle?.stage || battle?.self.ready !== previousBattle?.self.ready || previousGame?.gameId !== accountGame.gameId) {
+      if (combatGesture) cancelledGameTouch = true
+      resetCombatInput()
+    }
+    const battleDeadline = battle && battle.deadlineAt + clockOffset
+    const sameBattleDeadline = battle && previousGame?.gameId === accountGame.gameId &&
+      battle.deadlineAt === previousGame.combat?.deadlineAt && previousBattle
+    interactiveBattle = battle ? { ...battle, deadlineAt: sameBattleDeadline ? Math.min(battleDeadline, previousBattle.deadlineAt) : battleDeadline } : null
+    if (interactiveBattle) loadCombatArtwork()
     engine.moveDeadlineAt += clockOffset
     engine.turnDeadlineAt += clockOffset
     searchAuthority = 'ACCOUNT'
@@ -480,13 +528,17 @@ function applyAccountResponse(response) {
       movementPinTransition = null
       cancelledGameTouch = true
       presentation = 'REPLAY'
+    } else if (presentation !== 'REPLAY' && interactiveBattle) {
+      presentation = 'BATTLE'
     } else if (presentation !== 'REPLAY' && accountGame.waiting) {
       activeBattle = null
       presentation = 'MAP'
-    } else if (presentation !== 'REPLAY' && (changedRound || previousGame?.state.phase === 'MOVE_SELECTION') &&
+    } else if (presentation !== 'REPLAY' && (previousBattle || changedRound || previousGame?.state.phase === 'MOVE_SELECTION') &&
         engine.phase !== 'MOVE_SELECTION') decidePostMove()
     if (engine.phase === 'MOVE_SELECTION' || changedRound) announceRound(accountGame.gameId, engine)
   } else if (accountSettlement && (scene === 'GAME' || pendingResume)) {
+    interactiveBattle = null
+    resetCombatInput()
     engine = new GameEngine({ cards })
     Object.assign(engine, accountSettlement.state)
     engine.phase = 'GAME_OVER'
@@ -513,7 +565,8 @@ function resumeAccountGame() {
   selectedMove = null
   activeBattle = null
   if (presentation === 'REPLAY') return
-  if (engine.phase === 'MOVE_SELECTION' || accountGame.waiting) presentation = 'MAP'
+  if (interactiveBattle) presentation = 'BATTLE'
+  else if (engine.phase === 'MOVE_SELECTION' || accountGame.waiting) presentation = 'MAP'
   else if (searchVisitState?.visit.observation?.active) presentation = 'SEARCH'
   else if (searchVisitState?.visit.observation) beginRoomVisit()
   else decidePostMove()
@@ -526,7 +579,7 @@ async function accountAction(action, extra = {}) {
   const multiplayerMove = action === 'move' && mode === 'MULTIPLAYER'
   const moveRequest = multiplayerMove ? { pending: true, origin: positionKey(engine.getPlayer('P1').position) } : null
   if (moveRequest) latestMoveRequest = moveRequest
-  const options = { bypassHeartbeat: multiplayerMove }
+  const options = { bypassHeartbeat: multiplayerMove || action.startsWith('combat-') }
   beginAccountRequest(multiplayerMove ? '正在提交移动…' : '正在同步操作…')
   try {
     applyAccountResponse(await accountApi.command('game', { gameId, turn, action, ...extra }, options))
@@ -688,7 +741,7 @@ function applyCardCatalog(nextCards, source) {
   invalidateFrame()
   cards = nextCards
   cardsById = createCardCatalogIndex(cards)
-  loadout = new LoadoutSession({ cards, quantities: accountProfile ? accountProfile.quantities : {} })
+  loadout = new LoadoutSession({ cards, quantities: accountProfile ? accountProfile.quantities : {}, equipmentLimit: !!combatVersion })
   cardCatalogSource = source
   cardCatalogReady = true
   finishBoot()
@@ -1128,6 +1181,7 @@ function addLoadoutCard(cardId) {
     return true
   }
   if (result.reason === 'LOADOUT_FULL') addToast('本次行动最多携带 4 张卡牌。')
+  else if (['WEAPON_LIMIT', 'ARMOR_LIMIT'].includes(result.reason)) addToast(accountError({ code: result.reason }))
   else if (result.reason === 'LOADOUT_CATEGORY_NOT_ALLOWED') addToast('战备只可携带武器、防具或技能卡。')
   else addToast('该卡牌无法放入背包。')
   return false
@@ -1471,6 +1525,7 @@ async function lobbyAction(op, roomId) {
     if (op === 'create' || op === 'join') {
       input.cardIds = loadout.snapshot().selectedCardIds
       input.movementReplay = true
+      if (combatVersion) input.combatVersion = combatVersion
     }
     consumeLobbyResponse(await accountApi.command('lobby', input))
   } catch (error) { addToast(accountError(error), 2600) }
@@ -1562,7 +1617,7 @@ async function startGame() {
   if (accountBusy) return
   beginAccountRequest('正在建立对局…')
   try {
-    const response = await accountApi.command('start', { cardIds: loadout.snapshot().selectedCardIds, mode: 'SINGLE' })
+    const response = await accountApi.command('start', { cardIds: loadout.snapshot().selectedCardIds, mode: 'SINGLE', ...(combatVersion ? { combatVersion } : {}) })
     applyAccountResponse(response)
     resumeAccountGame()
   } catch (error) {
@@ -2180,6 +2235,8 @@ function drawMapScene(state) {
 }
 
 function decidePostMove() {
+  if (interactiveBattle) { presentation = 'BATTLE'; return }
+  if (accountGame?.waiting) { presentation = 'MAP'; return }
   const state = currentState()
   const local = state.players.find(player => player.id === 'P1')
   const battle = state.encounters.find(encounter => encounter.type === 'BATTLE' && encounter.playerIds.includes('P1'))
@@ -2193,6 +2250,43 @@ function decidePostMove() {
     return
   }
   beginRoomVisit()
+}
+
+function resetCombatInput() {
+  combatGesture = null
+  combatSelectedDie = null
+  combatSelectedSkill = null
+  combatSkillsOpen = false
+}
+
+function drawInteractiveBattle() {
+  const battle = interactiveBattle
+  drawRoomArtwork(battle.nodeId)
+  const drag = combatGesture?.dragging ? combatGesture : null
+  combatLayout = drawCombatScreen({
+    context, width: viewWidth, height: viewHeight, battle, now: Date.now(), roomName: roomTypeForNode(battle.nodeId),
+    assets: combatArtwork, panel, text, cardById, drawCard: drawCardArt, avatar: profileAvatarImage,
+    wrap: (value, x, y, width, size, color, lines) => drawWrappedText(value, x, y, width, size * 1.25, size, color, lines),
+    selectedDie: combatSelectedDie, skillsOpen: combatSkillsOpen, selectedSkill: combatSelectedSkill, drag, busy: accountBusy
+  })
+  ui.hotspots.push(...combatLayout.hits)
+}
+
+function sendCombatAction(action, payload = {}) {
+  if (!interactiveBattle) return Promise.resolve(false)
+  return accountAction(action, { subRound: interactiveBattle.subRound, ...payload })
+}
+
+async function placeCombatDie(index, zone) {
+  if (await sendCombatAction('combat-place', { dieIndex: index, zone })) combatSelectedDie = null
+}
+
+async function useCombatSkill(instanceId) {
+  if (await sendCombatAction('combat-skill', { instanceId })) {
+    combatSelectedSkill = null
+    if (!interactiveBattle?.self.skills.length) combatSkillsOpen = false
+    addToast('技能卡已使用，本期不产生效果。')
+  }
 }
 
 function drawBattle(state) {
@@ -2390,7 +2484,8 @@ function drawRoom(state) {
   }
   drawDesignAsset('searchRoomTitlePanel', layout, { x: 133, y: 58, width: 515, height: 163 })
   drawDesignAsset('searchRoomTitleSpade', layout, { x: 133, y: 95, width: 134, height: 90 })
-  text(roomName, layout.offsetX + 428 * layout.scale, layout.offsetY + 135 * layout.scale, Math.max(18, 48 * layout.scale), '#fff1c1', 'center', 'bold')
+  const title = searchVisitState?.visit.kind === 'LOOT' ? '战利品搜索' : roomName
+  text(title, layout.offsetX + 428 * layout.scale, layout.offsetY + 135 * layout.scale, Math.max(18, 48 * layout.scale), '#fff1c1', 'center', 'bold')
 
   drawRoomTimer(layout)
 
@@ -2467,7 +2562,8 @@ function drawSearchRoomPanel(rect) {
   const itemCount = activeArea ? activeArea.itemCount : 0
   if (assets.searchBriefcaseIcon) drawImageSourceInRect(assets.searchBriefcaseIcon, SEARCH_ASSET_CROPS.briefcaseIcon, { x: rect.x + 58 * scale, y: contentLayout.iconTop + 3 * scale, width: 38 * scale, height: 30 * scale })
   text(`搜索物品  ${visible.length}/${itemCount}`, rect.x + 110 * scale, contentLayout.headerBaselineY, Math.max(10, 26 * scale), PALETTE.paleGold, 'left', 'bold')
-  text('每 2 秒揭示 1 件', rect.x + rect.width - 58 * scale, contentLayout.headerBaselineY, Math.max(7, 16 * scale), '#d8c1b6', 'right')
+  const instant = searchVisitState?.visit.kind === 'LOOT'
+  text(instant ? '战利品立即揭示' : '每 2 秒揭示 1 件', rect.x + rect.width - 58 * scale, contentLayout.headerBaselineY, Math.max(7, 16 * scale), '#d8c1b6', 'right')
   const gridWidth = rect.width - 104 * scale
   const slotGap = 10 * scale
   const slotPadding = 2 * scale
@@ -2477,11 +2573,12 @@ function drawSearchRoomPanel(rect) {
   ui.searchRoomRect = gridViewport
   ui.searchRoomScrollRect = gridViewport
   ui.searchItemRects = []
-  const slotCount = Math.min(C.SEARCH_AREA_CAPACITY, Math.max(10, Math.ceil(Math.max(itemCount, visible.length) / 5) * 5))
+  // A room can already be full when combat adds drops. Keep every awarded item reachable.
+  const slotCount = Math.max(10, Math.ceil(Math.max(itemCount, visible.length) / 5) * 5)
   const observation = searchVisitState && searchVisitState.visit.observation
   const now = Date.now()
   const elapsed = observation ? now - observation.startedAt : 0
-  const rippleIndex = observation && observation.active && activeArea && now < searchVisitState.visit.deadlineAt
+  const rippleIndex = !instant && observation && observation.active && activeArea && now < searchVisitState.visit.deadlineAt
     ? nextSearchRippleIndex(visible.length, itemCount, elapsed, C.SEARCH_REVEAL_INTERVAL_MS) : null
   let grid = createVerticalCardGrid({ viewport: gridViewport, count: slotCount, columns: 5, gap: slotGap, padding: slotPadding, scrollY: searchRoomScrollY })
   if (rippleIndex !== searchRippleSlotIndex) {
@@ -2520,7 +2617,7 @@ function drawSearchRoomPanel(rect) {
   if (targetSlot && rectsIntersect(targetSlot, gridViewport)) drawSearchRipple(targetSlot, now)
   context.restore()
   drawScrollIndicator(gridViewport, grid.contentHeight, searchRoomScrollY)
-  const emptyResolved = itemCount === 0 && elapsed >= C.SEARCH_REVEAL_INTERVAL_MS
+  const emptyResolved = itemCount === 0 && (instant || elapsed >= C.SEARCH_REVEAL_INTERVAL_MS)
   if (emptyResolved) text('该区域未发现物品', rect.x + rect.width / 2, rect.y + rect.height / 2, Math.max(11, 26 * scale), '#e2c7b2', 'center', 'bold')
 }
 
@@ -2606,13 +2703,17 @@ function drawGame() {
   if (presentation === 'REPLAY') { drawMapScene(state); return }
   if (state.phase === 'GAME_OVER') presentation = 'SETTLEMENT'
   if (presentation === 'MAP') drawMapScene(state)
-  if (presentation === 'BATTLE') drawBattle(state)
+  if (presentation === 'BATTLE') {
+    if (interactiveBattle) drawInteractiveBattle()
+    else drawBattle(state)
+  }
   if (presentation === 'ROOM') drawRoom(state)
   if (presentation === 'SEARCH') drawSearch(state)
   if (presentation === 'ROUND_RESULT') drawRoundResult(state)
   if (presentation === 'SETTLEMENT') drawSettlement(state)
-  if (accountGame && presentation !== 'SETTLEMENT') {
-    button('account_abandon', '放弃对局', { x: 10, y: viewHeight - 30, width: 86, height: 24 }, { size: 9, top: '#46303d', bottom: '#281d2a' })
+  if (accountGame && presentation !== 'SETTLEMENT' && !combatSkillsOpen) {
+    const abandonY = interactiveBattle ? Math.max(34, viewHeight * .58) : viewHeight - 30
+    button('account_abandon', '放弃对局', { x: 10, y: abandonY, width: 86, height: 24 }, { size: 9, top: '#46303d', bottom: '#281d2a' })
   }
 }
 
@@ -2672,10 +2773,11 @@ function update() {
         invalidateFrame()
       }
     }
-    const deadline = engine.phase === 'MOVE_SELECTION' ? engine.moveDeadlineAt : engine.turnDeadlineAt
+    const deadline = interactiveBattle?.deadlineAt ?? searchVisitState?.visit.deadlineAt ??
+      (engine.phase === 'MOVE_SELECTION' ? engine.moveDeadlineAt : engine.turnDeadlineAt)
     const nearDeadline = Number.isFinite(deadline) && deadline - now < 1200
     const awaitingReplay = accountGame.mode === 'MULTIPLAYER' && engine.phase === 'MOVE_SELECTION' && (accountGame.waiting === 'MOVES' || nearDeadline)
-    const interval = awaitingReplay || presentation === 'REPLAY' ? 500
+    const interval = awaitingReplay || presentation === 'REPLAY' || interactiveBattle ? 500
       : presentation === 'SEARCH' || nearDeadline ? 1000 : accountGame.mode === 'MULTIPLAYER' ? 2000 : 5000
     if (now - accountLastHeartbeat > interval) {
       accountLastHeartbeat = now
@@ -2747,8 +2849,9 @@ function drawTapFeedback(samples) {
 function renderVisualKey(now) {
   let tick = ''
   if (scene === 'GAME' && presentation !== 'SETTLEMENT') {
-    const animated = presentation === 'SEARCH' || presentation === 'REPLAY' || movementPinTransition || searchDragging
-    tick = Math.floor(now / (animated ? 1000 / 30 : presentation === 'ROOM' ? 100 : 1000))
+    const animated = presentation === 'SEARCH' || presentation === 'REPLAY' || movementPinTransition || searchDragging ||
+      interactiveBattle?.stage === 'IMPACT' || combatGesture?.dragging
+    tick = Math.floor(now / (animated ? 1000 / 30 : presentation === 'ROOM' || interactiveBattle ? 100 : 1000))
   } else if (scene === 'LOBBY' && lobbyRoom) tick = Math.floor(now / 1000)
   const pending = accountBusy ? Math.floor(now / 180) : ''
   const notice = roundNoticeVisible(now) ? Math.floor(now / (1000 / 30)) : ''
@@ -2829,6 +2932,24 @@ function handleAction(action) {
   }
   if (action.id === 'confirm_move' && latestMoveRequest?.pending) return
   if (accountBusy) { addToast('上一操作处理中，请稍候。', 900); return }
+  if (interactiveBattle && presentation === 'BATTLE') {
+    if (action.id === 'combat_roll') { sendCombatAction('combat-roll'); return }
+    if (action.id === 'combat_ready') { sendCombatAction('combat-ready'); return }
+    if (action.id === 'combat_die') {
+      const target = interactiveBattle.self.dice[action.data]
+      const selected = interactiveBattle.self.dice[combatSelectedDie]
+      if (selected && target && selected.zone !== target.zone) placeCombatDie(combatSelectedDie, target.zone)
+      else combatSelectedDie = action.data
+      return
+    }
+    if (action.id === 'combat_zone') {
+      if (combatSelectedDie !== null) placeCombatDie(combatSelectedDie, action.data)
+      return
+    }
+    if (action.id === 'combat_skills') { combatSkillsOpen = true; return }
+    if (action.id === 'combat_skills_close') { combatSkillsOpen = false; combatSelectedSkill = null; return }
+    if (action.id === 'combat_skill') { combatSelectedSkill = action.data.instanceId; return }
+  }
   if (action.id === 'home_start') enterLoadout()
   if (action.id === 'home_shop') addToast('商店暂未开放。')
   if (action.id === 'home_warehouse') enterWarehouse()
@@ -2905,6 +3026,15 @@ wx.onTouchStart(event => {
   const point = touchPoint(event, false)
   tapFeedback.add(point, Date.now())
   if (cancelledGameTouch) return
+  if (scene === 'GAME' && presentation === 'BATTLE' && interactiveBattle) {
+    const target = ui.hotspots.find(hit => (hit.id === 'combat_die' || hit.id === 'combat_skill') && pointInRect(point, hit.rect))
+    if (target?.id === 'combat_die') {
+      combatGesture = { kind: 'die', start: point, point, index: target.data, dragging: false }
+    } else if (target?.id === 'combat_skill') {
+      combatGesture = { kind: 'skill', start: point, point, ...target.data, dragging: false }
+    }
+    return
+  }
   if (scene === 'WAREHOUSE') {
     warehouseGesture = { start: point, last: point, mode: warehousePreviewCardId ? 'PREVIEW' : 'PENDING' }
     return
@@ -2948,6 +3078,11 @@ wx.onTouchStart(event => {
 wx.onTouchMove(event => {
   invalidateFrame()
   const point = touchPoint(event, false)
+  if (combatGesture) {
+    if (Math.hypot(point.x - combatGesture.start.x, point.y - combatGesture.start.y) >= 7) combatGesture.dragging = true
+    combatGesture.point = point
+    return
+  }
   if (scene === 'WAREHOUSE' && warehouseGesture && warehouseGesture.mode !== 'PREVIEW') {
     if (warehouseGesture.mode === 'PENDING' && Math.hypot(point.x - warehouseGesture.start.x, point.y - warehouseGesture.start.y) >= 7) warehouseGesture.mode = 'SCROLL'
     if (warehouseGesture.mode === 'SCROLL') {
@@ -3000,6 +3135,17 @@ wx.onTouchEnd(event => {
     return
   }
   const point = touchPoint(event)
+  if (combatGesture) {
+    const gesture = combatGesture
+    combatGesture = null
+    if (gesture.dragging) {
+      if (gesture.kind === 'die') {
+        const zone = Object.entries(combatLayout?.zones || {}).find(([, bounds]) => pointInRect(point, bounds))?.[0]
+        if (zone) placeCombatDie(gesture.index, zone)
+      } else if (pointInRect(point, combatLayout?.drop)) useCombatSkill(gesture.instanceId)
+      return
+    }
+  }
   if (scene === 'WAREHOUSE' && warehousePreviewCardId) {
     warehousePreviewCardId = null
     warehouseGesture = null
@@ -3084,6 +3230,8 @@ function cancelInputGesture() {
   loadoutGesture = null
   loadoutDragging = null
   loadoutDragPoint = null
+  if (combatGesture) cancelledGameTouch = true
+  combatGesture = null
   if (searchGesture) cancelledGameTouch = true
   searchGesture = null
   searchDragging = null

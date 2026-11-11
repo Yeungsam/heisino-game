@@ -12,11 +12,18 @@ class LoadoutSession {
       .map(card => card.cardId))
     this.selectedCardIds = []
     this.limit = options.limit || C.LOADOUT_CARD_LIMIT
+    this.equipmentLimit = options.equipmentLimit
   }
 
   add(cardId) {
     if (!this.ownedCardIds.includes(cardId)) return { ok: false, reason: 'NOT_OWNED' }
     if (!this.loadoutCardIds.has(cardId)) return { ok: false, reason: 'LOADOUT_CATEGORY_NOT_ALLOWED' }
+    if (this.equipmentLimit) {
+      const category = this.cards.find(card => card.cardId === cardId)?.category
+      if (['WEAPON', 'ARMOR'].includes(category) && this.selectedCardIds.some(id => this.cards.find(card => card.cardId === id)?.category === category)) {
+        return { ok: false, reason: `${category}_LIMIT` }
+      }
+    }
     if (this.selectedCardIds.filter(id => id === cardId).length >= this.quantities[cardId]) return { ok: false, reason: 'NOT_OWNED' }
     if (this.selectedCardIds.length >= this.limit) return { ok: false, reason: 'LOADOUT_FULL' }
     this.selectedCardIds.push(cardId)

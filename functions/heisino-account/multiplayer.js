@@ -1,6 +1,7 @@
 const crypto = require('node:crypto')
 const { constants: C, isRetiredCard } = require('./runtime')
 const { fault } = require('./wechat')
+const Battle = require('./combat-round')
 
 const WAIT_MS = 10 * 60 * 1000
 const SPAWNS = [{ x: 0, y: 0 }, { x: 0, y: 4 }, { x: 4, y: 0 }]
@@ -88,8 +89,10 @@ class Multiplayer {
     const op = input.op || 'list'
     if (!LOBBY_ACTIONS.includes(op)) throw fault('INVALID_ACTION')
     const requestId = op === 'list' ? null : this.account.requestId(input)
-    const fingerprint = fingerprintOf(input.movementReplay === true
-      ? [op, input.roomId, input.cardIds, true] : [op, input.roomId, input.cardIds])
+    const combatVersion = input.combatVersion === Battle.VERSION ? Battle.VERSION : undefined
+    const fingerprintFields = input.movementReplay === true ? [op, input.roomId, input.cardIds, true] : [op, input.roomId, input.cardIds]
+    if (combatVersion) fingerprintFields.push({ combatVersion })
+    const fingerprint = fingerprintOf(fingerprintFields)
     let appId
     const response = await this.store.transactRoom(async tx => {
       const document = await this.caller(tx, accountId, token)
@@ -110,7 +113,7 @@ class Multiplayer {
       }
       if (op === 'create' || op === 'join') {
         if (room) throw fault('ALREADY_IN_ROOM', 409)
-        this.account.assertOwned(document, this.account.loadoutCounts(input.cardIds))
+        this.account.assertOwned(document, this.account.loadoutCounts(input.cardIds, combatVersion))
         if (op === 'create') {
           const roomId = crypto.randomUUID()
           await tx.room(roomId)
@@ -123,7 +126,8 @@ class Multiplayer {
           if (room.status !== 'WAITING') throw fault('ROOM_IN_GAME', 409)
           if (room.members.length >= C.PLAYER_LIMIT) throw fault('ROOM_FULL', 409)
         }
-        room.members.push({ accountId, nickname: document.nickname, cardIds: input.cardIds.slice(), movementReplay: input.movementReplay === true })
+        room.members.push({ accountId, nickname: document.nickname, cardIds: input.cardIds.slice(), movementReplay: input.movementReplay === true,
+          ...(combatVersion ? { combatVersion } : {}) })
         room.playerCount = room.members.length
         document.lobbyRoomId = room.roomId
         tx.saveRoom(room)
@@ -161,6 +165,7 @@ class Multiplayer {
       moveSelections: {}, done: [], visits: {}, requests: {}, seen: {},
       replayEnabled: room.members.every(member => member.movementReplay)
     }
+    if (room.members.every(member => member.combatVersion === Battle.VERSION)) game.combatVersion = Battle.VERSION
     const engine = this.account.restore(game)
     for (let index = 0; index < room.members.length; index += 1) {
       const member = room.members[index]
@@ -170,7 +175,7 @@ class Multiplayer {
       member.cardIds = member.cardIds.filter(id => !isRetiredCard(id))
       this.account.removeRetiredQuantities(document)
       game.seen[member.playerId] = now
-      this.account.deploy(document, { gameId: game.gameId, mode: game.mode, playerId: member.playerId }, this.account.loadoutCounts(member.cardIds))
+      this.account.deploy(document, { gameId: game.gameId, mode: game.mode, playerId: member.playerId }, this.account.loadoutCounts(member.cardIds, game.combatVersion))
       document.lobbyRoomId = null
       if (document !== host) this.saveAccount(tx, document)
     }
@@ -216,18 +221,20 @@ class Multiplayer {
     if (engine.getPlayer(playerId).status === 'ACTIVE') {
       game.seen[playerId] = now
       if (action === 'game') this.act(game, engine, playerId, input, now)
-      this.account.reveal(engine, game.visits[playerId], playerId)
+      this.account.reveal(engine, game.combatVersion ? this.account.activeVisit(game, playerId) : game.visits[playerId], playerId)
       this.advance(game, engine, now)
     }
     game.moveSelections = engine.moveSelections
     game.state = engine.snapshot()
+    if (game.combatVersion) game.combatRevision = (game.combatRevision || 0) + 1
     const replaying = game.movementReplay?.endsAt > now
     for (const member of room.members) {
       const player = engine.getPlayer(member.playerId)
       if (player.status === 'ACTIVE' || (replaying && player.status === 'DEFEATED')) continue
       const owner = member.accountId === document.accountId ? document : await tx.account(member.accountId)
       if (!owner || owner.activeGame?.gameId !== gameId) continue
-      this.account.settle(owner, engine, game.ended?.[member.playerId] ?? now, member.playerId, publicState(engine, member.playerId, null))
+      const endedAt = game.ended?.[member.playerId] ?? (game.combat?.playerIds.includes(member.playerId) ? game.combat.completedAt : undefined) ?? now
+      this.account.settle(owner, engine, endedAt, member.playerId, publicState(engine, member.playerId, null))
       this.saveAccount(tx, owner)
     }
     const activePlayers = engine.activePlayers()
@@ -241,7 +248,8 @@ class Multiplayer {
   endPlayer(game, engine, player, status, at) {
     player.status = status
     game.ended = { ...game.ended, [player.id]: at }
-    delete game.visits[player.id]
+    if (game.combatVersion && game.visits[player.id]?.status === 'ACTIVE') this.account.finishVisit(game.visits[player.id], at)
+    else if (!game.combatVersion) delete game.visits[player.id]
     delete engine.moveSelections[player.id]
   }
 
@@ -250,10 +258,31 @@ class Multiplayer {
       const players = engine.activePlayers()
       if (!players.length) { engine.phase = 'GAME_OVER'; return }
       const moving = engine.phase === 'MOVE_SELECTION'
+      const disconnectedAt = Math.min(...players.map(player => game.seen[player.id] + WAIT_MS))
+      if (!moving && game.combatVersion) {
+        const finishedAt = this.account.advanceActions(game, engine, Math.min(now, disconnectedAt))
+        if (finishedAt === null && disconnectedAt > now) return
+        if (finishedAt === null) {
+          for (const player of players.filter(candidate => candidate.status === 'ACTIVE')) {
+            if (game.seen[player.id] + WAIT_MS <= disconnectedAt) this.endPlayer(game, engine, player, 'DISCONNECTED', disconnectedAt)
+          }
+          continue
+        }
+        const defeated = players.filter(player => player.status !== 'ACTIVE')
+        for (const player of defeated) this.endPlayer(game, engine, player, player.status, game.combat?.completedAt ?? finishedAt)
+        if (!engine.activePlayers().length) { engine.phase = 'GAME_OVER'; return }
+        engine.now = () => finishedAt
+        requireSuccess(engine.finishTurn())
+        this.account.resetActions(game)
+        game.movementReplay = null
+        for (const player of players) {
+          if (player.status !== 'ACTIVE' && !game.ended?.[player.id]) this.endPlayer(game, engine, player, player.status, finishedAt)
+        }
+        continue
+      }
       const complete = players.every(player => moving ? engine.moveSelections[player.id] : game.done.includes(player.id))
       const deadline = moving ? engine.moveDeadlineAt : engine.turnDeadlineAt
       const phaseAt = complete ? Math.min(now, deadline) : deadline
-      const disconnectedAt = Math.min(...players.map(player => game.seen[player.id] + WAIT_MS))
       if (disconnectedAt <= now && disconnectedAt <= phaseAt) {
         for (const player of players) {
           if (game.seen[player.id] + WAIT_MS <= disconnectedAt) this.endPlayer(game, engine, player, 'DISCONNECTED', disconnectedAt)
@@ -272,11 +301,14 @@ class Multiplayer {
             playerId: player.id, name: player.name, from: player.previousPosition, to: player.position
           })) }
         }
-        engine.phase = 'SEARCH'
-        engine.turnDeadlineAt = searchStartsAt + C.SEARCH_DURATION_MS
-        game.visits = Object.fromEntries(engine.activePlayers().map(player => [
-          player.id, { ...this.account.createVisit(game, engine, player.id), startedAt: searchStartsAt }
-        ]))
+        if (game.combatVersion) this.account.startActions(game, engine, searchStartsAt)
+        else {
+          engine.phase = 'SEARCH'
+          engine.turnDeadlineAt = searchStartsAt + C.SEARCH_DURATION_MS
+          game.visits = Object.fromEntries(engine.activePlayers().map(player => [
+            player.id, { ...this.account.createVisit(game, engine, player.id), startedAt: searchStartsAt }
+          ]))
+        }
         for (const player of players) if (player.status !== 'ACTIVE') this.endPlayer(game, engine, player, player.status, phaseAt)
       } else {
         requireSuccess(engine.finishTurn())
@@ -290,13 +322,18 @@ class Multiplayer {
 
   act(game, engine, playerId, input, now) {
     const requestId = this.account.requestId(input)
-    const fingerprint = fingerprintOf([input.action, input.turn, input.target, input.areaId, input.instanceId])
+    const fields = [input.action, input.turn, input.target, input.areaId, input.instanceId]
+    if (Battle.ACTIONS.has(input.action)) fields.push(...Battle.combatFingerprint(input))
+    const fingerprint = fingerprintOf(fields)
     const requests = game.requests[playerId] || {}
     if (Object.hasOwn(requests, requestId)) {
       if (requests[requestId] !== fingerprint) throw fault('REQUEST_ID_REUSED', 409)
       return
     }
-    if (input.action === 'abandon') this.endPlayer(game, engine, engine.getPlayer(playerId), 'ABANDONED', now)
+    if (input.action === 'abandon') {
+      Battle.forfeit(game.combat, engine, playerId, now)
+      this.endPlayer(game, engine, engine.getPlayer(playerId), 'ABANDONED', now)
+    }
     else {
       if (input.turn !== engine.turn) throw fault('STALE_TURN', 409)
       if (input.action === 'move') {
@@ -305,13 +342,17 @@ class Multiplayer {
         }
         if (engine.moveSelections[playerId]) throw fault('MOVE_ALREADY_SUBMITTED', 409)
         requireSuccess(engine.submitMove(playerId, input.target || {}))
-      } else {
-        const visit = game.visits[playerId]
-        if (engine.phase !== 'SEARCH' || !visit || now < visit.startedAt || game.done.includes(playerId)) throw fault('INVALID_PHASE', 409)
+      } else if (Battle.ACTIONS.has(input.action)) Battle.combatAction(game.combat, engine, playerId, input, now)
+      else {
+        const visit = game.combatVersion ? this.account.activeVisit(game, playerId) : game.visits[playerId]
+        if (engine.phase !== 'SEARCH' || !visit || now < visit.startedAt || now >= visit.deadlineAt || game.done.includes(playerId)) throw fault('INVALID_PHASE', 409)
         if (input.action === 'leave' || input.action === 'extract') {
           if (input.action === 'extract') requireSuccess(engine.requestExtraction(playerId))
-          game.done.push(playerId)
-          delete game.visits[playerId]
+          if (game.combatVersion) this.account.finishVisit(visit, now)
+          else {
+            game.done.push(playerId)
+            delete game.visits[playerId]
+          }
         } else {
           this.account.reveal(engine, visit, playerId)
           this.account.searchAction(engine, visit, playerId, input)
@@ -326,14 +367,16 @@ class Multiplayer {
     const { playerId, gameId, mode } = document.activeGame
     const game = room.game
     const state = engine || this.account.restore(game)
-    const visit = game.visits[playerId]
+    const visit = game.combatVersion ? this.account.activeVisit(game, playerId) : game.visits[playerId]
+    const combat = Battle.combatView(game.combat, state, playerId)
     const waiting = state.phase === 'MOVE_SELECTION' && game.moveSelections[playerId] ? 'MOVES' :
-      state.phase === 'SEARCH' && game.done.includes(playerId) ? 'ROUND' : null
+      state.phase === 'SEARCH' && (game.combatVersion ? !combat && !visit : game.done.includes(playerId)) ? 'ROUND' : null
     const replay = game.movementReplay
     const movementReplay = replay?.endsAt > this.now() ? { ...replay,
       tracks: replay.tracks.map(track => ({ ...track, isSelf: track.playerId === playerId })) } : null
     return this.response(document, { gameId, mode, state: publicState(state, playerId, visit),
-      search: this.account.searchView(state, visit, playerId), waiting, movementReplay, resumeUntil: game.seen[playerId] + WAIT_MS })
+      search: this.account.searchView(state, visit, playerId), waiting, movementReplay, resumeUntil: game.seen[playerId] + WAIT_MS,
+      ...(game.combatVersion ? { combatVersion: game.combatVersion, combatRevision: game.combatRevision || 0, combat } : {}) })
   }
 }
 

@@ -13,4 +13,5 @@ const cards = raw.cards.map(card => ({
 }))
 const constants = local ? require('../../client/js/core/constants') : require('./runtime/core/constants')
 const retired = local ? require('../../client/js/core/retired-cards') : require('./runtime/core/retired-cards')
-module.exports = { ...core, ...retired, cards, constants }
+const rng = local ? require('../../client/js/core/rng') : require('./runtime/core/rng')
+module.exports = { ...core, ...retired, ...rng, cards, constants }

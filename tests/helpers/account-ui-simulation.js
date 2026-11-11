@@ -16,7 +16,7 @@ const apiSource = fs.readFileSync(apiPath, 'utf8')
 const mainRequire = createRequire(mainPath)
 const apiRequire = createRequire(apiPath)
 
-async function simulation(t, count = 3) {
+async function simulation(t, count = 3, { combatVersion } = {}) {
   const clock = { now: 2_000_000 }
   const store = new MemoryAccountStore()
   const service = new AccountService({
@@ -77,7 +77,7 @@ async function simulation(t, count = 3) {
         operation.finally(() => pending.delete(operation))
       }
     }
-    const config = { gameApiBaseUrl: origin, cardAssetBaseUrl: origin, cardApiBaseUrl: origin }
+    const config = { gameApiBaseUrl: origin, cardAssetBaseUrl: origin, cardApiBaseUrl: origin, combatVersion }
     const globals = { wx, console, setTimeout, clearTimeout, requestAnimationFrame: noop,
       Date: class extends Date { static now() { return clock.now } } }
     const api = vm.runInNewContext(apiSource + '\nmodule.exports', { ...globals, module: { exports: {} },

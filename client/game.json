@@ -9,6 +9,10 @@
     {
       "name": "rooms",
       "root": "subpackages/rooms"
+    },
+    {
+      "name": "combat",
+      "root": "subpackages/combat"
     }
   ],
   "networkTimeout": {
