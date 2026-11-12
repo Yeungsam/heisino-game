@@ -14,16 +14,6 @@ const DEFENSE_PERCENT = Object.freeze({
   ar_001: 100, ar_002: 80, ar_003: 90, ar_004: 100, ar_005: 80, ar_006: 60, ar_007: 60,
   ar_008: 80, ar_009: 80, ar_010: 60, ar_011: 60, ar_012: 90, ar_013: 80
 })
-// Room Materials table, 2026-11-11. Separate from the extraction economy.
-const TRADE_VALUE = Object.freeze({
-  wp_001: 50000, wp_002: 10000, wp_003: 10000, wp_004: 5000, wp_005: 5000, wp_006: 800, wp_007: 800,
-  ar_001: 50000, ar_002: 5000, ar_003: 10000, ar_004: 50000, ar_005: 5000, ar_006: 800, ar_007: 800,
-  ar_008: 5000, ar_009: 5000, ar_010: 800, ar_011: 800, ar_012: 10000,
-  loot_001: 25000, loot_002: 30000, loot_003: 50000, loot_004: 50000, loot_005: 60000,
-  loot_006: 90000, loot_007: 100000, loot_008: 100000, loot_009: 200000, loot_010: 10, loot_011: 300,
-  loot_012: 2000, loot_013: 2500, loot_014: 3000, loot_015: 3000, loot_016: 5000, loot_017: 5000,
-  loot_018: 7000, loot_019: 10000, loot_020: 10000, loot_021: 10000, loot_022: 15000, loot_023: 20000
-})
 
 function inventory(engine, player) {
   return player.inventory.map(id => engine.items.find(item => item.instanceId === id)).filter(Boolean)
@@ -134,7 +124,7 @@ function award(combat, engine) {
   if (winner && loser) {
     const held = inventory(engine, loser)
     // Array.sort is stable, so equal values follow the order in the backpack.
-    const seized = held.slice().sort((a, b) => (TRADE_VALUE[b.cardId] ?? 0) - (TRADE_VALUE[a.cardId] ?? 0)).slice(0, 2)
+    const seized = held.slice().sort((a, b) => (engine.cardById[b.cardId]?.value ?? 0) - (engine.cardById[a.cardId]?.value ?? 0)).slice(0, 2)
     if (winner.isBot) discard(engine, loser, seized)
     else {
       for (const item of seized) {

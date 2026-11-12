@@ -12,6 +12,7 @@
     "account:package": "node scripts/package-account-function.js",
     "account:deploy": "node scripts/deploy-account-service.js",
     "verify:account:production": "node scripts/verify-production-account-service.js",
+    "verify:shop:production": "node scripts/verify-production-shop-service.js",
     "verify:cards:production": "node scripts/verify-production-card-service.js",
     "verify:search:production": "node scripts/verify-production-search-service.js",
     "server": "node server/index.js",

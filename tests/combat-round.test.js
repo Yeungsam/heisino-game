@@ -114,7 +114,9 @@ test('多人手动掷骰、摆放、技能消耗及就绪由服务端校验，�
   await assert.rejects(f.act(0, gameId, 1, 'combat-place', { subRound: 1, dieIndex: 3, zone: 'ATTACK' }), { code: 'DICE_PLACEMENT_INVALID' })
   assert.deepEqual((await f.command(1, 'resume')).activeGame.combat.opponent.dice, [])
   const skillInput = { subRound: 1, instanceId: roll.self.skills[0].instanceId, requestId: 'same-skill-request' }
-  await f.act(0, gameId, 1, 'combat-skill', skillInput)
+  const used = await f.act(0, gameId, 1, 'combat-skill', skillInput)
+  assert.deepEqual(used.activeGame.backpackAssets, { initial: 50800, current: 800, change: -50000 })
+  assert.deepEqual((await f.command(1, 'resume')).activeGame.backpackAssets, { initial: 50800, current: 50800, change: 0 })
   const retried = (await f.act(0, gameId, 1, 'combat-skill', skillInput)).activeGame.combat
   assert.deepEqual(retried.self.dice, roll.self.dice)
   assert.equal(retried.self.skills.length, 0)
@@ -173,7 +175,7 @@ test('提前击倒后先碰撞两秒再展示终局，轮空搜索与战利品�
   assert.equal(loot.visit.deadlineAt, start + 24000)
   const ids = loot.room.activeArea.visibleItems.map(item => item.instanceId)
   assert.ok(loot.room.activeArea.visibleItems.some(item => item.cardId === 'loot_002' && item.state === 'DROPPED'))
-  assert.ok(loot.room.activeArea.visibleItems.some(item => item.cardId === 'loot_001' && item.state === 'DROPPED'))
+  assert.ok(loot.room.activeArea.visibleItems.some(item => item.cardId === 'sk_001' && item.state === 'DROPPED'))
   assert.equal((await f.command(loser, 'resume')).lastSettlement.status, 'DEFEATED')
   const byeView = await f.act(bye, gameId, 1, 'observe', { areaId: 'MAIN_TABLE' })
   assert.equal(byeView.activeGame.search.visit.deadlineAt, start + 50000)
@@ -418,7 +420,7 @@ test('存活败者只损失最高两件且同价按背包顺序，平局对奇�
   const engine = new GameEngine({ cards, rng: () => 0.99 })
   const participants = [
     { id: 'P1', name: '甲', x: 1, y: 0, cardIds: ['wp_006'] },
-    { id: 'P2', name: '乙', x: 1, y: 0, cardIds: ['ar_002', 'ar_005', 'sk_001'] }
+    { id: 'P2', name: '乙', x: 1, y: 0, cardIds: ['ar_002', 'ar_005', 'sk_001', 'ar_013'] }
   ]
   engine.start(participants)
   engine.getPlayer('P2').hp = 10
@@ -427,8 +429,6 @@ test('存活败者只损失最高两件且同价按背包顺序，平局对奇�
   assert.equal(won.sides.P1.defensePercent, 40)
   assert.equal(won.sides.P2.attackPercent, 40)
   assert.equal(won.sides.P2.defensePercent, 80)
-  const firstLoot = engine.createItem('loot_019', null, 'IN_INVENTORY', 'P2')
-  engine.getPlayer('P2').inventory.push(firstLoot.instanceId)
   for (let round = 1; round <= 3; round++) {
     const at = 1000 + (round - 1) * 2000
     Battle.advanceCombat(won, engine, at)
@@ -442,8 +442,8 @@ test('存活败者只损失最高两件且同价按背包顺序，平局对奇�
   assert.equal(won.result.winnerId, 'P1')
   assert.equal(engine.getPlayer('P2').hp, 10)
   assert.equal(engine.getPlayer('P2').status, 'ACTIVE')
-  assert.deepEqual(engine.searchItemsFor('P1').map(item => item.cardId), ['loot_019', 'ar_002'])
-  assert.deepEqual(engine.getPlayer('P2').inventory.map(id => engine.items.find(item => item.instanceId === id).cardId), ['ar_005', 'sk_001'])
+  assert.deepEqual(engine.searchItemsFor('P1').map(item => item.cardId), ['sk_001', 'ar_002'])
+  assert.deepEqual(engine.getPlayer('P2').inventory.map(id => engine.items.find(item => item.instanceId === id).cardId), ['ar_005', 'ar_013'])
 
   engine.start(participants.map(player => ({ ...player, cardIds: [] })))
   const items = Array.from({ length: 5 }, () => engine.createItem('loot_015', 'n_1_0', 'HIDDEN'))
@@ -482,7 +482,7 @@ test('守卫获胜没收最高两件，存活玩家保留其余资产并继续',
   assert.ok(player.hp > 0 && player.hp < 30)
   assert.equal(guard.status, 'DEPARTED')
   assert.deepEqual(combat.lootPlayers, [])
-  assert.deepEqual(player.inventory.map(id => engine.items.find(item => item.instanceId === id).cardId), ['sk_001'])
+  assert.deepEqual(player.inventory.map(id => engine.items.find(item => item.instanceId === id).cardId), ['wp_006'])
   assert.equal(roomItem.state, 'HIDDEN')
   assert.equal(engine.droppedItemsAt('n_1_0').length, 0)
 })

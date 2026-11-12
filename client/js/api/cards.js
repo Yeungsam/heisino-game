@@ -1,22 +1,6 @@
 const config = require('../config')
 const { isRetiredCard } = require('../core/retired-cards')
-
-function projectCard(card) {
-  return {
-    cardId: card.card_id,
-    name: card.name,
-    description: card.description,
-    kind: card.kind,
-    category: card.category,
-    rarity: card.rarity,
-    attackMultiplier: card.attack_multiplier,
-    defenseMultiplier: card.defense_multiplier,
-    value: card.economy.fixed_value ?? card.economy.purchase_price,
-    assetPath: card.assets.card_art_path,
-    assetUrl: card.assets.card_art_url,
-    dataStatus: card.data_status
-  }
-}
+const { projectCard } = require('../core/card-projection')
 
 function fetchCardCatalog(options = {}) {
   const baseUrl = options.baseUrl || config.cardApiBaseUrl

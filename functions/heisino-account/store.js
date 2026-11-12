@@ -46,6 +46,7 @@ async function writeAccount(tx, collection, document, current) {
 class MemoryAccountStore {
   constructor() { this.documents = new Map(); this.ledger = new Map(); this.rooms = new Map() }
   async get(id) { return clone(this.documents.get(id)) }
+  async getLedgerEntry(id) { return clone(this.ledger.get(id)) }
   async create(document) {
     if (this.documents.has(document.accountId)) return false
     document.ledger.forEach(entry => this.ledger.set(entry.entryId, clone(entry)))
@@ -102,6 +103,10 @@ class CloudAccountStore {
   async get(id) {
     await this.ensure()
     return readDocument(this.db.collection(this.collection), id)
+  }
+  async getLedgerEntry(id) {
+    await this.ensure()
+    return readDocument(this.db.collection('heisino_asset_ledger'), id)
   }
   async write(document, expectedVersion) {
     await this.ensure()

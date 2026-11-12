@@ -35,6 +35,7 @@ async function simulation(t, count = 3, { combatVersion } = {}) {
   }))
 
   async function mount(index, { width = 812, height = 375, blockResponse, loginCode,
+    storage = new Map(),
     clientCombatVersion = combatVersion, showModal = args => args.success?.({ confirm: true }) } = {}) {
     const account = accounts[index]
     const events = {}
@@ -56,6 +57,8 @@ async function simulation(t, count = 3, { combatVersion } = {}) {
       createImage: () => ({ width: 1280, height: 722, set src(_) { queueMicrotask(() => this.onload?.()) } }),
       login: args => queueMicrotask(() => args.success({ code: loginCode ? loginCode() : account.code })),
       showModal,
+      getStorageSync: key => storage.get(key),
+      setStorageSync: (key, value) => storage.set(key, value),
       onTouchStart: fn => { events.start = fn },
       onTouchMove: fn => { events.move = fn },
       onTouchEnd: fn => { events.end = fn },

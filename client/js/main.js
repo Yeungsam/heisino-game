@@ -11,6 +11,7 @@ const { createCardCatalogIndex, resolveCardAssetUrl } = require('./ui/card-art')
 const { createNicknameInput } = require('./ui/nickname-input')
 const { createTapFeedback, createRenderScheduler, createMemo, createLayerCanvas } = require('./ui/render-performance')
 const { createHomeLayout, centeredTextBaseline } = require('./ui/home-screen')
+const { formatAmount, formatChange } = require('./ui/asset-amount')
 const { ASSETS: BATTLE_ART, drawCombatScreen } = require('./ui/combat-screen')
 const {
   SEARCH_ASSET_CROPS,
@@ -216,6 +217,14 @@ const CARD_TAP_DISTANCE = 7
 let cardPreviewId = null
 let cardPreviewTouch = null
 let warehouseGesture = null
+let shopCatalog = null
+let shopMode = 'buy'
+let shopSelection = null
+let shopQuantity = 1
+let shopScrollY = 0
+let shopConfirming = false
+let shopMessage = ''
+const pendingShopTrades = new Map()
 let searchAuthority = 'ACCOUNT'
 let searchVisitState = null
 let roomTimerAnchor = null
@@ -384,6 +393,11 @@ function accountError(error) {
     NICKNAME_RESERVED: '该昵称包含保留称谓，请换一个。',
     NICKNAME_REJECTED: '昵称未通过内容检查，请换一个。',
     NOT_OWNED: '仓库数量不足，请重新选择战备。',
+    SHOP_PRICE_CHANGED: '价格已变动，请核对最新价格后再交易。',
+    INSUFFICIENT_GOLD: '金币不足，无法购买。',
+    CARD_NOT_FOR_SALE: '商店不出售这张卡牌。',
+    ASSET_LIMIT: '这笔交易超出资产数量上限。',
+    TRADE_INVALID: '交易数量或金额无效。',
     STALE_TURN: '回合已推进，已刷新最新状态。',
     BACKPACK_FULL: '背包已满，物品仍留在房间。',
     WEAPON_LIMIT: '只能携带一件武器，请先丢弃或移出当前武器。',
@@ -998,7 +1012,7 @@ function drawHome() {
     if (profileAvatarImage) context.drawImage(profileAvatarImage, 18, 15, 32, 32)
     else text('♠', 34, 31, 24, PALETTE.gold, 'center')
     text(accountProfile.nickname, 59, 24, 11, '#fff0ca', 'left', 'bold')
-    text(`金币 ${accountProfile.gold}`, 59, 41, 9, '#dec492')
+    text(`金币 ${formatAmount(accountProfile.gold)}`, 59, 41, 9, '#dec492')
   }
 }
 
@@ -1019,6 +1033,105 @@ function enterWarehouse() {
   warehouseScrollY = 0
   warehouseGesture = null
   setScene('WAREHOUSE')
+}
+
+function pendingShopTrade(accountId = accountProfile?.accountId) {
+  if (!accountId) return null
+  if (pendingShopTrades.has(accountId)) return pendingShopTrades.get(accountId)
+  let trade = null
+  try { trade = wx.getStorageSync(`heisino.shop.pending.${accountId}`) || null } catch (_) {}
+  pendingShopTrades.set(accountId, trade)
+  return trade
+}
+
+function savePendingShopTrade(accountId, trade) {
+  pendingShopTrades.set(accountId, trade)
+  try { wx.setStorageSync(`heisino.shop.pending.${accountId}`, trade) } catch (_) {}
+}
+
+function applyShopResponse(response) {
+  if (response.profile.accountId !== accountProfile?.accountId || response.revision < accountRevision) return
+  const changed = JSON.stringify(accountProfile.quantities) !== JSON.stringify(response.profile.quantities)
+  accountRevision = response.revision
+  accountProfile = response.profile
+  PLAYER_ACCOUNT_GOLD = accountProfile.gold
+  if (changed) loadout = new LoadoutSession({ cards, quantities: accountProfile.quantities, equipmentLimit: !!combatVersion })
+  shopCatalog = response.catalog
+  invalidateFrame()
+}
+
+async function refreshShop() {
+  beginAccountRequest('正在读取商店…')
+  try {
+    applyShopResponse(await accountApi.command('shop', { op: 'list' }))
+    shopMessage = ''
+  } catch (error) {
+    shopMessage = accountError(error)
+  } finally { endAccountRequest() }
+}
+
+function enterShop() {
+  if (!accountProfile?.profileComplete) return
+  shopMode = 'buy'
+  shopSelection = null
+  shopQuantity = 1
+  shopScrollY = 0
+  shopCatalog = null
+  shopMessage = ''
+  setScene('SHOP')
+  refreshShop()
+}
+
+function shopOffer(offer) {
+  const owned = accountProfile?.quantities[offer.cardId] ?? 0
+  const price = shopMode === 'buy' ? offer.buyPrice : offer.sellPrice
+  const max = shopMode === 'buy' ? (price ? Math.floor(accountProfile.gold / price) : 0) : owned
+  return { ...offer, owned, price, max }
+}
+
+async function submitShopTrade(trade) {
+  const accountId = accountProfile?.accountId
+  if (!accountId || accountBusy || scene !== 'SHOP') return
+  savePendingShopTrade(accountId, trade)
+  beginAccountRequest('正在确认交易…')
+  let refresh = false
+  try {
+    const response = await accountApi.command('shop', trade)
+    applyShopResponse(response)
+    savePendingShopTrade(accountId, null)
+    const receipt = response.trade
+    const label = receipt.op === 'buy' ? '购买成功，已入仓' : '出售成功'
+    shopQuantity = 1
+    addToast(`${label} · ${receipt.op === 'buy' ? '−' : '+'}${receipt.total} 金币`)
+  } catch (error) {
+    if (error.statusCode >= 400 && error.statusCode < 500 && ![401, 404, 408, 429].includes(error.statusCode) &&
+        !['ACCOUNT_BUSY', 'ACTIVE_GAME_EXISTS', 'ALREADY_IN_ROOM'].includes(error.code)) {
+      savePendingShopTrade(accountId, null)
+      refresh = ['SHOP_PRICE_CHANGED', 'INSUFFICIENT_GOLD', 'NOT_OWNED'].includes(error.code)
+      addToast(error.code === 'NOT_OWNED' ? '仓库数量不足，请重新选择。' : accountError(error))
+    } else addToast('暂未收到交易结果，请重试确认。')
+  } finally { endAccountRequest() }
+  if (refresh && scene === 'SHOP') refreshShop()
+}
+
+function confirmShopTrade() {
+  const selected = shopCatalog?.find(offer => offer.cardId === shopSelection)
+  if (!selected || shopConfirming || pendingShopTrade()) return
+  const offer = shopOffer(selected)
+  if (!offer.price || shopQuantity < 1 || shopQuantity > offer.max) return
+  const trade = { op: shopMode, cardId: offer.cardId, quantity: shopQuantity, unitPrice: offer.price, requestId: accountApi.requestId() }
+  const label = shopMode === 'buy' ? '购买' : '出售'
+  const accountId = accountProfile.accountId
+  shopConfirming = true
+  wx.showModal({
+    title: `确认${label}`, confirmText: label,
+    content: `${cardById(offer.cardId)?.name || offer.cardId} ×${shopQuantity}\n${shopMode === 'buy' ? '支付' : '获得'} ${offer.price * shopQuantity} 金币`,
+    success(result) {
+      shopConfirming = false
+      if (result.confirm && scene === 'SHOP' && accountProfile?.accountId === accountId) submitShopTrade(trade)
+    },
+    fail() { shopConfirming = false }
+  })
 }
 
 function cardColor(card) {
@@ -1220,6 +1333,93 @@ function warehouseFilterButton(id, label, filter, rect) {
   })
 }
 
+function drawShop() {
+  drawCover(assets.homeBackground)
+  darken(0.74, '13, 7, 24')
+  const margin = 16
+  const right = viewWidth - margin
+  const bottom = viewHeight - 50
+  const detailWidth = clamp(viewWidth * 0.28, 154, 236)
+  const detailX = right - detailWidth
+  const gridWidth = detailX - margin - 10
+  const top = 44
+  const muted = { top: '#554653', bottom: '#2a222c', stroke: '#a692a4', size: 11 }
+  text('商 店', margin, 23, 19, PALETTE.paleGold, 'left', 'bold')
+  text(`金币 ${formatAmount(accountProfile?.gold)}`, viewWidth / 2, 23, 14, PALETTE.gold, 'center', 'bold')
+  panel(margin, top, gridWidth, bottom - top, { fill: 'rgba(27,18,34,.96)', radius: 13 })
+  panel(detailX, top, detailWidth, bottom - top, { fill: 'rgba(37,20,35,.96)', radius: 13 })
+  for (const [index, mode, label] of [[0, 'buy', '购买'], [1, 'sell', '出售']]) {
+    button('shop_mode', label, { x: margin + 10 + index * 96, y: top + 8, width: 88, height: 31 },
+      { ...(shopMode === mode ? { size: 12 } : muted), data: mode })
+  }
+  button('shop_home', '返回首页', { x: margin, y: viewHeight - 41, width: 110, height: 32 }, muted)
+  if (!shopCatalog) {
+    text(shopMessage || '正在读取商店…', margin + gridWidth / 2, top + 76, 12, PALETTE.cream, 'center', 'normal', gridWidth - 24)
+    if (!accountBusy) button('shop_refresh', '重新加载', { x: margin + gridWidth / 2 - 48, y: top + 96, width: 96, height: 32 }, muted)
+  }
+  const offers = (shopCatalog || []).map(shopOffer).filter(offer => shopMode === 'buy' ? offer.buyPrice !== null : offer.owned > 0)
+  const viewport = { x: margin + 6, y: top + 48, width: gridWidth - 12, height: bottom - top - 54 }
+  const grid = createVerticalCardGrid({ viewport, count: offers.length, columns: gridWidth > 620 ? 6 : gridWidth > 395 ? 5 : 4,
+    gap: 8, padding: 6, scrollY: shopScrollY })
+  shopScrollY = grid.scrollY
+  ui.warehouseScrollRect = viewport
+  ui.warehouseMaxScroll = grid.maxScroll
+  context.save()
+  roundedPath(viewport.x, viewport.y, viewport.width, viewport.height, 8)
+  context.clip()
+  for (const [index, rect] of grid.rects.entries()) {
+    if (!rectsIntersect(rect, viewport)) continue
+    const offer = offers[index]
+    const card = cardById(offer.cardId)
+    if (card) drawLoadoutCard(card, rect, offer.cardId === shopSelection, 'SHOP', shopMode === 'sell' ? offer.owned : undefined)
+    else panel(rect.x, rect.y, rect.width, rect.height, { fill: '#3e2a3f' })
+    panel(rect.x + 2, rect.y + rect.height - 19, rect.width - 4, 17, { fill: '#251725', stroke: '#b98d4d', radius: 4 })
+    text(`${offer.grade} · ${formatAmount(offer.price)}`, rect.x + rect.width / 2, rect.y + rect.height - 10, 10,
+      PALETTE.paleGold, 'center', 'bold', rect.width - 7)
+    ui.hotspots.push({ id: 'shop_card', data: offer.cardId, rect: intersectionRect(rect, viewport) })
+  }
+  context.restore()
+  drawScrollIndicator(viewport, grid.contentHeight, shopScrollY)
+  if (shopCatalog && !offers.length) text('暂无可出售的卡牌', margin + gridWidth / 2, viewport.y + 36, 12, PALETTE.cream, 'center')
+
+  const center = detailX + detailWidth / 2
+  const pending = pendingShopTrade()
+  if (pending) {
+    text('交易结果待确认', center, top + 34, 14, PALETTE.paleGold, 'center', 'bold')
+    text(`${cardById(pending.cardId)?.name || pending.cardId} ×${pending.quantity}`, center, top + 60, 12, PALETTE.cream, 'center')
+    button('shop_retry_trade', '重试确认', { x: detailX + 12, y: bottom - 43, width: detailWidth - 24, height: 31 }, { size: 12 })
+    return
+  }
+  const selected = offers.find(offer => offer.cardId === shopSelection)
+  if (!selected) {
+    text('选择一张卡牌', center, top + 50, 13, PALETTE.paleGold, 'center', 'bold')
+    return
+  }
+  const card = cardById(selected.cardId)
+  const quantity = clamp(shopQuantity, 1, Math.max(1, selected.max))
+  shopQuantity = quantity
+  text(card?.name || selected.cardId, center, top + 22, 14, PALETTE.paleGold, 'center', 'bold', detailWidth - 24)
+  text(`${selected.grade} 级 · 持有 ${formatAmount(selected.owned)} 张`, center, top + 42, 11, PALETTE.cream, 'center')
+  text(`单价 ${selected.price} 金币`, center, top + 63, 12, PALETTE.gold, 'center', 'bold')
+  if (card) {
+    const preview = { x: detailX + 14, y: top + 75, width: detailWidth - 28, height: 25 }
+    button('shop_preview', '查看卡面', preview, muted)
+    ui.hotspots[ui.hotspots.length - 1].previewCardId = card.cardId
+  }
+  const quantityY = bottom - 106
+  const quantityWidth = (detailWidth - 28) / 5
+  if (selected.max > 0) {
+    if (quantity > 1) button('shop_quantity', '−', { x: detailX + 10, y: quantityY, width: quantityWidth, height: 26 }, { ...muted, data: -1 })
+    if (quantity < selected.max) {
+      button('shop_quantity', '+', { x: right - 14 - 2 * quantityWidth, y: quantityY, width: quantityWidth, height: 26 }, { ...muted, data: 1 })
+      button('shop_quantity', '最大', { x: right - 10 - quantityWidth, y: quantityY, width: quantityWidth, height: 26 }, { ...muted, size: 9, data: 'max' })
+    }
+    text(quantity, detailX + 14 + 2 * quantityWidth, quantityY + 13, 13, PALETTE.cream, 'center', 'bold', quantityWidth * 1.75)
+    text(`合计 ${selected.price * quantity} 金币`, center, bottom - 63, 12, PALETTE.gold, 'center', 'bold', detailWidth - 24)
+    button('shop_confirm', shopMode === 'buy' ? '购买' : '出售', { x: detailX + 12, y: bottom - 43, width: detailWidth - 24, height: 31 }, { size: 12 })
+  } else text('金币不足', center, bottom - 31, 12, '#ffb59e', 'center')
+}
+
 function drawWarehouse() {
   drawCover(assets.homeBackground)
   darken(0.72, '13, 7, 24')
@@ -1242,7 +1442,8 @@ function drawWarehouse() {
   context.lineTo(viewWidth, 41)
   context.stroke()
   text('玩 家 仓 库', 16, 21, 18, PALETTE.paleGold, 'left', 'bold')
-  text('查看当前账号持有的全部卡牌', viewWidth / 2, 21, 10, '#d6c7d8', 'center')
+  text(`当前资产 ${formatAmount(accountProfile?.assetValue)}  ·  金币 ${formatAmount(accountProfile?.gold)}`, viewWidth / 2, 21, 13,
+    PALETTE.paleGold, 'center', 'bold', viewWidth * 0.47)
   text(`拥有 ${loadout.ownedCardIds.length}/${cards.length} · ${cardCatalogSource === 'SERVER' ? '云端卡库' : '本地缓存'}`, viewWidth - 16, 21, 9, cardCatalogSource === 'SERVER' ? '#9fe5c2' : '#ffd47d', 'right', 'bold')
 
   const filterY = panelRect.y + 11
@@ -1676,7 +1877,7 @@ function drawTopHud(state) {
 }
 
 function formatGold(value) {
-  return `${Math.round(value / 1000)}K Gold`
+  return `${formatAmount(value)} Gold`
 }
 
 function gameLayout() {
@@ -1764,6 +1965,9 @@ function drawInventory(state, x, y, width, interactive = true) {
   const local = state.players.find(player => player.id === 'P1')
   panel(x, y, width, viewHeight - y - 70, { fill: 'rgba(28,17,30,.9)', stroke: 'rgba(247,201,92,.66)', radius: 13 })
   text('装备与背包', x + 14, y + 20, 14, PALETTE.paleGold, 'left', 'bold')
+  const valuation = accountGame?.backpackAssets
+  text(`资产 ${formatAmount(valuation?.current)} · 变化 ${formatChange(valuation?.change)}`, x + width - 14, y + 20, 10,
+    PALETTE.paleGold, 'right', 'bold', width - 110)
   const weapon = state.items.find(item => item.instanceId === local.equippedWeaponId)
   const weaponCard = weapon && cardById(weapon.cardId)
   panel(x + 10, y + 38, width - 20, 46, { fill: 'rgba(98,30,40,.55)', stroke: '#b57962', radius: 8 })
@@ -2116,7 +2320,7 @@ function drawMovementHud(state, layout) {
   context.lineWidth = Math.max(1.5, 3 * scale)
   context.stroke()
   text('♦', layout.gold.x + 29 * scale, layout.gold.y + layout.gold.height / 2, Math.max(10, 21 * scale), '#fff2b0', 'center', 'bold')
-  text(`${PLAYER_ACCOUNT_GOLD}g`, layout.gold.x + layout.gold.width * 0.64, layout.gold.y + layout.gold.height / 2, headlineSize, '#fff2d6', 'center', 'bold')
+  text(`${formatAmount(PLAYER_ACCOUNT_GOLD)}g`, layout.gold.x + layout.gold.width * 0.64, layout.gold.y + layout.gold.height / 2, headlineSize, '#fff2d6', 'center', 'bold')
 
   const target = selectedMove || local.position
   const deadline = state.phase === 'MOVE_SELECTION' ? state.moveDeadlineAt : state.turnDeadlineAt
@@ -2536,6 +2740,13 @@ function drawSearchInventoryPanel(rect) {
   if (assets.searchBagIcon) drawImageSourceInRect(assets.searchBagIcon, SEARCH_ASSET_CROPS.bagIcon, { x: rect.x + 52 * scale, y: contentLayout.iconTop, width: 32 * scale, height: 35 * scale })
   const inventory = searchVisitState?.inventory || []
   text(`玩家背包  ${inventory.length}/${C.BACKPACK_SLOTS}`, rect.x + 100 * scale, contentLayout.headerBaselineY, Math.max(10, 26 * scale), PALETTE.paleGold, 'left', 'bold')
+  const valuation = accountGame?.backpackAssets
+  const valueX = rect.x + rect.width - 55 * scale
+  const valueSize = Math.max(9, 22 * scale)
+  text(`背包资产 ${formatAmount(valuation?.current)}`, valueX, contentLayout.headerBaselineY - 13 * scale,
+    valueSize, PALETTE.paleGold, 'right', 'bold', rect.width * 0.42)
+  text(`变化 ${formatChange(valuation?.change)}`, valueX, contentLayout.headerBaselineY + 16 * scale,
+    valueSize, valuation?.change > 0 ? '#9fe5c2' : valuation?.change < 0 ? '#ff9c9c' : '#d8c1b6', 'right', 'bold', rect.width * 0.42)
   ui.searchInventoryRects = []
   const gridViewport = { x: rect.x + 54 * scale, y: contentLayout.gridTop, width: rect.width - 108 * scale, height: contentLayout.gridBottom - contentLayout.gridTop }
   const grid = createContainedCardGrid({ viewport: gridViewport, count: C.BACKPACK_SLOTS, columns: 5, gap: 10 * scale, padding: 2 * scale })
@@ -2698,7 +2909,7 @@ function drawSettlement(state) {
     ['结束回合', String(settlement.turn)],
     ['剩余生命', `${settlement.hp}/30`],
     ['携带物资', `${settlement.itemCount} 件`],
-    ['结算价值', settlement.success ? formatGold(settlement.lootValue) : '0 Gold']
+    ['结算价值', formatGold(settlement.success ? settlement.lootValue : 0)]
   ]
   metrics.forEach((metric, index) => {
     const cx = x + width * (0.15 + index * 0.235)
@@ -2829,6 +3040,7 @@ function draw() {
   if (scene === 'LOGIN' || scene === 'PROFILE') drawAccountSetup()
   if (scene === 'HOME') drawHome()
   if (scene === 'WAREHOUSE') drawWarehouse()
+  if (scene === 'SHOP') drawShop()
   if (scene === 'LOADOUT') drawLoadout()
   if (scene === 'LOBBY') drawLobby()
   if (scene === 'GAME') {
@@ -2953,6 +3165,34 @@ function handleAction(action) {
   }
   if (action.id === 'confirm_move' && latestMoveRequest?.pending) return
   if (accountBusy) { addToast('上一操作处理中，请稍候。', 900); return }
+  if (scene === 'SHOP') {
+    if (shopConfirming) return
+    if (action.id === 'shop_home') setScene('HOME')
+    if (action.id === 'shop_refresh') refreshShop()
+    if (action.id === 'shop_retry_trade') {
+      const trade = pendingShopTrade()
+      if (trade) submitShopTrade(trade)
+    }
+    if (action.id === 'shop_mode') {
+      shopMode = action.data
+      shopScrollY = 0
+      shopSelection = null
+      shopQuantity = 1
+    }
+    if (action.id === 'shop_card') {
+      shopSelection = action.data
+      shopQuantity = 1
+    }
+    if (action.id === 'shop_quantity') {
+      const selected = shopCatalog?.find(offer => offer.cardId === shopSelection)
+      if (selected) {
+        const max = Math.max(1, shopOffer(selected).max)
+        shopQuantity = action.data === 'max' ? max : clamp(shopQuantity + action.data, 1, max)
+      }
+    }
+    if (action.id === 'shop_confirm') confirmShopTrade()
+    return
+  }
   if (interactiveBattle && presentation === 'BATTLE') {
     if (action.id === 'combat_roll') { sendCombatAction('combat-roll'); return }
     if (action.id === 'combat_ready') {
@@ -2981,7 +3221,7 @@ function handleAction(action) {
     if (action.id === 'combat_skills_close') { combatSkillsOpen = false; return }
   }
   if (action.id === 'home_start') enterLoadout()
-  if (action.id === 'home_shop') addToast('商店暂未开放。')
+  if (action.id === 'home_shop') enterShop()
   if (action.id === 'home_warehouse') enterWarehouse()
   if (action.id === 'warehouse_home') setScene('HOME')
   if (action.id === 'warehouse_filter_all') {
@@ -3084,8 +3324,9 @@ wx.onTouchStart(event => {
       ...(kind === 'skill' ? target.data : {}), dragging: false }
     return
   }
-  if (scene === 'WAREHOUSE') {
-    warehouseGesture = { start: point, last: point, mode: 'PENDING' }
+  if (scene === 'WAREHOUSE' || scene === 'SHOP') {
+    warehouseGesture = { start: point, last: point, mode: 'PENDING', target, scene, startedAt: Date.now(),
+      scrollable: pointInRect(point, ui.warehouseScrollRect) }
     return
   }
   if (scene === 'LOADOUT') {
@@ -3135,10 +3376,11 @@ wx.onTouchMove(event => {
     combatGesture.point = point
     return
   }
-  if (scene === 'WAREHOUSE' && warehouseGesture) {
+  if (['WAREHOUSE', 'SHOP'].includes(scene) && warehouseGesture) {
     if (warehouseGesture.mode === 'PENDING' && Math.hypot(point.x - warehouseGesture.start.x, point.y - warehouseGesture.start.y) >= 7) warehouseGesture.mode = 'SCROLL'
-    if (warehouseGesture.mode === 'SCROLL') {
-      warehouseScrollY = clamp(warehouseScrollY + warehouseGesture.last.y - point.y, 0, ui.warehouseMaxScroll)
+    if (warehouseGesture.mode === 'SCROLL' && warehouseGesture.scrollable) {
+      if (scene === 'SHOP') shopScrollY = clamp(shopScrollY + warehouseGesture.last.y - point.y, 0, ui.warehouseMaxScroll)
+      else warehouseScrollY = clamp(warehouseScrollY + warehouseGesture.last.y - point.y, 0, ui.warehouseMaxScroll)
     }
     warehouseGesture.last = point
     return
@@ -3211,6 +3453,15 @@ wx.onTouchEnd(event => {
     return
   }
   if (scene === 'GAME' && presentation === 'BATTLE' && interactiveBattle) return
+  if (scene === 'SHOP') {
+    const gesture = warehouseGesture
+    const target = hotspotAt(point)
+    warehouseGesture = null
+    if (gesture?.scene !== 'SHOP' || !target || target.id !== gesture.target?.id || target.data !== gesture.target.data ||
+        !isCardTap({ ...gesture, moved: gesture.mode === 'SCROLL' }, point, event)) return
+    handleTouchTap(target, previewTouch, point, event)
+    return
+  }
   if (scene === 'WAREHOUSE' && warehouseGesture) {
     const scrolled = warehouseGesture.mode === 'SCROLL'
     warehouseGesture = null

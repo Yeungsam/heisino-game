@@ -108,6 +108,7 @@
           "type": "object",
           "required": [
             "currency",
+            "grade",
             "value_source",
             "purchase_price",
             "fixed_value"
@@ -117,12 +118,14 @@
               "type": "string",
               "const": "GOLD"
             },
+            "grade": {
+              "enum": ["B", "A", "S", "SS"]
+            },
             "value_source": {
               "type": "string",
               "enum": [
-                "PURCHASE_PRICE",
                 "FIXED_LOOT_VALUE",
-                "NONE"
+                "TRADE_VALUE"
               ]
             },
             "purchase_price": {
@@ -133,11 +136,8 @@
               "minimum": 0
             },
             "fixed_value": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "minimum": 0
+              "type": "integer",
+              "minimum": 1
             }
           },
           "additionalProperties": false

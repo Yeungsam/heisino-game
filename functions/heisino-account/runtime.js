@@ -9,7 +9,8 @@ const raw = JSON.parse(fs.readFileSync(local ? path.join(__dirname, '../../data/
 const cards = raw.cards.map(card => ({
   cardId: card.card_id, name: card.name, kind: card.kind, category: card.category, rarity: card.rarity,
   attackMultiplier: card.attack_multiplier, defenseMultiplier: card.defense_multiplier,
-  value: card.economy.fixed_value ?? card.economy.purchase_price ?? 0
+  value: card.economy.fixed_value ?? card.economy.purchase_price ?? 0,
+  grade: card.economy.grade, buyPrice: card.economy.purchase_price
 }))
 const constants = local ? require('../../client/js/core/constants') : require('./runtime/core/constants')
 const retired = local ? require('../../client/js/core/retired-cards') : require('./runtime/core/retired-cards')

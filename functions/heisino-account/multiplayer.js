@@ -386,6 +386,7 @@ class Multiplayer {
       tracks: replay.tracks.map(track => ({ ...track, isSelf: track.playerId === playerId })) } : null
     return this.response(document, { gameId, mode, state: publicState(state, playerId, visit),
       search: this.account.searchView(state, visit, playerId), waiting, movementReplay, resumeUntil: game.seen[playerId] + WAIT_MS,
+      backpackAssets: this.account.backpackAssets(document, state, playerId),
       ...(game.combatVersion ? { combatVersion: game.combatVersion, combatRevision: game.combatRevision || 0, combat } : {}) })
   }
 }

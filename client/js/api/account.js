@@ -11,7 +11,7 @@ function recordPerformance(action, queuedAt, startedAt, response) {
   const headers = response && response.header || {}
   const timingKey = Object.keys(headers).find(key => key.toLowerCase() === 'server-timing')
   const match = String(timingKey && headers[timingKey] || '').match(/app;dur=([\d.]+)/)
-  const publicAction = ['login', 'profile', 'me', 'start', 'game', 'heartbeat', 'suspend', 'resume', 'acknowledge', 'lobby'].includes(action) ? action : 'OTHER'
+  const publicAction = ['login', 'profile', 'me', 'start', 'game', 'heartbeat', 'suspend', 'resume', 'acknowledge', 'lobby', 'shop'].includes(action) ? action : 'OTHER'
   const sample = { action: publicAction, queueMs: Math.max(0, startedAt - queuedAt), requestMs: Math.max(0, Date.now() - startedAt),
     serverMs: match ? Number(match[1]) : null, status: response && response.statusCode || 0 }
   performanceSamples.push(sample)

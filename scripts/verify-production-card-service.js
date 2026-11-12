@@ -14,6 +14,7 @@ async function verifyProductionCardService() {
   assert.equal(catalog.cards.length, expectedCards.length)
 
   const ids = new Set()
+  const expectedById = new Map(expectedCards.map(card => [card.card_id, card]))
   catalog.cards.forEach(card => {
     assert.ok(card.card_id)
     assert.ok(card.name)
@@ -21,6 +22,7 @@ async function verifyProductionCardService() {
     assert.ok(!ids.has(card.card_id), `重复 card_id ${card.card_id}`)
     ids.add(card.card_id)
     assert.ok(card.assets)
+    assert.deepEqual(card.economy, expectedById.get(card.card_id)?.economy, `卡牌经济字段未更新: ${card.card_id}`)
     assert.ok(card.assets.card_art_url.startsWith(`${cardAssetBaseUrl}/assets/cards/`))
   })
   assert.deepEqual([...ids].sort(), expectedCards.map(card => card.card_id).sort())

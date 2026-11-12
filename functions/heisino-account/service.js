@@ -27,6 +27,10 @@ class AccountService {
     this.now = options.now || Date.now
     this.cards = (options.cards || cards).filter(card => !isRetiredCard(card.cardId))
     this.cardMap = Object.fromEntries(this.cards.map(card => [card.cardId, card]))
+    this.shopCatalog = this.cards.filter(card => Number.isSafeInteger(card.value) && card.value > 0).map(card => ({
+      cardId: card.cardId, grade: card.grade, sellPrice: card.value, buyPrice: card.buyPrice ?? null
+    }))
+    this.shopById = new Map(this.shopCatalog.map(card => [card.cardId, card]))
     this.blueBotEquipment = ['WEAPON', 'ARMOR'].map(category => this.cards.find(card => card.rarity === 'BLUE' && card.category === category)?.cardId).filter(Boolean)
     this.multiplayer = new Multiplayer(this)
   }
@@ -54,9 +58,69 @@ class AccountService {
     return changed
   }
 
+  quantitiesValue(quantities) {
+    return Object.entries(quantities).reduce((sum, [id, count]) =>
+      sum + (this.cardMap[id]?.value ?? 0) * count, 0)
+  }
+
   profile(document) {
     return { accountId: document.accountId, nickname: document.nickname, avatarUrl: document.avatarUrl,
-      profileComplete: document.profileComplete, gold: document.gold, quantities: clone(document.quantities), starterVersion: document.starterVersion }
+      profileComplete: document.profileComplete, gold: document.gold, quantities: clone(document.quantities), starterVersion: document.starterVersion,
+      assetValue: document.gold + this.quantitiesValue(document.quantities) }
+  }
+
+  assertShopAvailable(document) {
+    if (!document.profileComplete) throw fault('PROFILE_REQUIRED', 409)
+    if (document.activeGame) throw fault('ACTIVE_GAME_EXISTS', 409)
+    if (document.lobbyRoomId) throw fault('ALREADY_IN_ROOM', 409)
+  }
+
+  async shop(accountId, token, input) {
+    const view = (document, revision, trade = null) => ({ profile: this.profile(document), revision, catalog: this.shopCatalog, trade })
+    const { op, cardId, quantity, unitPrice } = input
+    if (op === 'list') {
+      const document = await this.store.get(accountId)
+      if (!document) throw fault('UNAUTHENTICATED', 401)
+      this.authenticate(document, token)
+      this.assertShopAvailable(document)
+      this.removeRetiredQuantities(document)
+      return view(document, document.version)
+    }
+    return this.mutate(accountId, async document => {
+      this.authenticate(document, token)
+      this.assertShopAvailable(document)
+      if (!['buy', 'sell'].includes(op) || typeof cardId !== 'string' ||
+          !Number.isSafeInteger(quantity) || quantity < 1 ||
+          !Number.isSafeInteger(unitPrice) || unitPrice < 1) throw fault('TRADE_INVALID')
+      const requestId = this.requestId(input)
+      const entryId = digest(`shop:${accountId}:${requestId}`)
+      const fingerprint = digest(JSON.stringify([op, cardId, quantity, unitPrice]))
+      const prior = await this.store.getLedgerEntry(entryId)
+      if (prior) {
+        if (prior.fingerprint !== fingerprint) throw fault('REQUEST_ID_REUSED', 409)
+        return view(document, document.version + 1, prior.trade)
+      }
+      const card = this.shopById.get(cardId)
+      if (!card) throw fault('SHOP_CARD_INVALID')
+      const buying = op === 'buy'
+      const price = buying ? card.buyPrice : card.sellPrice
+      if (price === null) throw fault('CARD_NOT_FOR_SALE', 409)
+      if (unitPrice !== price) throw fault('SHOP_PRICE_CHANGED', 409)
+      const total = price * quantity
+      const owned = document.quantities[cardId] || 0
+      if (!Number.isSafeInteger(total)) throw fault('TRADE_INVALID')
+      if (buying && document.gold < total) throw fault('INSUFFICIENT_GOLD', 409)
+      if (!buying && owned < quantity) throw fault('NOT_OWNED', 409)
+      const goldDelta = buying ? -total : total
+      const quantityDelta = buying ? quantity : -quantity
+      if (!Number.isSafeInteger(document.gold + goldDelta) ||
+          !Number.isSafeInteger(owned + quantityDelta)) throw fault('ASSET_LIMIT', 409)
+      document.gold += goldDelta
+      document.quantities[cardId] = owned + quantityDelta
+      const trade = { requestId, op, cardId, quantity, unitPrice: price, total }
+      this.ledger(document, { entryId, fingerprint, trade, type: buying ? 'SHOP_BUY' : 'SHOP_SELL', quantities: { [cardId]: quantityDelta }, goldDelta })
+      return view(document, document.version + 1, trade)
+    })
   }
 
   async login(code) {
@@ -92,6 +156,7 @@ class AccountService {
     if (typeof token !== 'string' || !/^[a-f0-9]{64}\.[A-Za-z0-9_-]{43}$/.test(token)) throw fault('UNAUTHENTICATED', 401)
     const accountId = token.split('.')[0]
     if (action === 'lobby') return this.multiplayer.lobby(accountId, token, input)
+    if (action === 'shop') return this.shop(accountId, token, input)
     // Moderation is done before the transaction, but still requires a valid session.
     let checkedProfile = null
     if (action === 'profile') {
@@ -206,6 +271,7 @@ class AccountService {
   deploy(document, game, counts) {
     this.assertOwned(document, counts)
     Object.entries(counts).forEach(([id, count]) => { document.quantities[id] -= count })
+    game.initialAssets = this.quantitiesValue(counts)
     document.activeGame = game
     document.lastSettlement = null
     this.ledger(document, { type: 'DEPLOY', gameId: game.gameId, mode: game.mode, quantities: Object.fromEntries(Object.entries(counts).map(([id, count]) => [id, -count])) })
@@ -478,7 +544,7 @@ class AccountService {
   }
 
   ledger(document, entry) {
-    const entryId = entry.mode === 'MULTIPLAYER' ? digest(`${entry.gameId}:${entry.type}:${document.accountId}`) : `${entry.gameId}-${entry.type}`
+    const entryId = entry.entryId ?? (entry.mode === 'MULTIPLAYER' ? digest(`${entry.gameId}:${entry.type}:${document.accountId}`) : `${entry.gameId}-${entry.type}`)
     document.ledger.push({ ...entry, entryId, accountId: document.accountId, at: this.now() })
     document.ledger = document.ledger.slice(-100)
   }
@@ -533,6 +599,17 @@ class AccountService {
     return { profile: this.profile(document), activeGame, lobbyRoom, lastSettlement: document.lastSettlement, serverNow: this.now(), revision }
   }
 
+  backpackAssets(document, engine, playerId) {
+    let initial = document.activeGame.initialAssets
+    if (initial === undefined) {
+      const deploy = document.ledger.find(entry => entry.gameId === document.activeGame.gameId && entry.type === 'DEPLOY')
+      initial = deploy ? 0 - this.quantitiesValue(deploy.quantities) : null
+      if (initial !== null) document.activeGame.initialAssets = initial
+    }
+    const current = engine.inventoryValue(playerId)
+    return { current, initial, change: initial === null ? null : current - initial }
+  }
+
   response(document, revision) {
     const game = document.activeGame
     let activeGame = null
@@ -544,6 +621,7 @@ class AccountService {
       game.state = engine.snapshot()
       const search = this.searchView(engine, visit, 'P1')
       activeGame = { gameId: game.gameId, mode: game.mode, state: this.publicState(engine), search, resumeUntil: game.lastSeenAt + RESUME_MS,
+        backpackAssets: this.backpackAssets(document, engine, 'P1'),
         ...(game.combatVersion ? { combatVersion: game.combatVersion, combat: Battle.combatView(game.combat, engine, 'P1') } : {}) }
     }
     return this.accountResponse(document, activeGame, null, revision)

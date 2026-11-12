@@ -1,6 +1,6 @@
 {
   "schema_version": "0.2.0",
-  "generated_at": "2026-11-08T12:09:17.911Z",
+  "generated_at": "2026-11-12T09:02:55.894Z",
   "cards": [
     {
       "card_id": "wp_001",
@@ -13,9 +13,10 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
-        "value_source": "PURCHASE_PRICE",
+        "grade": "SS",
+        "value_source": "TRADE_VALUE",
         "purchase_price": null,
-        "fixed_value": null
+        "fixed_value": 50000
       },
       "inventory": {
         "slot_cost": 1,
@@ -58,9 +59,10 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
-        "value_source": "PURCHASE_PRICE",
+        "grade": "S",
+        "value_source": "TRADE_VALUE",
         "purchase_price": null,
-        "fixed_value": null
+        "fixed_value": 10000
       },
       "inventory": {
         "slot_cost": 1,
@@ -103,9 +105,10 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
-        "value_source": "PURCHASE_PRICE",
+        "grade": "S",
+        "value_source": "TRADE_VALUE",
         "purchase_price": null,
-        "fixed_value": null
+        "fixed_value": 10000
       },
       "inventory": {
         "slot_cost": 1,
@@ -148,9 +151,10 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
-        "value_source": "PURCHASE_PRICE",
-        "purchase_price": null,
-        "fixed_value": null
+        "grade": "A",
+        "value_source": "TRADE_VALUE",
+        "purchase_price": 6000,
+        "fixed_value": 5000
       },
       "inventory": {
         "slot_cost": 1,
@@ -193,9 +197,10 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
-        "value_source": "PURCHASE_PRICE",
-        "purchase_price": null,
-        "fixed_value": null
+        "grade": "A",
+        "value_source": "TRADE_VALUE",
+        "purchase_price": 6000,
+        "fixed_value": 5000
       },
       "inventory": {
         "slot_cost": 1,
@@ -238,9 +243,10 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
-        "value_source": "PURCHASE_PRICE",
-        "purchase_price": null,
-        "fixed_value": null
+        "grade": "B",
+        "value_source": "TRADE_VALUE",
+        "purchase_price": 960,
+        "fixed_value": 800
       },
       "inventory": {
         "slot_cost": 1,
@@ -283,9 +289,10 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
-        "value_source": "PURCHASE_PRICE",
-        "purchase_price": null,
-        "fixed_value": null
+        "grade": "B",
+        "value_source": "TRADE_VALUE",
+        "purchase_price": 960,
+        "fixed_value": 800
       },
       "inventory": {
         "slot_cost": 1,
@@ -328,9 +335,10 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
-        "value_source": "PURCHASE_PRICE",
+        "grade": "SS",
+        "value_source": "TRADE_VALUE",
         "purchase_price": null,
-        "fixed_value": null
+        "fixed_value": 50000
       },
       "inventory": {
         "slot_cost": 1,
@@ -373,9 +381,10 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
-        "value_source": "PURCHASE_PRICE",
-        "purchase_price": null,
-        "fixed_value": null
+        "grade": "A",
+        "value_source": "TRADE_VALUE",
+        "purchase_price": 6000,
+        "fixed_value": 5000
       },
       "inventory": {
         "slot_cost": 1,
@@ -419,9 +428,10 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
-        "value_source": "PURCHASE_PRICE",
+        "grade": "S",
+        "value_source": "TRADE_VALUE",
         "purchase_price": null,
-        "fixed_value": null
+        "fixed_value": 10000
       },
       "inventory": {
         "slot_cost": 1,
@@ -464,9 +474,10 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
-        "value_source": "PURCHASE_PRICE",
+        "grade": "SS",
+        "value_source": "TRADE_VALUE",
         "purchase_price": null,
-        "fixed_value": null
+        "fixed_value": 50000
       },
       "inventory": {
         "slot_cost": 1,
@@ -509,9 +520,10 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
-        "value_source": "PURCHASE_PRICE",
-        "purchase_price": null,
-        "fixed_value": null
+        "grade": "A",
+        "value_source": "TRADE_VALUE",
+        "purchase_price": 6000,
+        "fixed_value": 5000
       },
       "inventory": {
         "slot_cost": 1,
@@ -554,9 +566,10 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
-        "value_source": "PURCHASE_PRICE",
-        "purchase_price": null,
-        "fixed_value": null
+        "grade": "B",
+        "value_source": "TRADE_VALUE",
+        "purchase_price": 960,
+        "fixed_value": 800
       },
       "inventory": {
         "slot_cost": 1,
@@ -599,9 +612,10 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
-        "value_source": "PURCHASE_PRICE",
-        "purchase_price": null,
-        "fixed_value": null
+        "grade": "B",
+        "value_source": "TRADE_VALUE",
+        "purchase_price": 960,
+        "fixed_value": 800
       },
       "inventory": {
         "slot_cost": 1,
@@ -644,9 +658,10 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
-        "value_source": "PURCHASE_PRICE",
-        "purchase_price": null,
-        "fixed_value": null
+        "grade": "A",
+        "value_source": "TRADE_VALUE",
+        "purchase_price": 6000,
+        "fixed_value": 5000
       },
       "inventory": {
         "slot_cost": 1,
@@ -689,9 +704,10 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
-        "value_source": "PURCHASE_PRICE",
-        "purchase_price": null,
-        "fixed_value": null
+        "grade": "A",
+        "value_source": "TRADE_VALUE",
+        "purchase_price": 6000,
+        "fixed_value": 5000
       },
       "inventory": {
         "slot_cost": 1,
@@ -734,9 +750,10 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
-        "value_source": "PURCHASE_PRICE",
-        "purchase_price": null,
-        "fixed_value": null
+        "grade": "B",
+        "value_source": "TRADE_VALUE",
+        "purchase_price": 960,
+        "fixed_value": 800
       },
       "inventory": {
         "slot_cost": 1,
@@ -779,9 +796,10 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
-        "value_source": "PURCHASE_PRICE",
-        "purchase_price": null,
-        "fixed_value": null
+        "grade": "B",
+        "value_source": "TRADE_VALUE",
+        "purchase_price": 960,
+        "fixed_value": 800
       },
       "inventory": {
         "slot_cost": 1,
@@ -824,9 +842,10 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
-        "value_source": "PURCHASE_PRICE",
+        "grade": "S",
+        "value_source": "TRADE_VALUE",
         "purchase_price": null,
-        "fixed_value": null
+        "fixed_value": 10000
       },
       "inventory": {
         "slot_cost": 1,
@@ -869,9 +888,10 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
-        "value_source": "PURCHASE_PRICE",
+        "grade": "A",
+        "value_source": "TRADE_VALUE",
         "purchase_price": null,
-        "fixed_value": null
+        "fixed_value": 1
       },
       "inventory": {
         "slot_cost": 1,
@@ -914,6 +934,7 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
+        "grade": "SS",
         "value_source": "FIXED_LOOT_VALUE",
         "purchase_price": null,
         "fixed_value": 25000
@@ -953,15 +974,16 @@
       "kind": "LOOT",
       "category": "LOOT",
       "name": "纯金扑克",
-      "description": "物资卡，撤离结算价值20000 Gold。",
+      "description": "物资卡，撤离结算价值30000 Gold。",
       "rarity": "RED",
       "attack_multiplier": null,
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
+        "grade": "SS",
         "value_source": "FIXED_LOOT_VALUE",
         "purchase_price": null,
-        "fixed_value": 20000
+        "fixed_value": 30000
       },
       "inventory": {
         "slot_cost": 1,
@@ -1005,6 +1027,7 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
+        "grade": "SS",
         "value_source": "FIXED_LOOT_VALUE",
         "purchase_price": null,
         "fixed_value": 50000
@@ -1050,6 +1073,7 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
+        "grade": "SS",
         "value_source": "FIXED_LOOT_VALUE",
         "purchase_price": null,
         "fixed_value": 50000
@@ -1096,6 +1120,7 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
+        "grade": "SS",
         "value_source": "FIXED_LOOT_VALUE",
         "purchase_price": null,
         "fixed_value": 60000
@@ -1140,6 +1165,7 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
+        "grade": "SS",
         "value_source": "FIXED_LOOT_VALUE",
         "purchase_price": null,
         "fixed_value": 90000
@@ -1187,6 +1213,7 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
+        "grade": "SS",
         "value_source": "FIXED_LOOT_VALUE",
         "purchase_price": null,
         "fixed_value": 100000
@@ -1233,6 +1260,7 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
+        "grade": "SS",
         "value_source": "FIXED_LOOT_VALUE",
         "purchase_price": null,
         "fixed_value": 100000
@@ -1280,6 +1308,7 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
+        "grade": "SS",
         "value_source": "FIXED_LOOT_VALUE",
         "purchase_price": null,
         "fixed_value": 200000
@@ -1325,6 +1354,7 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
+        "grade": "B",
         "value_source": "FIXED_LOOT_VALUE",
         "purchase_price": null,
         "fixed_value": 10
@@ -1370,6 +1400,7 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
+        "grade": "B",
         "value_source": "FIXED_LOOT_VALUE",
         "purchase_price": null,
         "fixed_value": 300
@@ -1415,6 +1446,7 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
+        "grade": "B",
         "value_source": "FIXED_LOOT_VALUE",
         "purchase_price": null,
         "fixed_value": 2000
@@ -1461,6 +1493,7 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
+        "grade": "B",
         "value_source": "FIXED_LOOT_VALUE",
         "purchase_price": null,
         "fixed_value": 2500
@@ -1506,6 +1539,7 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
+        "grade": "A",
         "value_source": "FIXED_LOOT_VALUE",
         "purchase_price": null,
         "fixed_value": 3000
@@ -1551,6 +1585,7 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
+        "grade": "A",
         "value_source": "FIXED_LOOT_VALUE",
         "purchase_price": null,
         "fixed_value": 3000
@@ -1596,6 +1631,7 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
+        "grade": "A",
         "value_source": "FIXED_LOOT_VALUE",
         "purchase_price": null,
         "fixed_value": 5000
@@ -1653,6 +1689,7 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
+        "grade": "A",
         "value_source": "FIXED_LOOT_VALUE",
         "purchase_price": null,
         "fixed_value": 5000
@@ -1702,6 +1739,7 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
+        "grade": "A",
         "value_source": "FIXED_LOOT_VALUE",
         "purchase_price": null,
         "fixed_value": 7000
@@ -1747,6 +1785,7 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
+        "grade": "S",
         "value_source": "FIXED_LOOT_VALUE",
         "purchase_price": null,
         "fixed_value": 10000
@@ -1792,6 +1831,7 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
+        "grade": "S",
         "value_source": "FIXED_LOOT_VALUE",
         "purchase_price": null,
         "fixed_value": 10000
@@ -1837,6 +1877,7 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
+        "grade": "S",
         "value_source": "FIXED_LOOT_VALUE",
         "purchase_price": null,
         "fixed_value": 10000
@@ -1883,6 +1924,7 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
+        "grade": "S",
         "value_source": "FIXED_LOOT_VALUE",
         "purchase_price": null,
         "fixed_value": 15000
@@ -1928,6 +1970,7 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
+        "grade": "S",
         "value_source": "FIXED_LOOT_VALUE",
         "purchase_price": null,
         "fixed_value": 20000
@@ -1973,9 +2016,10 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
-        "value_source": "NONE",
+        "grade": "SS",
+        "value_source": "TRADE_VALUE",
         "purchase_price": null,
-        "fixed_value": null
+        "fixed_value": 50000
       },
       "inventory": {
         "slot_cost": 1,
@@ -2028,9 +2072,10 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
-        "value_source": "NONE",
+        "grade": "S",
+        "value_source": "TRADE_VALUE",
         "purchase_price": null,
-        "fixed_value": null
+        "fixed_value": 10000
       },
       "inventory": {
         "slot_cost": 1,
@@ -2083,9 +2128,10 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
-        "value_source": "NONE",
+        "grade": "S",
+        "value_source": "TRADE_VALUE",
         "purchase_price": null,
-        "fixed_value": null
+        "fixed_value": 10000
       },
       "inventory": {
         "slot_cost": 1,
@@ -2135,9 +2181,10 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
-        "value_source": "NONE",
-        "purchase_price": null,
-        "fixed_value": null
+        "grade": "A",
+        "value_source": "TRADE_VALUE",
+        "purchase_price": 6000,
+        "fixed_value": 5000
       },
       "inventory": {
         "slot_cost": 1,
@@ -2198,9 +2245,10 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
-        "value_source": "NONE",
-        "purchase_price": null,
-        "fixed_value": null
+        "grade": "A",
+        "value_source": "TRADE_VALUE",
+        "purchase_price": 6000,
+        "fixed_value": 5000
       },
       "inventory": {
         "slot_cost": 1,
@@ -2254,9 +2302,10 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
-        "value_source": "NONE",
-        "purchase_price": null,
-        "fixed_value": null
+        "grade": "B",
+        "value_source": "TRADE_VALUE",
+        "purchase_price": 960,
+        "fixed_value": 800
       },
       "inventory": {
         "slot_cost": 1,
@@ -2310,9 +2359,10 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
-        "value_source": "NONE",
-        "purchase_price": null,
-        "fixed_value": null
+        "grade": "B",
+        "value_source": "TRADE_VALUE",
+        "purchase_price": 960,
+        "fixed_value": 800
       },
       "inventory": {
         "slot_cost": 1,
@@ -2364,9 +2414,10 @@
       "defense_multiplier": null,
       "economy": {
         "currency": "GOLD",
-        "value_source": "NONE",
+        "grade": "SS",
+        "value_source": "TRADE_VALUE",
         "purchase_price": null,
-        "fixed_value": null
+        "fixed_value": 50000
       },
       "inventory": {
         "slot_cost": 1,
