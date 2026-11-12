@@ -56,16 +56,29 @@ async function verify() {
   assert.deepEqual((await call('shop', order)).trade, sale.trade)
   await call('shop', { ...order, quantity: 2 }, 409, 'REQUEST_ID_REUSED')
   await call('shop', { ...order, op: 'buy', cardId: 'ar_013', unitPrice: 1, requestId: randomUUID() }, 409, 'CARD_NOT_FOR_SALE')
-  const buy = { op: 'buy', cardId: 'sk_008', quantity: 2, unitPrice: 960, requestId: randomUUID() }
-  await call('shop', { ...buy, unitPrice: 800 }, 409, 'SHOP_PRICE_CHANGED')
+  const buy = { op: 'buy', requestId: randomUUID(), items: [
+    { cardId: 'sk_008', quantity: 2, unitPrice: 960 }, { cardId: 'wp_007', quantity: 1, unitPrice: 960 }
+  ] }
+  await call('shop', { ...buy, items: [buy.items[0], { ...buy.items[1], unitPrice: 800 }] }, 409, 'SHOP_PRICE_CHANGED')
+  assert.deepEqual((await call('shop', { op: 'list' })).profile, sale.profile)
   const receipt = await call('shop', buy)
-  assert.equal(receipt.profile.gold, 28080)
+  assert.equal(receipt.profile.gold, 27120)
   assert.equal(receipt.profile.quantities.sk_008, 2)
-  assert.equal(receipt.profile.assetValue, 31281)
-  const soldShield = await call('shop', { ...order, cardId: 'ar_013', unitPrice: 1, requestId: randomUUID() })
-  assert.equal(soldShield.profile.gold, 28081)
+  assert.equal(receipt.profile.quantities.wp_007, 1)
+  assert.equal(receipt.profile.assetValue, 31121)
+  assert.deepEqual((await call('shop', { ...buy, items: buy.items.slice().reverse() })).trade, receipt.trade)
+  await call('shop', { ...buy, items: buy.items.slice(0, 1) }, 409, 'REQUEST_ID_REUSED')
+  const batchSale = { op: 'sell', requestId: randomUUID(), items: [
+    { cardId: 'ar_013', quantity: 1, unitPrice: 1 }, { cardId: 'wp_007', quantity: 1, unitPrice: 800 }
+  ] }
+  await call('shop', { ...batchSale, items: [batchSale.items[0], { ...batchSale.items[1], quantity: 2 }] }, 409, 'NOT_OWNED')
+  assert.deepEqual((await call('shop', { op: 'list' })).profile, receipt.profile)
+  const soldShield = await call('shop', batchSale)
+  assert.equal(soldShield.profile.gold, 27921)
+  assert.equal(soldShield.profile.quantities.ar_013, 0)
+  assert.equal(soldShield.profile.quantities.wp_007, 0)
   const started = await call('start', { requestId: randomUUID(), cardIds: ['wp_006', 'ar_006', 'sk_008'], mode: 'SINGLE', combatVersion: 1 })
-  assert.equal(started.profile.assetValue, 28881)
+  assert.equal(started.profile.assetValue, 28721)
   assert.deepEqual(started.activeGame.backpackAssets, { initial: 2400, current: 2400, change: 0 })
   const resumed = await call('resume', {})
   assert.deepEqual(resumed.activeGame.backpackAssets, started.activeGame.backpackAssets)
@@ -73,8 +86,8 @@ async function verify() {
   const [entries] = db([command(ledger, 'QUERY', { find: ledger, filter: { accountId }, projection: { _id: 1, type: 1, goldDelta: 1 }, limit: 20 })])
   const deltas = entries.filter(entry => entry.type.startsWith('SHOP_')).map(({ goldDelta }) =>
     typeof goldDelta === 'number' ? goldDelta : Number(goldDelta?.$numberInt ?? goldDelta?.$numberLong))
-  assert.deepEqual(deltas.sort((a, b) => a - b), [-1920, 1, 30000])
-  console.log('公网商店：货架与价格、售出、批量购买、重复请求、旧报价和守卫盾禁购均通过；开局与恢复估值正确，交易流水只落一次。')
+  assert.deepEqual(deltas.sort((a, b) => a - b), [-2880, 801, 30000])
+  console.log('公网商店：旧单兼容、多卡买卖、整单失败回滚、重复请求和流水均通过。开局与恢复估值正确。')
 }
 
 async function main() {

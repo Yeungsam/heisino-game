@@ -233,7 +233,26 @@ test('单人第3轮：本地卡背、半秒揭示、拾取丢弃与搜索截止�
   assert.equal((await sim.store.get(player.account.id)).activeGame.state.items.find(item => item.instanceId === hiddenId).state, 'DROPPED')
 })
 
-test('旧局超过十件的同款物品可翻页，丢弃时只移除选中的一件', async t => {
+test('地图背包在移动截止时关闭，浮层上的旧触摸不会触发房间操作', async t => {
+  const sim = await simulation(t, 1)
+  const [player] = sim.client
+  await solo(player)
+  await player.tap('map_backpack')
+  const card = player.hits('card_preview')[0].rect
+  player.touch('start', ...center(card))
+  sim.tick(player.run('engine.moveDeadlineAt - Date.now()'))
+  await heartbeat(player)
+  assert.equal(player.run('presentation'), 'ROOM')
+  assert.equal(player.hits('map_backpack_close').length, 0)
+  const leave = player.hits('room_leave')[0].rect
+  const requests = player.requests.length
+  player.touch('end', ...center(leave))
+  await player.idle()
+  assert.equal(player.requests.length, requests)
+  assert.equal(player.run('presentation'), 'ROOM')
+})
+
+test('地图背包可只读查看及翻页，旧局超过十件在搜索中仍按实例丢弃', async t => {
   const sim = await simulation(t, 1)
   const [player] = sim.client
   await solo(player)
@@ -244,10 +263,30 @@ test('旧局超过十件的同款物品可翻页，丢弃时只移除选中的�
   local.inventory.push(...copies)
   const inventory = local.inventory.slice()
   stored.state = engine.snapshot()
+  await heartbeat(player)
+  const confirmMove = player.hits('confirm_move')[0].rect
+  const icon = player.hits('map_backpack')[0].rect
+  assert.ok(icon.x < 160 && icon.y < 82)
+  await player.tap('map_backpack')
+  assert.ok(player.draw().includes('背包资产 250.8k') && player.draw().includes('+250k'))
+  assert.ok(player.draw().every(label => !label.includes('变化')))
+  assert.equal(player.hits('confirm_move').length, 0)
+  assert.deepEqual(player.hits('card_preview').map(hit => hit.data), inventory.slice(0, 10))
+  await player.tap('map_backpack_page', hit => hit.data === 1)
+  await player.tap('card_preview', hit => hit.data === inventory[10])
+  await player.tap('card_preview_close')
+  const lastCard = player.hits('card_preview')[0].rect
+  const gameRequests = player.requests.filter(req => req.route === '/api/account/game').length
+  drag(player, lastCard, confirmMove)
+  await player.idle()
+  assert.equal(player.requests.filter(req => req.route === '/api/account/game').length, gameRequests)
+  assert.equal(player.hits('map_backpack_close').length, 1)
+  await player.tap('map_backpack_close')
+  assert.ok(player.hits('confirm_move').length)
   await player.tap('confirm_move')
   await player.tap('room_area', hit => hit.data === 'MAIN_TABLE')
   assert.ok(player.draw().includes('玩家背包  11/10'))
-  assert.ok(player.draw().includes('背包资产 250.8k') && player.draw().includes('变化 +250k'))
+  assert.ok(player.draw().includes('背包资产 250.8k') && player.draw().includes('+250k'))
   assert.deepEqual(player.read('ui.searchInventoryRects').map(item => item.instanceId), inventory.slice(0, 10))
   await player.tap('search_backpack_page')
   player.draw()
@@ -256,7 +295,7 @@ test('旧局超过十件的同款物品可翻页，丢弃时只移除选中的�
   drag(player, overflow, player.read('ui.searchRoomRect'))
   await player.idle()
   assert.ok(player.draw().includes('玩家背包  10/10'))
-  assert.ok(player.draw().includes('背包资产 225.8k') && player.draw().includes('变化 +225k'))
+  assert.ok(player.draw().includes('背包资产 225.8k') && player.draw().includes('+225k'))
   assert.deepEqual(player.read('ui.searchInventoryRects').map(item => item.instanceId), inventory.slice(0, 10))
   assert.equal(player.hits('search_backpack_page').length, 0)
   const dropped = player.read('ui.searchItemRects').find(item => item.instanceId === overflow.instanceId)

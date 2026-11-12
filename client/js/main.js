@@ -187,6 +187,9 @@ let cardsById = createCardCatalogIndex(cards)
 let loadout = new LoadoutSession({ cards, equipmentLimit: !!combatVersion })
 let engine = null
 let presentation = 'MAP'
+let mapBackpackOpen = false
+let mapBackpackPage = 0
+let mapBackpackTouch = null
 let selectedMove = null
 let movementPinPosition = null
 let movementPinTransition = null
@@ -220,9 +223,9 @@ let cardPreviewTouch = null
 let warehouseGesture = null
 let shopCatalog = null
 let shopMode = 'buy'
-let shopSelection = null
-let shopQuantity = 1
+const shopCarts = { buy: [], sell: [] }
 let shopScrollY = 0
+let shopCartScrollY = 0
 let shopConfirming = false
 let shopMessage = ''
 const pendingShopTrades = new Map()
@@ -257,7 +260,9 @@ const ui = {
   loadoutWarehouseScrollRect: null,
   loadoutWarehouseMaxScroll: 0,
   warehouseScrollRect: null,
-  warehouseMaxScroll: 0
+  warehouseMaxScroll: 0,
+  shopCartScrollRect: null,
+  shopCartMaxScroll: 0
 }
 
 function setScene(nextScene) {
@@ -266,6 +271,7 @@ function setScene(nextScene) {
   profileConfirmationOpen = false
   if (userInfoButton) { userInfoButton.destroy(); userInfoButton = null }
   if (scene !== nextScene) {
+    closeMapBackpack()
     cardPreviewId = null
     cardPreviewTouch = null
   }
@@ -579,6 +585,7 @@ function applyAccountResponse(response) {
     }
   }
   const visit = searchVisitState?.visit
+  if (!accountGame || changedRound || presentation !== 'MAP') closeMapBackpack()
   if (searchGesture && (visit?.visitId !== previousVisit?.visitId || !visit?.observation?.active ||
       visit.observation.areaId !== previousVisit?.observation?.areaId)) cancelInputGesture()
 }
@@ -1058,6 +1065,14 @@ function applyShopResponse(response) {
   PLAYER_ACCOUNT_GOLD = accountProfile.gold
   if (changed) loadout = new LoadoutSession({ cards, quantities: accountProfile.quantities, equipmentLimit: !!combatVersion })
   shopCatalog = response.catalog
+  const byId = new Map(shopCatalog.map(offer => [offer.cardId, offer]))
+  shopCarts.buy = shopCarts.buy.filter(id => byId.get(id)?.buyPrice > 0)
+  const remaining = { ...accountProfile.quantities }
+  shopCarts.sell = shopCarts.sell.filter(id => {
+    if (!byId.has(id) || !(remaining[id] > 0)) return false
+    remaining[id] -= 1
+    return true
+  })
   invalidateFrame()
 }
 
@@ -1074,20 +1089,33 @@ async function refreshShop() {
 function enterShop() {
   if (!accountProfile?.profileComplete) return
   shopMode = 'buy'
-  shopSelection = null
-  shopQuantity = 1
+  shopCarts.buy = []
+  shopCarts.sell = []
   shopScrollY = 0
+  shopCartScrollY = 0
   shopCatalog = null
   shopMessage = ''
   setScene('SHOP')
   refreshShop()
 }
 
-function shopOffer(offer) {
-  const owned = accountProfile?.quantities[offer.cardId] ?? 0
-  const price = shopMode === 'buy' ? offer.buyPrice : offer.sellPrice
-  const max = shopMode === 'buy' ? (price ? Math.floor(accountProfile.gold / price) : 0) : owned
-  return { ...offer, owned, price, max }
+function shopCartCounts() {
+  const counts = new Map()
+  for (const cardId of shopCarts[shopMode]) counts.set(cardId, (counts.get(cardId) ?? 0) + 1)
+  return counts
+}
+
+function shopCartOrder(counts) {
+  const items = []
+  let total = 0
+  for (const offer of shopCatalog || []) {
+    const quantity = counts.get(offer.cardId)
+    if (!quantity) continue
+    const unitPrice = shopMode === 'buy' ? offer.buyPrice : offer.sellPrice
+    items.push({ cardId: offer.cardId, quantity, unitPrice })
+    total += quantity * unitPrice
+  }
+  return { items, total }
 }
 
 async function submitShopTrade(trade) {
@@ -1102,13 +1130,14 @@ async function submitShopTrade(trade) {
     savePendingShopTrade(accountId, null)
     const receipt = response.trade
     const label = receipt.op === 'buy' ? '购买成功，已入仓' : '出售成功'
-    shopQuantity = 1
+    shopCarts[receipt.op] = []
+    shopCartScrollY = 0
     addToast(`${label} · ${receipt.op === 'buy' ? '−' : '+'}${receipt.total} 金币`)
   } catch (error) {
     if (error.statusCode >= 400 && error.statusCode < 500 && ![401, 404, 408, 429].includes(error.statusCode) &&
         !['ACCOUNT_BUSY', 'ACTIVE_GAME_EXISTS', 'ALREADY_IN_ROOM'].includes(error.code)) {
       savePendingShopTrade(accountId, null)
-      refresh = ['SHOP_PRICE_CHANGED', 'INSUFFICIENT_GOLD', 'NOT_OWNED'].includes(error.code)
+      refresh = ['SHOP_PRICE_CHANGED', 'INSUFFICIENT_GOLD', 'NOT_OWNED', 'CARD_NOT_FOR_SALE', 'SHOP_CARD_INVALID'].includes(error.code)
       addToast(error.code === 'NOT_OWNED' ? '仓库数量不足，请重新选择。' : accountError(error))
     } else addToast('暂未收到交易结果，请重试确认。')
   } finally { endAccountRequest() }
@@ -1116,17 +1145,16 @@ async function submitShopTrade(trade) {
 }
 
 function confirmShopTrade() {
-  const selected = shopCatalog?.find(offer => offer.cardId === shopSelection)
-  if (!selected || shopConfirming || pendingShopTrade()) return
-  const offer = shopOffer(selected)
-  if (!offer.price || shopQuantity < 1 || shopQuantity > offer.max) return
-  const trade = { op: shopMode, cardId: offer.cardId, quantity: shopQuantity, unitPrice: offer.price, requestId: accountApi.requestId() }
+  if (shopConfirming || pendingShopTrade()) return
+  const { items, total } = shopCartOrder(shopCartCounts())
+  if (!items.length || (shopMode === 'buy' && total > accountProfile.gold)) return
+  const trade = { op: shopMode, items, requestId: accountApi.requestId() }
   const label = shopMode === 'buy' ? '购买' : '出售'
   const accountId = accountProfile.accountId
   shopConfirming = true
   wx.showModal({
     title: `确认${label}`, confirmText: label,
-    content: `${cardById(offer.cardId)?.name || offer.cardId} ×${shopQuantity}\n${shopMode === 'buy' ? '支付' : '获得'} ${offer.price * shopQuantity} 金币`,
+    content: `${label} ${shopCarts[shopMode].length} 张卡牌\n${shopMode === 'buy' ? '支付' : '获得'} ${total} 金币`,
     success(result) {
       shopConfirming = false
       if (result.confirm && scene === 'SHOP' && accountProfile?.accountId === accountId) submitShopTrade(trade)
@@ -1361,7 +1389,12 @@ function drawShop() {
     text(shopMessage || '正在读取商店…', margin + gridWidth / 2, top + 76, 12, PALETTE.cream, 'center', 'normal', gridWidth - 24)
     if (!accountBusy) button('shop_refresh', '重新加载', { x: margin + gridWidth / 2 - 48, y: top + 96, width: 96, height: 32 }, muted)
   }
-  const offers = (shopCatalog || []).map(shopOffer).filter(offer => shopMode === 'buy' ? offer.buyPrice !== null : offer.owned > 0)
+  const counts = shopCartCounts()
+  const selling = shopMode === 'sell'
+  const offers = (shopCatalog || []).map(offer => ({
+    ...offer, price: selling ? offer.sellPrice : offer.buyPrice,
+    remaining: (accountProfile?.quantities[offer.cardId] ?? 0) - (counts.get(offer.cardId) ?? 0)
+  })).filter(offer => selling ? offer.remaining > 0 : offer.buyPrice !== null)
   const viewport = { x: margin + 6, y: top + 48, width: gridWidth - 12, height: bottom - top - 54 }
   const grid = createVerticalCardGrid({ viewport, count: offers.length, columns: gridWidth > 620 ? 6 : gridWidth > 395 ? 5 : 4,
     gap: 8, padding: 6, scrollY: shopScrollY })
@@ -1375,53 +1408,71 @@ function drawShop() {
     if (!rectsIntersect(rect, viewport)) continue
     const offer = offers[index]
     const card = cardById(offer.cardId)
-    if (card) drawLoadoutCard(card, rect, offer.cardId === shopSelection, 'SHOP', shopMode === 'sell' ? offer.owned : undefined)
+    if (card) drawLoadoutCard(card, rect, false, 'SHOP', selling ? offer.remaining : undefined)
     else panel(rect.x, rect.y, rect.width, rect.height, { fill: '#3e2a3f' })
     panel(rect.x + 2, rect.y + rect.height - 19, rect.width - 4, 17, { fill: '#251725', stroke: '#b98d4d', radius: 4 })
     text(`${offer.grade} · ${formatAmount(offer.price)}`, rect.x + rect.width / 2, rect.y + rect.height - 10, 10,
       PALETTE.paleGold, 'center', 'bold', rect.width - 7)
     ui.hotspots.push({ id: 'shop_card', data: offer.cardId, rect: intersectionRect(rect, viewport) })
+    const preview = { x: rect.x + 3, y: rect.y + 3, width: 31, height: 19 }
+    if (card && rectsIntersect(preview, viewport)) {
+      panel(preview.x, preview.y, preview.width, preview.height, { fill: 'rgba(24,15,29,.95)', stroke: '#b98d4d', radius: 5 })
+      text('查看', preview.x + preview.width / 2, preview.y + preview.height / 2, 9, PALETTE.cream, 'center')
+      ui.hotspots.push({ id: 'shop_preview', data: card.cardId, previewCardId: card.cardId, rect: intersectionRect(preview, viewport) })
+    }
   }
   context.restore()
   drawScrollIndicator(viewport, grid.contentHeight, shopScrollY)
-  if (shopCatalog && !offers.length) text('暂无可出售的卡牌', margin + gridWidth / 2, viewport.y + 36, 12, PALETTE.cream, 'center')
+  if (shopCatalog && !offers.length) text(selling ? '没有可加入出售栏的卡牌' : '暂无商品', margin + gridWidth / 2, viewport.y + 36, 12, PALETTE.cream, 'center')
+  drawShopCart({ x: detailX, y: top, width: detailWidth, height: bottom - top }, counts)
+}
 
-  const center = detailX + detailWidth / 2
+function drawShopCart(rect, counts) {
+  const { x, y, width, height } = rect
+  const center = x + width / 2
+  const bottom = y + height
+  const actionRect = { x: x + 12, y: bottom - 39, width: width - 24, height: 29 }
   const pending = pendingShopTrade()
   if (pending) {
-    text('交易结果待确认', center, top + 34, 14, PALETTE.paleGold, 'center', 'bold')
-    text(`${cardById(pending.cardId)?.name || pending.cardId} ×${pending.quantity}`, center, top + 60, 12, PALETTE.cream, 'center')
-    button('shop_retry_trade', '重试确认', { x: detailX + 12, y: bottom - 43, width: detailWidth - 24, height: 31 }, { size: 12 })
+    const quantity = pending.items?.reduce((sum, line) => sum + line.quantity, 0) ?? pending.quantity
+    text('交易结果待确认', center, y + 34, 14, PALETTE.paleGold, 'center', 'bold')
+    text(`${pending.op === 'buy' ? '购买' : '出售'} ${quantity} 张卡牌`, center, y + 60, 12, PALETTE.cream, 'center')
+    button('shop_retry_trade', '重试确认', actionRect, { size: 12 })
     return
   }
-  const selected = offers.find(offer => offer.cardId === shopSelection)
-  if (!selected) {
-    text('选择一张卡牌', center, top + 50, 13, PALETTE.paleGold, 'center', 'bold')
-    return
+  const cart = shopCarts[shopMode]
+  const buying = shopMode === 'buy'
+  text(`${buying ? '待购买' : '待出售'}  ${cart.length} 张`, x + 12, y + 21, 13, PALETTE.paleGold, 'left', 'bold')
+  const viewport = { x: x + 6, y: y + 35, width: width - 12, height: height - 95 }
+  const columns = width >= 200 ? 4 : 3
+  const grid = createVerticalCardGrid({ viewport, count: Math.max(columns, Math.ceil(cart.length / columns) * columns),
+    columns, gap: 6, padding: 5, scrollY: shopCartScrollY })
+  shopCartScrollY = grid.scrollY
+  ui.shopCartScrollRect = viewport
+  ui.shopCartMaxScroll = grid.maxScroll
+  context.save()
+  roundedPath(viewport.x, viewport.y, viewport.width, viewport.height, 8)
+  context.clip()
+  for (const [index, slot] of grid.rects.entries()) {
+    if (!rectsIntersect(slot, viewport)) continue
+    const card = cardById(cart[index])
+    if (card) {
+      drawLoadoutCard(card, slot, false, 'SHOP')
+      text('×', slot.x + slot.width - 9, slot.y + 9, 13, '#fff4d9', 'center', 'bold')
+    } else panel(slot.x, slot.y, slot.width, slot.height, { fill: '#271c2b', stroke: '#624754', radius: 5 })
+    if (cart[index]) ui.hotspots.push({ id: 'shop_cart_remove', data: index, rect: intersectionRect(slot, viewport) })
   }
-  const card = cardById(selected.cardId)
-  const quantity = clamp(shopQuantity, 1, Math.max(1, selected.max))
-  shopQuantity = quantity
-  text(card?.name || selected.cardId, center, top + 22, 14, PALETTE.paleGold, 'center', 'bold', detailWidth - 24)
-  text(`${selected.grade} 级 · 持有 ${formatAmount(selected.owned)} 张`, center, top + 42, 11, PALETTE.cream, 'center')
-  text(`单价 ${selected.price} 金币`, center, top + 63, 12, PALETTE.gold, 'center', 'bold')
-  if (card) {
-    const preview = { x: detailX + 14, y: top + 75, width: detailWidth - 28, height: 25 }
-    button('shop_preview', '查看卡面', preview, muted)
-    ui.hotspots[ui.hotspots.length - 1].previewCardId = card.cardId
+  context.restore()
+  drawScrollIndicator(viewport, grid.contentHeight, shopCartScrollY)
+  const { total } = shopCartOrder(counts)
+  text(`合计 ${total} 金币`, center, bottom - 51, 12, PALETTE.gold, 'center', 'bold', width - 24)
+  const label = buying ? '确认购买' : '确认出售'
+  const cannotBuy = buying && total > accountProfile.gold
+  if (cart.length && !cannotBuy) button('shop_confirm', label, actionRect, { size: 12 })
+  else {
+    panel(actionRect.x, actionRect.y, actionRect.width, actionRect.height, { fill: '#342938', stroke: '#6d596c', radius: 8 })
+    text(cannotBuy ? '金币不足' : label, center, actionRect.y + actionRect.height / 2, 12, '#c4aebc', 'center')
   }
-  const quantityY = bottom - 106
-  const quantityWidth = (detailWidth - 28) / 5
-  if (selected.max > 0) {
-    if (quantity > 1) button('shop_quantity', '−', { x: detailX + 10, y: quantityY, width: quantityWidth, height: 26 }, { ...muted, data: -1 })
-    if (quantity < selected.max) {
-      button('shop_quantity', '+', { x: right - 14 - 2 * quantityWidth, y: quantityY, width: quantityWidth, height: 26 }, { ...muted, data: 1 })
-      button('shop_quantity', '最大', { x: right - 10 - quantityWidth, y: quantityY, width: quantityWidth, height: 26 }, { ...muted, size: 9, data: 'max' })
-    }
-    text(quantity, detailX + 14 + 2 * quantityWidth, quantityY + 13, 13, PALETTE.cream, 'center', 'bold', quantityWidth * 1.75)
-    text(`合计 ${selected.price * quantity} 金币`, center, bottom - 63, 12, PALETTE.gold, 'center', 'bold', detailWidth - 24)
-    button('shop_confirm', shopMode === 'buy' ? '购买' : '出售', { x: detailX + 12, y: bottom - 43, width: detailWidth - 24, height: 31 }, { size: 12 })
-  } else text('金币不足', center, bottom - 31, 12, '#ffb59e', 'center')
 }
 
 function drawWarehouse() {
@@ -1970,7 +2021,7 @@ function drawInventory(state, x, y, width, interactive = true) {
   panel(x, y, width, viewHeight - y - 70, { fill: 'rgba(28,17,30,.9)', stroke: 'rgba(247,201,92,.66)', radius: 13 })
   text('装备与背包', x + 14, y + 20, 14, PALETTE.paleGold, 'left', 'bold')
   const valuation = accountGame?.backpackAssets
-  text(`资产 ${formatAmount(valuation?.current)} · 变化 ${formatChange(valuation?.change)}`, x + width - 14, y + 20, 10,
+  text(`资产 ${formatAmount(valuation?.current)} · ${formatChange(valuation?.change)}`, x + width - 14, y + 20, 10,
     PALETTE.paleGold, 'right', 'bold', width - 110)
   const weapon = state.items.find(item => item.instanceId === local.equippedWeaponId)
   const weaponCard = weapon && cardById(weapon.cardId)
@@ -2428,7 +2479,52 @@ function drawMapScene(state) {
   }
   drawMovementLocation(layout)
   drawMovementHud(state, layout)
+  if (presentation === 'MAP' && accountGame && state.players.find(player => player.id === 'P1')?.status === 'ACTIVE') {
+    drawMapBackpackButton(layout)
+  }
   ui.discardRect = null
+}
+
+function drawMapBackpackButton(layout) {
+  const { location } = layout
+  const rect = { x: location.x + 8, y: location.y + location.height + 7, width: 67, height: 31 }
+  drawHudPlate(rect)
+  const icon = { x: rect.x + 8, y: rect.y + 7, width: 16, height: 17 }
+  if (assets.searchBagIcon) drawImageSourceInRect(assets.searchBagIcon, SEARCH_ASSET_CROPS.bagIcon, icon)
+  else {
+    panel(icon.x + 5, icon.y, 6, 6, { fill: '#2e202d', stroke: PALETTE.gold, radius: 2 })
+    panel(icon.x + 1, icon.y + 4, 14, 13, { fill: '#6a4026', stroke: PALETTE.gold, radius: 3 })
+  }
+  text('背包', rect.x + 31, rect.y + rect.height / 2, 11, PALETTE.paleGold, 'left', 'bold')
+  ui.hotspots.push({ id: 'map_backpack', rect })
+}
+
+function closeMapBackpack() {
+  if (mapBackpackTouch) cancelledGameTouch = true
+  mapBackpackTouch = null
+  if (mapBackpackOpen) {
+    cardPreviewId = null
+    cardPreviewTouch = null
+    mapBackpackOpen = false
+  }
+}
+
+function drawMapBackpack() {
+  const width = Math.min(520, viewWidth * 0.74)
+  const height = Math.min(315, viewHeight - 38)
+  const rect = { x: (viewWidth - width) / 2, y: (viewHeight - height) / 2, width, height }
+  darken(0.73, '10, 7, 14')
+  ui.hotspots = [
+    { id: 'map_backpack_dismiss', rect: { x: 0, y: 0, width: viewWidth, height: viewHeight } },
+    { id: 'map_backpack_panel', rect }
+  ]
+  const items = new Map(engine.items.map(item => [item.instanceId, item]))
+  const inventory = engine.getPlayer('P1').inventory.map(id => items.get(id)).filter(Boolean)
+  const scale = Math.min(width / 924, height / 690)
+  const result = drawBackpackPanel(rect, inventory, scale, mapBackpackPage, 'map_backpack_page')
+  mapBackpackPage = result.page
+  button('map_backpack_close', '关闭', { x: rect.x + width + 6, y: rect.y + 4, width: 43, height: 30 },
+    { top: '#514455', bottom: '#2c2330', stroke: '#a995a9', size: 10 })
 }
 
 function decidePostMove() {
@@ -2738,27 +2834,32 @@ function drawSearchRipple(slot, now) {
 
 function drawSearchInventoryPanel(rect) {
   const scale = createSearchLayout(viewWidth, viewHeight).scale
+  const result = drawBackpackPanel(rect, searchVisitState?.inventory || [], scale, searchBackpackPage, 'search_backpack_page')
+  searchBackpackPage = result.page
+  ui.searchBackpackRect = result.gridViewport
+  ui.searchInventoryRects = result.occupied
+}
+
+function drawBackpackPanel(rect, inventory, scale, currentPage, pageAction) {
   const contentLayout = createSearchPanelContentLayout(rect, scale)
   if (assets.searchPanel) drawNineSliceImage(assets.searchPanel, rect, SEARCH_PANEL_NINE_SLICE, scale)
   else panel(rect.x, rect.y, rect.width, rect.height, { fill: 'rgba(27,15,29,.94)', stroke: '#c9914b', lineWidth: 2, radius: 14 })
   if (assets.searchBagIcon) drawImageSourceInRect(assets.searchBagIcon, SEARCH_ASSET_CROPS.bagIcon, { x: rect.x + 52 * scale, y: contentLayout.iconTop, width: 32 * scale, height: 35 * scale })
-  const inventory = searchVisitState?.inventory || []
   text(`玩家背包  ${inventory.length}/${C.BACKPACK_SLOTS}`, rect.x + 100 * scale, contentLayout.headerBaselineY, Math.max(10, 26 * scale), PALETTE.paleGold, 'left', 'bold')
   const valuation = accountGame?.backpackAssets
   const valueX = rect.x + rect.width - 55 * scale
   const valueSize = Math.max(9, 22 * scale)
   text(`背包资产 ${formatAmount(valuation?.current)}`, valueX, contentLayout.headerBaselineY - 13 * scale,
     valueSize, PALETTE.paleGold, 'right', 'bold', rect.width * 0.42)
-  text(`变化 ${formatChange(valuation?.change)}`, valueX, contentLayout.headerBaselineY + 16 * scale,
+  text(formatChange(valuation?.change), valueX, contentLayout.headerBaselineY + 16 * scale,
     valueSize, valuation?.change > 0 ? '#9fe5c2' : valuation?.change < 0 ? '#ff9c9c' : '#d8c1b6', 'right', 'bold', rect.width * 0.42)
-  ui.searchInventoryRects = []
+  const occupied = []
   const gridViewport = { x: rect.x + 54 * scale, y: contentLayout.gridTop, width: rect.width - 108 * scale, height: contentLayout.gridBottom - contentLayout.gridTop }
   const grid = createContainedCardGrid({ viewport: gridViewport, count: C.BACKPACK_SLOTS, columns: 5, gap: 10 * scale, padding: 2 * scale })
-  ui.searchBackpackRect = gridViewport
   // Older games may already contain more than ten instances. Keep them all reachable.
   const pages = Math.max(1, Math.ceil(inventory.length / C.BACKPACK_SLOTS))
-  searchBackpackPage = clamp(searchBackpackPage, 0, pages - 1)
-  const offset = searchBackpackPage * C.BACKPACK_SLOTS
+  const page = clamp(currentPage, 0, pages - 1)
+  const offset = page * C.BACKPACK_SLOTS
   grid.rects.forEach((slot, index) => {
     if (assets.searchSlot) drawImageSourceInRect(assets.searchSlot, SEARCH_ASSET_CROPS.slot, slot)
     else panel(slot.x, slot.y, slot.width, slot.height, { fill: 'rgba(255,255,255,.045)', stroke: 'rgba(236,201,126,.32)', radius: 7 })
@@ -2767,7 +2868,7 @@ function drawSearchInventoryPanel(rect) {
       const cardRect = fitAspectRect(slot, CARD_ASPECT_RATIO)
       drawCardArt(cardById(item.cardId), cardRect, { radius: 7, inset: 1, stroke: 'rgba(255,226,157,.72)', lineWidth: 1 })
       ui.hotspots.push({ id: 'card_preview', rect: cardRect, previewCardId: item.cardId, data: item.instanceId })
-      ui.searchInventoryRects.push({ ...slot, instanceId: item.instanceId, cardId: item.cardId })
+      occupied.push({ ...slot, instanceId: item.instanceId, cardId: item.cardId })
     } else {
       if (assets.searchSlotPattern) drawImageSourceInRect(assets.searchSlotPattern, SEARCH_ASSET_CROPS.slotPattern, { x: slot.x + slot.width * 0.35, y: slot.y + slot.height * 0.32, width: slot.width * 0.3, height: slot.height * 0.36 })
     }
@@ -2777,10 +2878,11 @@ function drawSearchInventoryPanel(rect) {
     const y = contentLayout.gridBottom + 4 * scale
     const width = 142 * scale, height = 50 * scale
     const size = Math.max(9, 24 * scale)
-    text(`${searchBackpackPage + 1} / ${pages}`, center, y + height / 2, size, PALETTE.paleGold, 'center')
-    if (searchBackpackPage > 0) button('search_backpack_page', '上一页', { x: center - 218 * scale, y, width, height }, { size, data: -1 })
-    if (searchBackpackPage < pages - 1) button('search_backpack_page', '下一页', { x: center + 76 * scale, y, width, height }, { size, data: 1 })
+    text(`${page + 1} / ${pages}`, center, y + height / 2, size, PALETTE.paleGold, 'center')
+    if (page > 0) button(pageAction, '上一页', { x: center - 218 * scale, y, width, height }, { size, data: -1 })
+    if (page < pages - 1) button(pageAction, '下一页', { x: center + 76 * scale, y, width, height }, { size, data: 1 })
   }
+  return { page, gridViewport, occupied }
 }
 
 function drawSearchRoomPanel(rect) {
@@ -3041,6 +3143,8 @@ function draw() {
   ui.loadoutWarehouseMaxScroll = 0
   ui.warehouseScrollRect = null
   ui.warehouseMaxScroll = 0
+  ui.shopCartScrollRect = null
+  ui.shopCartMaxScroll = 0
   ui.discardRect = null
   if (scene === 'LOADING') drawLoading()
   if (scene === 'LOGIN' || scene === 'PROFILE') drawAccountSetup()
@@ -3052,6 +3156,7 @@ function draw() {
   if (scene === 'GAME') {
     drawGame()
     drawRoundNotice(Date.now())
+    if (mapBackpackOpen && accountGame && presentation === 'MAP') drawMapBackpack()
   }
   drawToast()
   drawPendingRequest()
@@ -3159,6 +3264,18 @@ async function dropDraggedInventoryItem(instanceId) {
 
 function handleAction(action) {
   if (!action || (scene === 'GAME' && presentation === 'REPLAY')) return
+  if (scene === 'GAME' && accountGame && presentation === 'MAP') {
+    if (mapBackpackOpen) {
+      if (action.id === 'map_backpack_close' || action.id === 'map_backpack_dismiss') closeMapBackpack()
+      if (action.id === 'map_backpack_page') mapBackpackPage += action.data
+      return
+    }
+    if (action.id === 'map_backpack') {
+      mapBackpackOpen = true
+      mapBackpackPage = 0
+      return
+    }
+  }
   if (action.id === 'account_diagnostics') { showConnectionDiagnostics(); return }
   if (action.id === 'account_retry') { connectAccount(); return }
   if (action.id === 'profile_name') { inputNickname(); return }
@@ -3182,21 +3299,19 @@ function handleAction(action) {
     if (action.id === 'shop_mode') {
       shopMode = action.data
       shopScrollY = 0
-      shopSelection = null
-      shopQuantity = 1
+      shopCartScrollY = 0
     }
-    if (action.id === 'shop_card') {
-      shopSelection = action.data
-      shopQuantity = 1
-    }
-    if (action.id === 'shop_quantity') {
-      const selected = shopCatalog?.find(offer => offer.cardId === shopSelection)
-      if (selected) {
-        const max = Math.max(1, shopOffer(selected).max)
-        shopQuantity = action.data === 'max' ? max : clamp(shopQuantity + action.data, 1, max)
+    if (!pendingShopTrade()) {
+      const cart = shopCarts[shopMode]
+      if (action.id === 'shop_card') {
+        const offer = shopCatalog?.find(card => card.cardId === action.data)
+        const available = shopMode === 'buy' ? offer?.buyPrice > 0 :
+          offer && (accountProfile.quantities[offer.cardId] ?? 0) > (shopCartCounts().get(offer.cardId) ?? 0)
+        if (available) cart.push(offer.cardId)
       }
+      if (action.id === 'shop_cart_remove') cart.splice(action.data, 1)
+      if (action.id === 'shop_confirm') confirmShopTrade()
     }
-    if (action.id === 'shop_confirm') confirmShopTrade()
     return
   }
   if (interactiveBattle && presentation === 'BATTLE') {
@@ -3324,6 +3439,10 @@ wx.onTouchStart(event => {
     : null
   if (cardPreviewId) return
   if (cancelledGameTouch) return
+  if (scene === 'GAME' && presentation === 'MAP' && (mapBackpackOpen || target?.id === 'map_backpack')) {
+    mapBackpackTouch = { start: point, startedAt: Date.now(), target, moved: event.touches.length !== 1 }
+    return
+  }
   if (scene === 'GAME' && presentation === 'BATTLE' && interactiveBattle) {
     const kind = target?.id === 'combat_die' ? 'die' : target?.id === 'combat_skill' ? 'skill' : 'tap'
     combatGesture = { kind, target, start: point, point, index: kind === 'die' ? target.data : undefined,
@@ -3332,7 +3451,7 @@ wx.onTouchStart(event => {
   }
   if (scene === 'WAREHOUSE' || scene === 'SHOP') {
     warehouseGesture = { start: point, last: point, mode: 'PENDING', target, scene, startedAt: Date.now(),
-      scrollable: pointInRect(point, ui.warehouseScrollRect) }
+      scrollArea: pointInRect(point, ui.shopCartScrollRect) ? 'CART' : pointInRect(point, ui.warehouseScrollRect) ? 'LIST' : null }
     return
   }
   if (scene === 'LOADOUT') {
@@ -3377,6 +3496,11 @@ wx.onTouchMove(event => {
   if (cardPreviewTouch && (event.touches.length !== 1 ||
       Math.hypot(point.x - cardPreviewTouch.start.x, point.y - cardPreviewTouch.start.y) >= CARD_TAP_DISTANCE)) cardPreviewTouch.moved = true
   if (cardPreviewId) return
+  if (mapBackpackTouch) {
+    if (event.touches.length !== 1 ||
+        Math.hypot(point.x - mapBackpackTouch.start.x, point.y - mapBackpackTouch.start.y) >= CARD_TAP_DISTANCE) mapBackpackTouch.moved = true
+    return
+  }
   if (combatGesture) {
     if (Math.hypot(point.x - combatGesture.start.x, point.y - combatGesture.start.y) >= 7) combatGesture.dragging = true
     combatGesture.point = point
@@ -3384,9 +3508,13 @@ wx.onTouchMove(event => {
   }
   if (['WAREHOUSE', 'SHOP'].includes(scene) && warehouseGesture) {
     if (warehouseGesture.mode === 'PENDING' && Math.hypot(point.x - warehouseGesture.start.x, point.y - warehouseGesture.start.y) >= 7) warehouseGesture.mode = 'SCROLL'
-    if (warehouseGesture.mode === 'SCROLL' && warehouseGesture.scrollable) {
-      if (scene === 'SHOP') shopScrollY = clamp(shopScrollY + warehouseGesture.last.y - point.y, 0, ui.warehouseMaxScroll)
-      else warehouseScrollY = clamp(warehouseScrollY + warehouseGesture.last.y - point.y, 0, ui.warehouseMaxScroll)
+    if (warehouseGesture.mode === 'SCROLL') {
+      const delta = warehouseGesture.last.y - point.y
+      if (warehouseGesture.scrollArea === 'CART') shopCartScrollY = clamp(shopCartScrollY + delta, 0, ui.shopCartMaxScroll)
+      if (warehouseGesture.scrollArea === 'LIST') {
+        if (scene === 'SHOP') shopScrollY = clamp(shopScrollY + delta, 0, ui.warehouseMaxScroll)
+        else warehouseScrollY = clamp(warehouseScrollY + delta, 0, ui.warehouseMaxScroll)
+      }
     }
     warehouseGesture.last = point
     return
@@ -3439,6 +3567,16 @@ wx.onTouchEnd(event => {
   }
   if (cancelledGameTouch) {
     cancelledGameTouch = false
+    return
+  }
+  if (mapBackpackTouch || mapBackpackOpen) {
+    const gesture = mapBackpackTouch
+    const target = hotspotAt(point)
+    mapBackpackTouch = null
+    if (scene === 'GAME' && presentation === 'MAP' && gesture && target &&
+        target.id === gesture.target?.id && target.data === gesture.target.data && isCardTap(gesture, point, event)) {
+      handleTouchTap(target, previewTouch, point, event)
+    }
     return
   }
   if (combatGesture) {
@@ -3545,6 +3683,8 @@ if (typeof wx.onMouseUp === 'function') wx.onMouseUp(event => {
 function cancelInputGesture() {
   if (cardPreviewTouch) cancelledGameTouch = true
   cardPreviewTouch = null
+  if (mapBackpackTouch) cancelledGameTouch = true
+  mapBackpackTouch = null
   warehouseGesture = null
   loadoutGesture = null
   loadoutDragging = null

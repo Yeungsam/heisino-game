@@ -83,6 +83,40 @@ test('同单并发与流水摘要滚动后重试只成交一次，复用请求�
   assert.equal([...store.ledger.values()].filter(entry => entry.type === 'SHOP_SELL').length, 2)
 })
 
+test('多卡订单整单提交，任一卡超卖、旧报价或总余额不足时仓库和流水不变', async () => {
+  const { shop, edit, store, accountId } = await fixture()
+  const sale = { op: 'sell', requestId: 'cart-sell-001', items: [
+    { cardId: 'ar_001', quantity: 1, unitPrice: 50000 },
+    { cardId: 'wp_006', quantity: 1, unitPrice: 800 }
+  ] }
+  const buy = { op: 'buy', requestId: 'cart-buy-001', items: [
+    { cardId: 'sk_008', quantity: 2, unitPrice: 960 },
+    { cardId: 'wp_007', quantity: 1, unitPrice: 960 }
+  ] }
+  edit(doc => { doc.gold = 1920 })
+  const before = await store.get(accountId)
+  await assert.rejects(shop({ ...sale, items: [sale.items[0], { ...sale.items[1], quantity: 2 }] }), { code: 'NOT_OWNED' })
+  await assert.rejects(shop({ ...sale, items: [sale.items[0], { ...sale.items[1], unitPrice: 1 }] }), { code: 'SHOP_PRICE_CHANGED' })
+  await assert.rejects(shop({ ...sale, items: [sale.items[0], sale.items[0]] }), { code: 'TRADE_INVALID' })
+  await assert.rejects(shop({ ...sale, items: [] }), { code: 'TRADE_INVALID' })
+  await assert.rejects(shop(buy), { code: 'INSUFFICIENT_GOLD' })
+  assert.deepEqual(await store.get(accountId), before)
+  const [first, retried] = await Promise.all([shop(sale), shop({ ...sale, items: sale.items.slice().reverse() })])
+  assert.deepEqual(first.trade, retried.trade)
+  assert.equal(first.profile.gold, 52720)
+  assert.equal(first.profile.quantities.ar_001, 0)
+  assert.equal(first.profile.quantities.wp_006, 0)
+  await assert.rejects(shop({ ...sale, items: sale.items.slice(0, 1) }), { code: 'REQUEST_ID_REUSED' })
+  const bought = await shop(buy)
+  assert.equal(bought.profile.gold, 49840)
+  assert.equal(bought.profile.quantities.sk_008, 2)
+  assert.equal(bought.profile.quantities.wp_007, 1)
+  const trades = [...store.ledger.values()].filter(entry => entry.type.startsWith('SHOP_'))
+  assert.deepEqual(trades.map(entry => [entry.goldDelta, entry.quantities]), [
+    [50800, { ar_001: -1, wp_006: -1 }], [-2880, { sk_008: 2, wp_007: 1 }]
+  ])
+})
+
 test('旧局从扣仓流水恢复带入基准，装备只算一次，拾取和损失可跨登录恢复', async () => {
   const { service, token, edit } = await fixture()
   edit(doc => { doc.gold = 12345 })

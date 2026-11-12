@@ -20,6 +20,22 @@ function automaticWinner(left, right, rng, forceLeft) {
 
 function must(result) { if (!result.ok) throw fault(result.reason, 409); return result }
 
+function shopOrder(input) {
+  const { op, cardId, quantity, unitPrice } = input
+  const batch = Object.hasOwn(input, 'items')
+  const items = batch ? input.items : [{ cardId, quantity, unitPrice }]
+  if (!['buy', 'sell'].includes(op) || !Array.isArray(items) || !items.length || items.some(item =>
+    !item || typeof item.cardId !== 'string' ||
+    !Number.isSafeInteger(item.quantity) || item.quantity < 1 ||
+    !Number.isSafeInteger(item.unitPrice) || item.unitPrice < 1
+  ) || new Set(items.map(item => item.cardId)).size !== items.length) throw fault('TRADE_INVALID')
+  const lines = items.map(({ cardId, quantity, unitPrice }) => ({ cardId, quantity, unitPrice }))
+  lines.sort((a, b) => a.cardId < b.cardId ? -1 : a.cardId > b.cardId ? 1 : 0)
+  // Keep the original fingerprint for orders already saved by earlier clients.
+  const fingerprint = digest(JSON.stringify(batch ? [op, lines] : [op, cardId, quantity, unitPrice]))
+  return { batch, lines, fingerprint }
+}
+
 class AccountService {
   constructor(options) {
     this.store = options.store
@@ -77,7 +93,7 @@ class AccountService {
 
   async shop(accountId, token, input) {
     const view = (document, revision, trade = null) => ({ profile: this.profile(document), revision, catalog: this.shopCatalog, trade })
-    const { op, cardId, quantity, unitPrice } = input
+    const { op } = input
     if (op === 'list') {
       const document = await this.store.get(accountId)
       if (!document) throw fault('UNAUTHENTICATED', 401)
@@ -89,36 +105,40 @@ class AccountService {
     return this.mutate(accountId, async document => {
       this.authenticate(document, token)
       this.assertShopAvailable(document)
-      if (!['buy', 'sell'].includes(op) || typeof cardId !== 'string' ||
-          !Number.isSafeInteger(quantity) || quantity < 1 ||
-          !Number.isSafeInteger(unitPrice) || unitPrice < 1) throw fault('TRADE_INVALID')
+      const { batch, lines, fingerprint } = shopOrder(input)
       const requestId = this.requestId(input)
       const entryId = digest(`shop:${accountId}:${requestId}`)
-      const fingerprint = digest(JSON.stringify([op, cardId, quantity, unitPrice]))
       const prior = await this.store.getLedgerEntry(entryId)
       if (prior) {
         if (prior.fingerprint !== fingerprint) throw fault('REQUEST_ID_REUSED', 409)
         return view(document, document.version + 1, prior.trade)
       }
-      const card = this.shopById.get(cardId)
-      if (!card) throw fault('SHOP_CARD_INVALID')
       const buying = op === 'buy'
-      const price = buying ? card.buyPrice : card.sellPrice
-      if (price === null) throw fault('CARD_NOT_FOR_SALE', 409)
-      if (unitPrice !== price) throw fault('SHOP_PRICE_CHANGED', 409)
-      const total = price * quantity
-      const owned = document.quantities[cardId] || 0
-      if (!Number.isSafeInteger(total)) throw fault('TRADE_INVALID')
+      const quantities = {}
+      const updated = {}
+      let total = 0
+      for (const { cardId, quantity, unitPrice } of lines) {
+        const card = this.shopById.get(cardId)
+        if (!card) throw fault('SHOP_CARD_INVALID')
+        const price = buying ? card.buyPrice : card.sellPrice
+        if (price === null) throw fault('CARD_NOT_FOR_SALE', 409)
+        if (unitPrice !== price) throw fault('SHOP_PRICE_CHANGED', 409)
+        total += price * quantity
+        if (!Number.isSafeInteger(total)) throw fault('TRADE_INVALID')
+        const owned = document.quantities[cardId] || 0
+        if (!buying && owned < quantity) throw fault('NOT_OWNED', 409)
+        const delta = buying ? quantity : -quantity
+        if (!Number.isSafeInteger(owned + delta)) throw fault('ASSET_LIMIT', 409)
+        quantities[cardId] = delta
+        updated[cardId] = owned + delta
+      }
       if (buying && document.gold < total) throw fault('INSUFFICIENT_GOLD', 409)
-      if (!buying && owned < quantity) throw fault('NOT_OWNED', 409)
       const goldDelta = buying ? -total : total
-      const quantityDelta = buying ? quantity : -quantity
-      if (!Number.isSafeInteger(document.gold + goldDelta) ||
-          !Number.isSafeInteger(owned + quantityDelta)) throw fault('ASSET_LIMIT', 409)
+      if (!Number.isSafeInteger(document.gold + goldDelta)) throw fault('ASSET_LIMIT', 409)
       document.gold += goldDelta
-      document.quantities[cardId] = owned + quantityDelta
-      const trade = { requestId, op, cardId, quantity, unitPrice: price, total }
-      this.ledger(document, { entryId, fingerprint, trade, type: buying ? 'SHOP_BUY' : 'SHOP_SELL', quantities: { [cardId]: quantityDelta }, goldDelta })
+      Object.assign(document.quantities, updated)
+      const trade = { requestId, op, ...(batch ? { items: lines } : lines[0]), total }
+      this.ledger(document, { entryId, fingerprint, trade, type: buying ? 'SHOP_BUY' : 'SHOP_SELL', quantities, goldDelta })
       return view(document, document.version + 1, trade)
     })
   }
