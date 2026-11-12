@@ -123,6 +123,7 @@ const searchAssetSources = {
   searchRoomTimerFill: 'subpackages/search/assets/room-timer-fill.png',
   searchPanel: 'subpackages/search/assets/search-panel.png',
   searchSlot: 'subpackages/search/assets/search-slot.png',
+  searchCardBack: 'subpackages/search/assets/card-back.jpg',
   searchSlotPattern: 'subpackages/search/assets/search-slot-pattern.png',
   searchBagIcon: 'subpackages/search/assets/search-bag-icon.png',
   searchBriefcaseIcon: 'subpackages/search/assets/search-briefcase-icon.png',
@@ -1244,6 +1245,10 @@ function drawFloatingCard(card, point) {
 }
 
 function drawCasinoCardBack(rect) {
+  if (assets.searchCardBack) {
+    drawImageContainInRect(assets.searchCardBack, rect, 7)
+    return
+  }
   context.save()
   roundedPath(rect.x, rect.y, rect.width, rect.height, 10)
   const gradient = context.createLinearGradient(rect.x, rect.y, rect.x, rect.y + rect.height)
@@ -1261,7 +1266,6 @@ function drawCasinoCardBack(rect) {
   context.stroke()
   text('♠', rect.x + rect.width / 2, rect.y + rect.height * 0.38, Math.max(24, rect.width * 0.34), '#f7c95c', 'center', 'bold')
   text('HEISINO', rect.x + rect.width / 2, rect.y + rect.height * 0.62, Math.max(7, rect.width * 0.09), '#fff0b0', 'center', 'bold')
-  text('点击搜索', rect.x + rect.width / 2, rect.y + rect.height - 18, Math.max(8, rect.width * 0.09), '#ffe8b2', 'center')
   context.restore()
 }
 
@@ -2839,6 +2843,8 @@ function drawSearchRoomPanel(rect) {
         ui.searchItemRects.push({ ...visibleRect, instanceId: item.instanceId, cardId: item.cardId })
         ui.hotspots.push({ id: 'card_preview', rect: visibleRect, previewCardId: item.cardId, data: item.instanceId })
       }
+    } else if (index < itemCount) {
+      drawCasinoCardBack(fitAspectRect(slot, CARD_ASPECT_RATIO))
     } else if (assets.searchSlotPattern) {
       drawImageSourceInRect(assets.searchSlotPattern, SEARCH_ASSET_CROPS.slotPattern, { x: slot.x + slot.width * 0.35, y: slot.y + slot.height * 0.32, width: slot.width * 0.3, height: slot.height * 0.36 })
     }

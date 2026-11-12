@@ -1,5 +1,5 @@
 // Append only: retired card IDs remain reserved forever, including in history.
-const RETIRED_CARD_IDS = Object.freeze(['sk_002', 'sk_003'])
+const RETIRED_CARD_IDS = Object.freeze(['sk_002', 'sk_003', 'loot_008'])
 const retiredIds = new Set(RETIRED_CARD_IDS)
 const isRetiredCard = cardId => retiredIds.has(cardId)
 

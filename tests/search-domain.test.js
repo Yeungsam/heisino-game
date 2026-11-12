@@ -62,7 +62,7 @@ test('服务端建局时不接受物资卡作为战备', async () => {
   assert.deepEqual(game.player.inventory.map(item => item.cardId), ['wp_001', 'ar_001', 'sk_001'])
 })
 
-test('兼容搜索恢复旧局与请求重试不返回停用技能', async () => {
+test('兼容搜索恢复旧局与请求重试不返回停用卡牌', async () => {
   const { service, store } = fixture()
   const input = { gameId: 'game-retired-skills', playerId: 'P1', loadoutCardIds: ['wp_001'] }
   await service.createGame(input)
@@ -73,8 +73,10 @@ test('兼容搜索恢复旧局与请求重试不返回停用技能', async () =>
   stored.players.P1.inventory.push(carried)
   const dropped = service.addItem(stored, 'sk_003', 'n_0_0', 'MAIN_TABLE', 'DROPPED')
   stored.items.find(item => item.instanceId === dropped).exposedBy.push('P1')
+  const bank = service.addItem(stored, 'loot_008', 'n_0_0', 'MAIN_TABLE', 'DROPPED')
+  stored.items.find(item => item.instanceId === bank).exposedBy.push('P1')
   const visit = stored.visits[observe.visitId]
-  visit.observation = { active: true, areaId: 'MAIN_TABLE', startedAt: 1000, initialVisibleCount: 1, visibleItemIds: [dropped], newlyExposedItemIds: [dropped] }
+  visit.observation = { active: true, areaId: 'MAIN_TABLE', startedAt: 1000, initialVisibleCount: 2, visibleItemIds: [dropped, bank], newlyExposedItemIds: [dropped, bank] }
   stored.requestResults[observe.requestId] = service.visitSnapshot(stored, visit, stored.players.P1)
   assert.ok(await store.replace({ ...stored, version: stored.version + 1 }, stored.version))
   const retried = await service.observe(observe)
@@ -83,6 +85,7 @@ test('兼容搜索恢复旧局与请求重试不返回停用技能', async () =>
   assert.deepEqual(await service.observe(observe), retried)
   assert.equal((await store.get(input.gameId)).items.length, 1)
   await assert.rejects(service.pickup({ ...observe, requestId: 'pickup-retired', instanceId: dropped }), { code: 'ITEM_NOT_VISIBLE' })
+  await assert.rejects(service.pickup({ ...observe, requestId: 'pickup-bank', instanceId: bank }), { code: 'ITEM_NOT_VISIBLE' })
 })
 
 test('区域搜索每 0.5 秒曝光 1 件并持续展示该区域全部物品', async () => {

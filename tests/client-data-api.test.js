@@ -21,7 +21,7 @@ test('客户端卡库区分有效投影、空响应、接口错误和断网', as
   const art = catalog.cards.find(card => card.card_id === 'ar_013')
   const offline = new Error('offline')
   const replies = [
-    options => options.success({ statusCode: 200, data: { ...catalog, cards: [art, { card_id: 'sk_002' }, { card_id: 'sk_003' }] } }),
+    options => options.success({ statusCode: 200, data: { ...catalog, cards: [art, { card_id: 'sk_002' }, { card_id: 'sk_003' }, { card_id: 'loot_008' }] } }),
     options => options.success({ statusCode: 200, data: {} }),
     options => options.success({ statusCode: 503 }),
     options => options.fail(offline)
@@ -31,7 +31,7 @@ test('客户端卡库区分有效投影、空响应、接口错误和断网', as
   assert.equal(cards.length, 1)
   assert.equal(cards[0].cardId, 'ar_013')
   assert.equal(cards[0].rarity, 'BLUE')
-  assert.equal(cards[0].assetPath, '/assets/cards/ar_005.jpg')
+  assert.equal(cards[0].assetPath, '/assets/cards/v2/ar_005.jpg')
   await assert.rejects(api.fetchCardCatalog(), /CARD_API_200/)
   await assert.rejects(api.fetchCardCatalog({ baseUrl: 'https://override.example' }), /CARD_API_503/)
   await assert.rejects(api.fetchCardCatalog(), error => error === offline)

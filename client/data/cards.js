@@ -10,7 +10,7 @@ module.exports = [
     "attackMultiplier": 1,
     "defenseMultiplier": null,
     "value": 50000,
-    "assetPath": "/assets/cards/wp_001.jpg",
+    "assetPath": "/assets/cards/v2/wp_001.jpg",
     "dataStatus": "ACTIVE"
   },
   {
@@ -23,7 +23,7 @@ module.exports = [
     "attackMultiplier": 0.9,
     "defenseMultiplier": null,
     "value": 10000,
-    "assetPath": "/assets/cards/wp_002.jpg",
+    "assetPath": "/assets/cards/v2/wp_002.jpg",
     "dataStatus": "ACTIVE"
   },
   {
@@ -36,7 +36,7 @@ module.exports = [
     "attackMultiplier": 0.9,
     "defenseMultiplier": null,
     "value": 10000,
-    "assetPath": "/assets/cards/wp_003.jpg",
+    "assetPath": "/assets/cards/v2/wp_003.jpg",
     "dataStatus": "ACTIVE"
   },
   {
@@ -49,7 +49,7 @@ module.exports = [
     "attackMultiplier": 0.8,
     "defenseMultiplier": null,
     "value": 5000,
-    "assetPath": "/assets/cards/wp_004.jpg",
+    "assetPath": "/assets/cards/v2/wp_004.jpg",
     "dataStatus": "ACTIVE"
   },
   {
@@ -62,7 +62,7 @@ module.exports = [
     "attackMultiplier": 0.8,
     "defenseMultiplier": null,
     "value": 5000,
-    "assetPath": "/assets/cards/wp_005.jpg",
+    "assetPath": "/assets/cards/v2/wp_005.jpg",
     "dataStatus": "ACTIVE"
   },
   {
@@ -75,7 +75,7 @@ module.exports = [
     "attackMultiplier": 0.6,
     "defenseMultiplier": null,
     "value": 800,
-    "assetPath": "/assets/cards/wp_006.jpg",
+    "assetPath": "/assets/cards/v2/wp_006.jpg",
     "dataStatus": "ACTIVE"
   },
   {
@@ -88,7 +88,7 @@ module.exports = [
     "attackMultiplier": 0.6,
     "defenseMultiplier": null,
     "value": 800,
-    "assetPath": "/assets/cards/wp_007.jpg",
+    "assetPath": "/assets/cards/v2/wp_007.jpg",
     "dataStatus": "ACTIVE"
   },
   {
@@ -101,7 +101,7 @@ module.exports = [
     "attackMultiplier": null,
     "defenseMultiplier": null,
     "value": 50000,
-    "assetPath": "/assets/cards/ar_001.jpg",
+    "assetPath": "/assets/cards/v2/ar_001.jpg",
     "dataStatus": "DRAFT"
   },
   {
@@ -114,7 +114,7 @@ module.exports = [
     "attackMultiplier": null,
     "defenseMultiplier": null,
     "value": 5000,
-    "assetPath": "/assets/cards/ar_002.jpg",
+    "assetPath": "/assets/cards/v2/ar_002.jpg",
     "dataStatus": "DRAFT"
   },
   {
@@ -127,7 +127,7 @@ module.exports = [
     "attackMultiplier": null,
     "defenseMultiplier": null,
     "value": 10000,
-    "assetPath": "/assets/cards/ar_003.jpg",
+    "assetPath": "/assets/cards/v2/ar_003.jpg",
     "dataStatus": "DRAFT"
   },
   {
@@ -140,7 +140,7 @@ module.exports = [
     "attackMultiplier": null,
     "defenseMultiplier": null,
     "value": 50000,
-    "assetPath": "/assets/cards/ar_004.jpg",
+    "assetPath": "/assets/cards/v2/ar_004.jpg",
     "dataStatus": "DRAFT"
   },
   {
@@ -153,7 +153,7 @@ module.exports = [
     "attackMultiplier": null,
     "defenseMultiplier": null,
     "value": 5000,
-    "assetPath": "/assets/cards/ar_005.jpg",
+    "assetPath": "/assets/cards/v2/ar_005.jpg",
     "dataStatus": "DRAFT"
   },
   {
@@ -166,7 +166,7 @@ module.exports = [
     "attackMultiplier": null,
     "defenseMultiplier": null,
     "value": 800,
-    "assetPath": "/assets/cards/ar_006.jpg",
+    "assetPath": "/assets/cards/v2/ar_006.jpg",
     "dataStatus": "DRAFT"
   },
   {
@@ -179,7 +179,7 @@ module.exports = [
     "attackMultiplier": null,
     "defenseMultiplier": null,
     "value": 800,
-    "assetPath": "/assets/cards/ar_007.jpg",
+    "assetPath": "/assets/cards/v2/ar_007.jpg",
     "dataStatus": "DRAFT"
   },
   {
@@ -192,7 +192,7 @@ module.exports = [
     "attackMultiplier": null,
     "defenseMultiplier": null,
     "value": 5000,
-    "assetPath": "/assets/cards/ar_008.jpg",
+    "assetPath": "/assets/cards/v2/ar_008.jpg",
     "dataStatus": "DRAFT"
   },
   {
@@ -205,7 +205,7 @@ module.exports = [
     "attackMultiplier": null,
     "defenseMultiplier": null,
     "value": 5000,
-    "assetPath": "/assets/cards/ar_009.jpg",
+    "assetPath": "/assets/cards/v2/ar_009.jpg",
     "dataStatus": "DRAFT"
   },
   {
@@ -218,7 +218,7 @@ module.exports = [
     "attackMultiplier": null,
     "defenseMultiplier": null,
     "value": 800,
-    "assetPath": "/assets/cards/ar_010.jpg",
+    "assetPath": "/assets/cards/v2/ar_010.jpg",
     "dataStatus": "DRAFT"
   },
   {
@@ -231,7 +231,7 @@ module.exports = [
     "attackMultiplier": null,
     "defenseMultiplier": null,
     "value": 800,
-    "assetPath": "/assets/cards/ar_011.jpg",
+    "assetPath": "/assets/cards/v2/ar_011.jpg",
     "dataStatus": "DRAFT"
   },
   {
@@ -244,7 +244,7 @@ module.exports = [
     "attackMultiplier": null,
     "defenseMultiplier": null,
     "value": 10000,
-    "assetPath": "/assets/cards/ar_012.jpg",
+    "assetPath": "/assets/cards/v2/ar_012.jpg",
     "dataStatus": "DRAFT"
   },
   {
@@ -257,7 +257,7 @@ module.exports = [
     "attackMultiplier": null,
     "defenseMultiplier": null,
     "value": 1,
-    "assetPath": "/assets/cards/ar_005.jpg",
+    "assetPath": "/assets/cards/v2/ar_005.jpg",
     "dataStatus": "DRAFT"
   },
   {
@@ -270,7 +270,7 @@ module.exports = [
     "attackMultiplier": null,
     "defenseMultiplier": null,
     "value": 25000,
-    "assetPath": "/assets/cards/loot_001.jpg",
+    "assetPath": "/assets/cards/v2/loot_001.jpg",
     "dataStatus": "ACTIVE"
   },
   {
@@ -283,7 +283,7 @@ module.exports = [
     "attackMultiplier": null,
     "defenseMultiplier": null,
     "value": 30000,
-    "assetPath": "/assets/cards/loot_002.jpg",
+    "assetPath": "/assets/cards/v2/loot_002.jpg",
     "dataStatus": "ACTIVE"
   },
   {
@@ -296,7 +296,7 @@ module.exports = [
     "attackMultiplier": null,
     "defenseMultiplier": null,
     "value": 50000,
-    "assetPath": "/assets/cards/loot_003.jpg",
+    "assetPath": "/assets/cards/v2/loot_003.jpg",
     "dataStatus": "ACTIVE"
   },
   {
@@ -309,7 +309,7 @@ module.exports = [
     "attackMultiplier": null,
     "defenseMultiplier": null,
     "value": 50000,
-    "assetPath": "/assets/cards/loot_004.jpg",
+    "assetPath": "/assets/cards/v2/loot_004.jpg",
     "dataStatus": "ACTIVE"
   },
   {
@@ -322,7 +322,7 @@ module.exports = [
     "attackMultiplier": null,
     "defenseMultiplier": null,
     "value": 60000,
-    "assetPath": "/assets/cards/loot_005.jpg",
+    "assetPath": "/assets/cards/v2/loot_005.jpg",
     "dataStatus": "ACTIVE"
   },
   {
@@ -335,7 +335,7 @@ module.exports = [
     "attackMultiplier": null,
     "defenseMultiplier": null,
     "value": 90000,
-    "assetPath": "/assets/cards/loot_006.jpg",
+    "assetPath": "/assets/cards/v2/loot_006.jpg",
     "dataStatus": "ACTIVE"
   },
   {
@@ -348,20 +348,7 @@ module.exports = [
     "attackMultiplier": null,
     "defenseMultiplier": null,
     "value": 100000,
-    "assetPath": "/assets/cards/loot_007.jpg",
-    "dataStatus": "ACTIVE"
-  },
-  {
-    "cardId": "loot_008",
-    "name": "丢失银行卡",
-    "description": "物资卡，撤离结算价值100000 Gold。",
-    "kind": "LOOT",
-    "category": "LOOT",
-    "rarity": "RED",
-    "attackMultiplier": null,
-    "defenseMultiplier": null,
-    "value": 100000,
-    "assetPath": "/assets/cards/loot_008.jpg",
+    "assetPath": "/assets/cards/v2/loot_007.jpg",
     "dataStatus": "ACTIVE"
   },
   {
@@ -374,7 +361,7 @@ module.exports = [
     "attackMultiplier": null,
     "defenseMultiplier": null,
     "value": 200000,
-    "assetPath": "/assets/cards/loot_009.jpg",
+    "assetPath": "/assets/cards/v2/loot_009.jpg",
     "dataStatus": "ACTIVE"
   },
   {
@@ -387,7 +374,7 @@ module.exports = [
     "attackMultiplier": null,
     "defenseMultiplier": null,
     "value": 10,
-    "assetPath": "/assets/cards/loot_010.jpg",
+    "assetPath": "/assets/cards/v2/loot_010.jpg",
     "dataStatus": "ACTIVE"
   },
   {
@@ -400,7 +387,7 @@ module.exports = [
     "attackMultiplier": null,
     "defenseMultiplier": null,
     "value": 300,
-    "assetPath": "/assets/cards/loot_011.jpg",
+    "assetPath": "/assets/cards/v2/loot_011.jpg",
     "dataStatus": "ACTIVE"
   },
   {
@@ -413,7 +400,7 @@ module.exports = [
     "attackMultiplier": null,
     "defenseMultiplier": null,
     "value": 2000,
-    "assetPath": "/assets/cards/loot_012.jpg",
+    "assetPath": "/assets/cards/v2/loot_012.jpg",
     "dataStatus": "ACTIVE"
   },
   {
@@ -426,7 +413,7 @@ module.exports = [
     "attackMultiplier": null,
     "defenseMultiplier": null,
     "value": 2500,
-    "assetPath": "/assets/cards/loot_013.jpg",
+    "assetPath": "/assets/cards/v2/loot_013.jpg",
     "dataStatus": "ACTIVE"
   },
   {
@@ -439,7 +426,7 @@ module.exports = [
     "attackMultiplier": null,
     "defenseMultiplier": null,
     "value": 3000,
-    "assetPath": "/assets/cards/loot_014.jpg",
+    "assetPath": "/assets/cards/v2/loot_014.jpg",
     "dataStatus": "ACTIVE"
   },
   {
@@ -452,7 +439,7 @@ module.exports = [
     "attackMultiplier": null,
     "defenseMultiplier": null,
     "value": 3000,
-    "assetPath": "/assets/cards/loot_015.jpg",
+    "assetPath": "/assets/cards/v2/loot_015.jpg",
     "dataStatus": "ACTIVE"
   },
   {
@@ -465,7 +452,7 @@ module.exports = [
     "attackMultiplier": null,
     "defenseMultiplier": null,
     "value": 5000,
-    "assetPath": "/assets/cards/loot_016.jpg",
+    "assetPath": "/assets/cards/v2/loot_016.jpg",
     "dataStatus": "ACTIVE"
   },
   {
@@ -478,7 +465,7 @@ module.exports = [
     "attackMultiplier": null,
     "defenseMultiplier": null,
     "value": 5000,
-    "assetPath": "/assets/cards/loot_017.jpg",
+    "assetPath": "/assets/cards/v2/loot_017.jpg",
     "dataStatus": "ACTIVE"
   },
   {
@@ -491,7 +478,7 @@ module.exports = [
     "attackMultiplier": null,
     "defenseMultiplier": null,
     "value": 7000,
-    "assetPath": "/assets/cards/loot_018.jpg",
+    "assetPath": "/assets/cards/v2/loot_018.jpg",
     "dataStatus": "ACTIVE"
   },
   {
@@ -504,7 +491,7 @@ module.exports = [
     "attackMultiplier": null,
     "defenseMultiplier": null,
     "value": 10000,
-    "assetPath": "/assets/cards/loot_019.jpg",
+    "assetPath": "/assets/cards/v2/loot_019.jpg",
     "dataStatus": "ACTIVE"
   },
   {
@@ -517,7 +504,7 @@ module.exports = [
     "attackMultiplier": null,
     "defenseMultiplier": null,
     "value": 10000,
-    "assetPath": "/assets/cards/loot_020.jpg",
+    "assetPath": "/assets/cards/v2/loot_020.jpg",
     "dataStatus": "ACTIVE"
   },
   {
@@ -530,7 +517,7 @@ module.exports = [
     "attackMultiplier": null,
     "defenseMultiplier": null,
     "value": 10000,
-    "assetPath": "/assets/cards/loot_021.jpg",
+    "assetPath": "/assets/cards/v2/loot_021.jpg",
     "dataStatus": "ACTIVE"
   },
   {
@@ -543,7 +530,7 @@ module.exports = [
     "attackMultiplier": null,
     "defenseMultiplier": null,
     "value": 15000,
-    "assetPath": "/assets/cards/loot_022.jpg",
+    "assetPath": "/assets/cards/v2/loot_022.jpg",
     "dataStatus": "ACTIVE"
   },
   {
@@ -556,7 +543,20 @@ module.exports = [
     "attackMultiplier": null,
     "defenseMultiplier": null,
     "value": 20000,
-    "assetPath": "/assets/cards/loot_023.jpg",
+    "assetPath": "/assets/cards/v2/loot_023.jpg",
+    "dataStatus": "ACTIVE"
+  },
+  {
+    "cardId": "loot_024",
+    "name": "烟头",
+    "description": "物资卡，撤离结算价值1000 Gold。",
+    "kind": "LOOT",
+    "category": "LOOT",
+    "rarity": "GREEN",
+    "attackMultiplier": null,
+    "defenseMultiplier": null,
+    "value": 1000,
+    "assetPath": "/assets/cards/v2/loot_024.jpg",
     "dataStatus": "ACTIVE"
   },
   {
@@ -569,7 +569,7 @@ module.exports = [
     "attackMultiplier": null,
     "defenseMultiplier": null,
     "value": 50000,
-    "assetPath": "/assets/cards/sk_001.jpg",
+    "assetPath": "/assets/cards/v2/sk_001.jpg",
     "dataStatus": "DRAFT"
   },
   {
@@ -582,7 +582,7 @@ module.exports = [
     "attackMultiplier": null,
     "defenseMultiplier": null,
     "value": 10000,
-    "assetPath": "/assets/cards/sk_004.jpg",
+    "assetPath": "/assets/cards/v2/sk_004.jpg",
     "dataStatus": "DRAFT"
   },
   {
@@ -595,7 +595,7 @@ module.exports = [
     "attackMultiplier": null,
     "defenseMultiplier": null,
     "value": 10000,
-    "assetPath": "/assets/cards/sk_005.jpg",
+    "assetPath": "/assets/cards/v2/sk_005.jpg",
     "dataStatus": "DRAFT"
   },
   {
@@ -608,7 +608,7 @@ module.exports = [
     "attackMultiplier": null,
     "defenseMultiplier": null,
     "value": 5000,
-    "assetPath": "/assets/cards/sk_006.jpg",
+    "assetPath": "/assets/cards/v2/sk_006.jpg",
     "dataStatus": "DRAFT"
   },
   {
@@ -621,7 +621,7 @@ module.exports = [
     "attackMultiplier": null,
     "defenseMultiplier": null,
     "value": 5000,
-    "assetPath": "/assets/cards/sk_007.jpg",
+    "assetPath": "/assets/cards/v2/sk_007.jpg",
     "dataStatus": "DRAFT"
   },
   {
@@ -634,7 +634,7 @@ module.exports = [
     "attackMultiplier": null,
     "defenseMultiplier": null,
     "value": 800,
-    "assetPath": "/assets/cards/sk_008.jpg",
+    "assetPath": "/assets/cards/v2/sk_008.jpg",
     "dataStatus": "DRAFT"
   },
   {
@@ -647,7 +647,7 @@ module.exports = [
     "attackMultiplier": null,
     "defenseMultiplier": null,
     "value": 800,
-    "assetPath": "/assets/cards/sk_009.jpg",
+    "assetPath": "/assets/cards/v2/sk_009.jpg",
     "dataStatus": "DRAFT"
   },
   {
@@ -660,7 +660,7 @@ module.exports = [
     "attackMultiplier": null,
     "defenseMultiplier": null,
     "value": 50000,
-    "assetPath": "/assets/cards/sk_010.jpg",
+    "assetPath": "/assets/cards/v2/sk_010.jpg",
     "dataStatus": "DRAFT"
   }
 ]

@@ -39,13 +39,18 @@ test('客户端和云端目录包含四类 51 张卡牌', () => {
   assert.deepEqual(require('../functions/heisino-cards/cards.json').cards, sourceCards)
   sourceCards.forEach(card => {
     assert.match(card.assets.sha256, /^[a-f0-9]{64}$/)
-    assert.match(card.assets.card_art_path, /^\/assets\/cards\/[a-z0-9_]+\.jpg$/)
+    assert.match(card.assets.card_art_path, /^\/assets\/cards\/v2\/[a-z0-9_]+\.jpg$/)
     assert.ok(card.source.ocr_text.length > 0)
   })
 })
 
-test('停用的两个技能 ID 永久保留，目录校验拒绝复用和重复编号', () => {
-  assert.ok(RETIRED_CARD_IDS.includes('sk_002') && RETIRED_CARD_IDS.includes('sk_003'))
+test('烟头使用独立编号和面值，停用卡号永久保留', () => {
+  const smoke = sourceCards.find(card => card.card_id === 'loot_024')
+  assert.equal(smoke?.name, '烟头')
+  assert.equal(smoke?.category, 'LOOT')
+  assert.equal(smoke?.rarity, 'GREEN')
+  assert.equal(smoke?.economy.fixed_value, 1000)
+  for (const id of ['sk_002', 'sk_003', 'loot_008']) assert.ok(RETIRED_CARD_IDS.includes(id))
   const activeIds = sourceCards.map(card => card.card_id)
   assert.doesNotThrow(() => assertActiveCardIds(activeIds))
   for (const id of RETIRED_CARD_IDS) assert.throws(() => assertActiveCardIds([...activeIds, id]), /Retired card ID/)

@@ -54,7 +54,10 @@ async function simulation(t, count = 3, { combatVersion } = {}) {
     const wx = {
       createCanvas: () => ({ getContext: () => context }),
       getWindowInfo: () => ({ windowWidth: width, windowHeight: height, pixelRatio: 2 }),
-      createImage: () => ({ width: 1280, height: 722, set src(_) { queueMicrotask(() => this.onload?.()) } }),
+      createImage: () => ({ width: 1280, height: 722, set src(value) {
+        this.source = value
+        queueMicrotask(() => this.onload?.())
+      } }),
       login: args => queueMicrotask(() => args.success({ code: loginCode ? loginCode() : account.code })),
       showModal,
       getStorageSync: key => storage.get(key),

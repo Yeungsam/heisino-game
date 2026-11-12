@@ -137,7 +137,7 @@ function drag(app, from, to) {
   app.touch('end', targetX, targetY)
 }
 
-test('单人第3轮：半秒自动刷新曝光、拾取丢弃与搜索截止热区', async t => {
+test('单人第3轮：本地卡背、半秒揭示、拾取丢弃与搜索截止热区', async t => {
   const sim = await simulation(t, 1)
   const [player] = sim.client
   await solo(player)
@@ -147,6 +147,26 @@ test('单人第3轮：半秒自动刷新曝光、拾取丢弃与搜索截止热�
   const area = player.read('searchVisitState.room.areas').find(item => item.itemCount > 0)
   await player.tap('room_area', hit => hit.data === area.areaId)
   assert.equal(player.run('presentation'), 'SEARCH')
+  const drawCardBacks = () => player.run(`(() => {
+    const drawImage = context.drawImage
+    let count = 0
+    context.drawImage = image => {
+      if (image.source === 'subpackages/search/assets/card-back.jpg') count++
+    }
+    try { draw(); return count }
+    finally { context.drawImage = drawImage }
+  })()`)
+  assert.equal(drawCardBacks(), area.itemCount)
+  const fallback = player.run(`(() => {
+    const back = assets.searchCardBack
+    const drawText = text
+    let count = 0
+    assets.searchCardBack = null
+    text = value => { if (value === 'HEISINO') count++ }
+    try { draw(); return count }
+    finally { assets.searchCardBack = back; text = drawText }
+  })()`)
+  assert.equal(fallback, area.itemCount)
   const game = (await sim.store.get(player.account.id)).activeGame
   const [hiddenId] = game.visit.observation.hiddenIds
   await assert.rejects(player.api.command('game', { gameId: game.gameId, turn: 1, action: 'pickup', instanceId: hiddenId }), { code: 'ITEM_NOT_VISIBLE' })
@@ -161,6 +181,7 @@ test('单人第3轮：半秒自动刷新曝光、拾取丢弃与搜索截止热�
   player.run('update()')
   await player.idle()
   assert.equal(heartbeatCount(), beforeReveal + 1)
+  assert.equal(drawCardBacks(), area.itemCount - 1)
   assert.match(player.draw().join('\n'), /搜索物品\s+1\//)
   assert.ok(player.draw().includes('每 0.5 秒揭示 1 件'))
   const [loot] = player.read('ui.searchItemRects')

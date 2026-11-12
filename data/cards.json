@@ -1,6 +1,6 @@
 {
   "schema_version": "0.2.0",
-  "generated_at": "2026-11-12T09:02:55.894Z",
+  "generated_at": "2026-11-12T09:24:15.473Z",
   "cards": [
     {
       "card_id": "wp_001",
@@ -11,13 +11,6 @@
       "rarity": "RED",
       "attack_multiplier": 1,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "SS",
-        "value_source": "TRADE_VALUE",
-        "purchase_price": null,
-        "fixed_value": 50000
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -34,18 +27,27 @@
       "assets": {
         "icon_key": "card_wp_001",
         "card_art_key": "card_wp_001",
-        "card_art_path": "/assets/cards/wp_001.jpg",
-        "source_file": "3.12 (7).png",
-        "sha256": "767ac82da0520c1a1ff79797539eb4464fec2f777fc692f4c0c8e09030a505e6"
+        "card_art_path": "/assets/cards/v2/wp_001.jpg",
+        "source_file": "image 1.png",
+        "sha256": "8d46cf4efc7eca1eba4086d2e6eac8d804dc907d1f9518ad084e82d489861990"
       },
       "data_status": "ACTIVE",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
           "黄金钢笔",
-          "100%政"
+          "点缀着红宝石与扑夹花色的纯金钢笔，",
+          "签下的每笔赌约都关乎百万筹码的归属。",
+          "100％攻"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "SS",
+        "value_source": "TRADE_VALUE",
+        "purchase_price": null,
+        "fixed_value": 50000
       }
     },
     {
@@ -57,13 +59,6 @@
       "rarity": "PURPLE",
       "attack_multiplier": 0.9,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "S",
-        "value_source": "TRADE_VALUE",
-        "purchase_price": null,
-        "fixed_value": 10000
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -80,18 +75,27 @@
       "assets": {
         "icon_key": "card_wp_002",
         "card_art_key": "card_wp_002",
-        "card_art_path": "/assets/cards/wp_002.jpg",
-        "source_file": "3.12 (6).png",
-        "sha256": "7bc05bd0e31a31d7457e874b3ace00f8e010580f71541760ba603be100e949a2"
+        "card_art_path": "/assets/cards/v2/wp_002.jpg",
+        "source_file": "image 53.png",
+        "sha256": "9a6cb257bce00fd83267230f8de0269adec06895f3e1f7019c6aa107cabe0b91"
       },
       "data_status": "ACTIVE",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
           "左轮手枪",
-          "/90%攻"
+          "刻有黑桃图腾的防身武器，",
+          "弹巢转动的机械声宛如致命的俄罗斯轮盘。",
+          "90％攻"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "S",
+        "value_source": "TRADE_VALUE",
+        "purchase_price": null,
+        "fixed_value": 10000
       }
     },
     {
@@ -103,13 +107,6 @@
       "rarity": "PURPLE",
       "attack_multiplier": 0.9,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "S",
-        "value_source": "TRADE_VALUE",
-        "purchase_price": null,
-        "fixed_value": 10000
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -126,18 +123,27 @@
       "assets": {
         "icon_key": "card_wp_003",
         "card_art_key": "card_wp_003",
-        "card_art_path": "/assets/cards/wp_003.jpg",
-        "source_file": "3.12 (5).png",
-        "sha256": "1e196adc19b7adf8786451bea9bc99b592f32ffbd99b9c9c8630a05f1d3179e2"
+        "card_art_path": "/assets/cards/v2/wp_003.jpg",
+        "source_file": "image 54.png",
+        "sha256": "99c25183c04167125966948ee9796fc74aaf8bf1170484f433068bc5bbcadcfa"
       },
       "data_status": "ACTIVE",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
-          "打火机",
-          "90%玫"
+          "zippo打火机",
+          "印有黑桃标志的金属火机，",
+          "专为牌桌上的大嬴家点燃胜利的雪茄。",
+          "90%攻"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "S",
+        "value_source": "TRADE_VALUE",
+        "purchase_price": null,
+        "fixed_value": 10000
       }
     },
     {
@@ -149,13 +155,6 @@
       "rarity": "BLUE",
       "attack_multiplier": 0.8,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "A",
-        "value_source": "TRADE_VALUE",
-        "purchase_price": 6000,
-        "fixed_value": 5000
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -172,18 +171,27 @@
       "assets": {
         "icon_key": "card_wp_004",
         "card_art_key": "card_wp_004",
-        "card_art_path": "/assets/cards/wp_004.jpg",
-        "source_file": "export_副本.png",
-        "sha256": "941c0f54507f227b5431573989c4cd5065e005591a13f39a0513be51740c019c"
+        "card_art_path": "/assets/cards/v2/wp_004.jpg",
+        "source_file": "image 56.png",
+        "sha256": "6d455240b975729514d915268c9211ba478e2b31f39187599a41130c786d037f"
       },
       "data_status": "ACTIVE",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
           "手提包",
-          "80%玫"
+          "带骰子与轮盘吊坠的高级皮包，",
+          "夹层里暗藏着随时准备翻盘的备用筹码。",
+          "80％攻"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "A",
+        "value_source": "TRADE_VALUE",
+        "purchase_price": 6000,
+        "fixed_value": 5000
       }
     },
     {
@@ -195,13 +203,6 @@
       "rarity": "BLUE",
       "attack_multiplier": 0.8,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "A",
-        "value_source": "TRADE_VALUE",
-        "purchase_price": 6000,
-        "fixed_value": 5000
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -218,18 +219,28 @@
       "assets": {
         "icon_key": "card_wp_005",
         "card_art_key": "card_wp_005",
-        "card_art_path": "/assets/cards/wp_005.jpg",
-        "source_file": "export (1).png",
-        "sha256": "e33005fde5100eda73efdb645b5fd414a6065bd8d99c821faff5ec006edf93a2"
+        "card_art_path": "/assets/cards/v2/wp_005.jpg",
+        "source_file": "image 55.png",
+        "sha256": "4f450bb26726c4561a6bbcf51792497dca14b2918aa0c69fb44841271fc6a242"
       },
       "data_status": "ACTIVE",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
           "拳套",
-          "80%玫"
+          "缝制着全套扑克花色的真皮拳套，",
+          "是赌场看场打手最无可争议的",
+          "暴力底牌。",
+          "80%攻"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "A",
+        "value_source": "TRADE_VALUE",
+        "purchase_price": 6000,
+        "fixed_value": 5000
       }
     },
     {
@@ -241,13 +252,6 @@
       "rarity": "GREEN",
       "attack_multiplier": 0.6,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "B",
-        "value_source": "TRADE_VALUE",
-        "purchase_price": 960,
-        "fixed_value": 800
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -264,18 +268,28 @@
       "assets": {
         "icon_key": "card_wp_006",
         "card_art_key": "card_wp_006",
-        "card_art_path": "/assets/cards/wp_006.jpg",
-        "source_file": "export (2).png",
-        "sha256": "6bbc136f393104861322fac52e931651eb71a6942646ec8cd5c85a120b2d9381"
+        "card_art_path": "/assets/cards/v2/wp_006.jpg",
+        "source_file": "image 57.png",
+        "sha256": "9de6555b48e5135b322b25af91e86511743ee700264cedc12222ad7239f6cfab"
       },
       "data_status": "ACTIVE",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
           "礼宾伞",
-          "60%攻"
+          "带有筹码吊坠的定制长伞，",
+          "既能为贵宾遮雨，也是局势失控时",
+          "对付老千的利器。",
+          "60％攻"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "B",
+        "value_source": "TRADE_VALUE",
+        "purchase_price": 960,
+        "fixed_value": 800
       }
     },
     {
@@ -287,13 +301,6 @@
       "rarity": "GREEN",
       "attack_multiplier": 0.6,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "B",
-        "value_source": "TRADE_VALUE",
-        "purchase_price": 960,
-        "fixed_value": 800
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -310,18 +317,27 @@
       "assets": {
         "icon_key": "card_wp_007",
         "card_art_key": "card_wp_007",
-        "card_art_path": "/assets/cards/wp_007.jpg",
-        "source_file": "export (3).png",
-        "sha256": "3fe1a7d79c13e70194df55ec9a29100c59d494e41308cb5fc6c4f2e100c50895"
+        "card_art_path": "/assets/cards/v2/wp_007.jpg",
+        "source_file": "image 58.png",
+        "sha256": "641a70e8c39d74af69474161447df4c26f55b18e1322cb0ce752d4a49003ca8a"
       },
       "data_status": "ACTIVE",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
           "旅行箱",
-          "60%攻"
+          "融合了黑桃与轮盘图案的大容量皮箱，",
+          "足够装满狂赢一夜后的全部钞票。",
+          "60％攻"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "B",
+        "value_source": "TRADE_VALUE",
+        "purchase_price": 960,
+        "fixed_value": 800
       }
     },
     {
@@ -333,13 +349,6 @@
       "rarity": "RED",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "SS",
-        "value_source": "TRADE_VALUE",
-        "purchase_price": null,
-        "fixed_value": 50000
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -356,18 +365,26 @@
       "assets": {
         "icon_key": "card_ar_001",
         "card_art_key": "card_ar_001",
-        "card_art_path": "/assets/cards/ar_001.jpg",
-        "source_file": "3.12 (3).png",
-        "sha256": "307c9134b73c6c9b1d2290f7e4e9d2cfa179ede1bd8d73b839c47a04e442e01a"
+        "card_art_path": "/assets/cards/v2/ar_001.jpg",
+        "source_file": "image 76.png",
+        "sha256": "a077c1dc2640a9bfa1455509069d5b1cf68fb271a4128f774146268cfb38057d"
       },
       "data_status": "DRAFT",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
           "急救腰包",
-          "2/2"
+          "抵挡致命伤，强效药剂让你瞬间恢复。",
+          "100%防"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "SS",
+        "value_source": "TRADE_VALUE",
+        "purchase_price": null,
+        "fixed_value": 50000
       }
     },
     {
@@ -379,13 +396,6 @@
       "rarity": "GREEN",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "A",
-        "value_source": "TRADE_VALUE",
-        "purchase_price": 6000,
-        "fixed_value": 5000
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -402,19 +412,27 @@
       "assets": {
         "icon_key": "card_ar_002",
         "card_art_key": "card_ar_002",
-        "card_art_path": "/assets/cards/ar_002.jpg",
-        "source_file": "3.12 (4).png",
-        "sha256": "a9197e4d5bbbb8fea7904a08a38f13e69d7437567ab62243a50ff692690d7374"
+        "card_art_path": "/assets/cards/v2/ar_002.jpg",
+        "source_file": "image 67.png",
+        "sha256": "b0f6ae000011a95215194ffb1f37194443a2a42d600cd47e77d2a4d735f54b46"
       },
       "data_status": "DRAFT",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
           "安全帽",
-          "⑦",
-          "2/2"
+          "工业级抗砸标准，",
+          "保护你的脑袋免受致命的爆头伤害。",
+          "80%防"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "A",
+        "value_source": "TRADE_VALUE",
+        "purchase_price": 6000,
+        "fixed_value": 5000
       }
     },
     {
@@ -426,13 +444,6 @@
       "rarity": "RED",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "S",
-        "value_source": "TRADE_VALUE",
-        "purchase_price": null,
-        "fixed_value": 10000
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -449,18 +460,26 @@
       "assets": {
         "icon_key": "card_ar_003",
         "card_art_key": "card_ar_003",
-        "card_art_path": "/assets/cards/ar_003.jpg",
-        "source_file": "export (4).png",
-        "sha256": "28ad750895e114094e37ea740dac721fdec4155f111042008950fa6b79774c78"
+        "card_art_path": "/assets/cards/v2/ar_003.jpg",
+        "source_file": "image 78.png",
+        "sha256": "c255b1032736d3a3d421542103d4c776f287774a82a421c1f7c2d0a635707c29"
       },
       "data_status": "DRAFT",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
           "泡泡防护罩",
-          "2/2"
+          "吹出的泡泡可以兔疫单次伤害。",
+          "90%防"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "S",
+        "value_source": "TRADE_VALUE",
+        "purchase_price": null,
+        "fixed_value": 10000
       }
     },
     {
@@ -472,13 +491,6 @@
       "rarity": "RED",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "SS",
-        "value_source": "TRADE_VALUE",
-        "purchase_price": null,
-        "fixed_value": 50000
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -495,18 +507,27 @@
       "assets": {
         "icon_key": "card_ar_004",
         "card_art_key": "card_ar_004",
-        "card_art_path": "/assets/cards/ar_004.jpg",
-        "source_file": "export (5).png",
-        "sha256": "94c7eb05b1b61aa6df558e5df3e1256bbc8050580ce92d08a8308d6403ada17d"
+        "card_art_path": "/assets/cards/v2/ar_004.jpg",
+        "source_file": "image 75.png",
+        "sha256": "416afacfc4043aa2574d8d3f35d81b71d68e4e3fc7c7061055a68bba680b8761"
       },
       "data_status": "DRAFT",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
           "堆叠抱枕",
-          "2/2"
+          "完全吸收技能卡冲击，",
+          "柔软触感会让攻击者陷入沉睡。",
+          "100％防"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "SS",
+        "value_source": "TRADE_VALUE",
+        "purchase_price": null,
+        "fixed_value": 50000
       }
     },
     {
@@ -518,13 +539,6 @@
       "rarity": "GREEN",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "A",
-        "value_source": "TRADE_VALUE",
-        "purchase_price": 6000,
-        "fixed_value": 5000
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -541,18 +555,27 @@
       "assets": {
         "icon_key": "card_ar_005",
         "card_art_key": "card_ar_005",
-        "card_art_path": "/assets/cards/ar_005.jpg",
-        "source_file": "export (7).png",
-        "sha256": "f9b396334854dcf79e88239bf5a3ca81ed96ad0fb5720f792665b49cd04dec30"
+        "card_art_path": "/assets/cards/v2/ar_005.jpg",
+        "source_file": "image 68.png",
+        "sha256": "21171a22994921098fd80741b2b63f2a29f4281e9f0f97450186eb2ac59d044c"
       },
       "data_status": "DRAFT",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
-          "堵报圆盾",
-          "2/2"
+          "赌报圆盾",
+          "坚硬的实木与金属轮盘，",
+          "完美格挡并伴随强力反震。",
+          "80%防"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "A",
+        "value_source": "TRADE_VALUE",
+        "purchase_price": 6000,
+        "fixed_value": 5000
       }
     },
     {
@@ -564,13 +587,6 @@
       "rarity": "GREEN",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "B",
-        "value_source": "TRADE_VALUE",
-        "purchase_price": 960,
-        "fixed_value": 800
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -587,18 +603,26 @@
       "assets": {
         "icon_key": "card_ar_006",
         "card_art_key": "card_ar_006",
-        "card_art_path": "/assets/cards/ar_006.jpg",
-        "source_file": "export (8).png",
-        "sha256": "27b88b2465d2882284fc66009ff14c10096fa02e764d1ef712f1690e9993245b"
+        "card_art_path": "/assets/cards/v2/ar_006.jpg",
+        "source_file": "image 74.png",
+        "sha256": "f9254b9f11c14d2c026c44171cfcf8ad83b1933e25066ba63dd0263f3dd80d4f"
       },
       "data_status": "DRAFT",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
           "废筹码垫板",
-          "2/2"
+          "致密的高硬度塑料筹码，能有效缓冲街头棍棒的殴打。",
+          "60%防"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "B",
+        "value_source": "TRADE_VALUE",
+        "purchase_price": 960,
+        "fixed_value": 800
       }
     },
     {
@@ -610,13 +634,6 @@
       "rarity": "GREEN",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "B",
-        "value_source": "TRADE_VALUE",
-        "purchase_price": 960,
-        "fixed_value": 800
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -633,18 +650,27 @@
       "assets": {
         "icon_key": "card_ar_007",
         "card_art_key": "card_ar_007",
-        "card_art_path": "/assets/cards/ar_007.jpg",
-        "source_file": "export (9).png",
-        "sha256": "a97737553272f81b54ccaf1ef4b39c88254719f6905966ee04f9f66c39f2ee75"
+        "card_art_path": "/assets/cards/v2/ar_007.jpg",
+        "source_file": "image 73.png",
+        "sha256": "83fa04bb5939db426739f3588e3ca6a9c6d37d4efc7b4f4abe504a36cb31f0e2"
       },
       "data_status": "DRAFT",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
           "地毯披风",
-          "2/2"
+          "厚实的化纤材质，提供了极佳的",
+          "钝器缓冲与静电反制。",
+          "60%防"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "B",
+        "value_source": "TRADE_VALUE",
+        "purchase_price": 960,
+        "fixed_value": 800
       }
     },
     {
@@ -656,13 +682,6 @@
       "rarity": "GREEN",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "A",
-        "value_source": "TRADE_VALUE",
-        "purchase_price": 6000,
-        "fixed_value": 5000
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -679,18 +698,26 @@
       "assets": {
         "icon_key": "card_ar_008",
         "card_art_key": "card_ar_008",
-        "card_art_path": "/assets/cards/ar_008.jpg",
-        "source_file": "export (10).png",
-        "sha256": "effc974027168aa842ffaeb2b2988bd140e82e806c7433fac51a018cc5fafa9d"
+        "card_art_path": "/assets/cards/v2/ar_008.jpg",
+        "source_file": "image 71.png",
+        "sha256": "caaa03f57bfccf70e5ed6b130794c8d093387db5388c292de8dbfbe87ea582da"
       },
       "data_status": "DRAFT",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
-          "旧扑克护片",
-          "2/2"
+          "^旧扑克护片",
+          "今纸糊般的防护，能不能挡住伤害全看发牌员的运气。令",
+          "80%防"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "A",
+        "value_source": "TRADE_VALUE",
+        "purchase_price": 6000,
+        "fixed_value": 5000
       }
     },
     {
@@ -702,13 +729,6 @@
       "rarity": "GREEN",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "A",
-        "value_source": "TRADE_VALUE",
-        "purchase_price": 6000,
-        "fixed_value": 5000
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -725,18 +745,26 @@
       "assets": {
         "icon_key": "card_ar_009",
         "card_art_key": "card_ar_009",
-        "card_art_path": "/assets/cards/ar_009.jpg",
-        "source_file": "export (11).png",
-        "sha256": "95ef653767604e28de7482934ddb8dfd61d1a2b215fb773c269ebab365ccde77"
+        "card_art_path": "/assets/cards/v2/ar_009.jpg",
+        "source_file": "image 69.png",
+        "sha256": "ad54bd5e1ed41ad65b52fe2daebaf23e525e3ee3276c2735ab1b18b5709fe294"
       },
       "data_status": "DRAFT",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
           "蒙面眼罩",
-          "2/2"
+          "纯粹的掩耳盗铃，用伪装隐匿代替肉体硬抗。",
+          "80％防"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "A",
+        "value_source": "TRADE_VALUE",
+        "purchase_price": 6000,
+        "fixed_value": 5000
       }
     },
     {
@@ -748,13 +776,6 @@
       "rarity": "GREEN",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "B",
-        "value_source": "TRADE_VALUE",
-        "purchase_price": 960,
-        "fixed_value": 800
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -771,18 +792,27 @@
       "assets": {
         "icon_key": "card_ar_010",
         "card_art_key": "card_ar_010",
-        "card_art_path": "/assets/cards/ar_010.jpg",
-        "source_file": "export (12).png",
-        "sha256": "6114be5c321cde392f0edad50e082098ec2c06d0439b507dd32e12cfcc8d0457"
+        "card_art_path": "/assets/cards/v2/ar_010.jpg",
+        "source_file": "image 70.png",
+        "sha256": "623f8a55b9ad9c9ce55b519821eae18c47a4103c0373d7948244e541049d2ad7"
       },
       "data_status": "DRAFT",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
           "纸杯头盔",
-          "2/2"
+          "除了能挡住些许飞溅的唾沫，",
+          "几乎没有任何实战防御价值。",
+          "60%防"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "B",
+        "value_source": "TRADE_VALUE",
+        "purchase_price": 960,
+        "fixed_value": 800
       }
     },
     {
@@ -794,13 +824,6 @@
       "rarity": "GREEN",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "B",
-        "value_source": "TRADE_VALUE",
-        "purchase_price": 960,
-        "fixed_value": 800
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -817,18 +840,27 @@
       "assets": {
         "icon_key": "card_ar_011",
         "card_art_key": "card_ar_011",
-        "card_art_path": "/assets/cards/ar_011.jpg",
-        "source_file": "export (13).png",
-        "sha256": "ae97507d7e151d91490cd4d766df0c1cdb19b2e1344cc517bdd4852016f10840"
+        "card_art_path": "/assets/cards/v2/ar_011.jpg",
+        "source_file": "image 72.png",
+        "sha256": "2e7404280479ba96b557803e08c4185e7f8d0b2eb8c8a3cff7474cb02230eab2"
       },
       "data_status": "DRAFT",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
           "纸箱护甲",
-          "2/2"
+          "多层瓦楞纸能提供微弱物理缓冲，",
+          "但极其脆弱且遇水即溶。",
+          "60%防"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "B",
+        "value_source": "TRADE_VALUE",
+        "purchase_price": 960,
+        "fixed_value": 800
       }
     },
     {
@@ -840,13 +872,6 @@
       "rarity": "RED",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "S",
-        "value_source": "TRADE_VALUE",
-        "purchase_price": null,
-        "fixed_value": 10000
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -863,18 +888,26 @@
       "assets": {
         "icon_key": "card_ar_012",
         "card_art_key": "card_ar_012",
-        "card_art_path": "/assets/cards/ar_012.jpg",
-        "source_file": "export (14).png",
-        "sha256": "de7e8236dc7f2101ef7ed098c15c0eaed71121c28842acf90b360f91ae6e2b68"
+        "card_art_path": "/assets/cards/v2/ar_012.jpg",
+        "source_file": "image 77.png",
+        "sha256": "a7d6edc631a79bc71efcf651869e97a2fe30c53340e989c57e9bb2d8d8b3fadf"
       },
       "data_status": "DRAFT",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
           "雨伞护罩",
-          "2/2"
+          "下雨后湿漉漉的雨伞可以完美偏转技能伤害。",
+          "90％防"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "S",
+        "value_source": "TRADE_VALUE",
+        "purchase_price": null,
+        "fixed_value": 10000
       }
     },
     {
@@ -886,13 +919,6 @@
       "rarity": "BLUE",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "A",
-        "value_source": "TRADE_VALUE",
-        "purchase_price": null,
-        "fixed_value": 1
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -909,18 +935,27 @@
       "assets": {
         "icon_key": "card_ar_005",
         "card_art_key": "card_ar_005",
-        "card_art_path": "/assets/cards/ar_005.jpg",
-        "source_file": "export (7).png",
-        "sha256": "f9b396334854dcf79e88239bf5a3ca81ed96ad0fb5720f792665b49cd04dec30"
+        "card_art_path": "/assets/cards/v2/ar_005.jpg",
+        "source_file": "image 68.png",
+        "sha256": "21171a22994921098fd80741b2b63f2a29f4281e9f0f97450186eb2ac59d044c"
       },
       "data_status": "DRAFT",
       "source": {
-        "document": "卡牌！美术设计文件夹",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
         "notes": "单人守卫掉落的蓝色防具，复用赌场圆盾卡面。",
         "ocr_text": [
-          "堵报圆盾",
-          "2/2"
+          "赌报圆盾",
+          "坚硬的实木与金属轮盘，",
+          "完美格挡并伴随强力反震。",
+          "80%防"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "A",
+        "value_source": "TRADE_VALUE",
+        "purchase_price": null,
+        "fixed_value": 1
       }
     },
     {
@@ -932,13 +967,6 @@
       "rarity": "RED",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "SS",
-        "value_source": "FIXED_LOOT_VALUE",
-        "purchase_price": null,
-        "fixed_value": 25000
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -955,18 +983,25 @@
       "assets": {
         "icon_key": "card_loot_001",
         "card_art_key": "card_loot_001",
-        "card_art_path": "/assets/cards/loot_001.jpg",
-        "source_file": "3.12 (2).png",
-        "sha256": "eac8725d2521ac310cc569da65a51c394304a5c2d09a93aad2534a96fe9d41c5"
+        "card_art_path": "/assets/cards/v2/loot_001.jpg",
+        "source_file": "image 79.png",
+        "sha256": "ee0bcc294077859044ec660f26edee0c103d7cf1cf4cd688d03aacb656a42c26"
       },
       "data_status": "ACTIVE",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
           "高级西装",
           "25000"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "SS",
+        "value_source": "FIXED_LOOT_VALUE",
+        "purchase_price": null,
+        "fixed_value": 25000
       }
     },
     {
@@ -978,13 +1013,6 @@
       "rarity": "RED",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "SS",
-        "value_source": "FIXED_LOOT_VALUE",
-        "purchase_price": null,
-        "fixed_value": 30000
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -1001,19 +1029,25 @@
       "assets": {
         "icon_key": "card_loot_002",
         "card_art_key": "card_loot_002",
-        "card_art_path": "/assets/cards/loot_002.jpg",
-        "source_file": "export (15).png",
-        "sha256": "4a9cc0988c82004ce06cf7b1757d95d8441f011773616ef912489a9ba221aaea"
+        "card_art_path": "/assets/cards/v2/loot_002.jpg",
+        "source_file": "image 9.png",
+        "sha256": "417cd82145f06d77091ef76a91122f797ebb876f81733139cf4ce77b53922aee"
       },
       "data_status": "ACTIVE",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
           "纯金扑克",
-          "AO",
-          "20000"
+          "30000"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "SS",
+        "value_source": "FIXED_LOOT_VALUE",
+        "purchase_price": null,
+        "fixed_value": 30000
       }
     },
     {
@@ -1025,13 +1059,6 @@
       "rarity": "RED",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "SS",
-        "value_source": "FIXED_LOOT_VALUE",
-        "purchase_price": null,
-        "fixed_value": 50000
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -1048,18 +1075,25 @@
       "assets": {
         "icon_key": "card_loot_003",
         "card_art_key": "card_loot_003",
-        "card_art_path": "/assets/cards/loot_003.jpg",
-        "source_file": "export (16).png",
-        "sha256": "a32ff54898a00add2fedf55d113d099f0f218e1fcbd175b22c212adb1a84a966"
+        "card_art_path": "/assets/cards/v2/loot_003.jpg",
+        "source_file": "image 10.png",
+        "sha256": "a572382b05c2d496069053c39205d3a30575994fe3979fa275f626a8f6edb338"
       },
       "data_status": "ACTIVE",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
           "赌徒之眼",
           "50000"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "SS",
+        "value_source": "FIXED_LOOT_VALUE",
+        "purchase_price": null,
+        "fixed_value": 50000
       }
     },
     {
@@ -1071,13 +1105,6 @@
       "rarity": "RED",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "SS",
-        "value_source": "FIXED_LOOT_VALUE",
-        "purchase_price": null,
-        "fixed_value": 50000
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -1094,19 +1121,25 @@
       "assets": {
         "icon_key": "card_loot_004",
         "card_art_key": "card_loot_004",
-        "card_art_path": "/assets/cards/loot_004.jpg",
-        "source_file": "export (17).png",
-        "sha256": "e2e58c35695f8e82e4a99da9bc206c38d0926f7d63fbe953bddef42e06870767"
+        "card_art_path": "/assets/cards/v2/loot_004.jpg",
+        "source_file": "image 11.png",
+        "sha256": "1ace2cc94ef1a4e89c3ca4fec10386a9ba4fe9b754d3c2570e5dae6cdbc482dc"
       },
       "data_status": "ACTIVE",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
           "老虎机芯片",
-          "⑦⑦⑦",
           "50000"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "SS",
+        "value_source": "FIXED_LOOT_VALUE",
+        "purchase_price": null,
+        "fixed_value": 50000
       }
     },
     {
@@ -1118,13 +1151,6 @@
       "rarity": "RED",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "SS",
-        "value_source": "FIXED_LOOT_VALUE",
-        "purchase_price": null,
-        "fixed_value": 60000
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -1141,17 +1167,26 @@
       "assets": {
         "icon_key": "card_loot_005",
         "card_art_key": "card_loot_005",
-        "card_art_path": "/assets/cards/loot_005.jpg",
-        "source_file": "export (18).png",
-        "sha256": "39cebcdc22db4ed4dbba10938ce1b29350fcb21864e79f4f7eb9e69886dc5b84"
+        "card_art_path": "/assets/cards/v2/loot_005.jpg",
+        "source_file": "image 12.png",
+        "sha256": "00c0e02d7dc0da3903663b2bdabf3c571dda608390620cd1e8a87c5ed1d67e38"
       },
       "data_status": "ACTIVE",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
-          "00009"
+          "庄家房卡",
+          "VIP",
+          "60000"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "SS",
+        "value_source": "FIXED_LOOT_VALUE",
+        "purchase_price": null,
+        "fixed_value": 60000
       }
     },
     {
@@ -1163,13 +1198,6 @@
       "rarity": "RED",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "SS",
-        "value_source": "FIXED_LOOT_VALUE",
-        "purchase_price": null,
-        "fixed_value": 90000
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -1186,20 +1214,30 @@
       "assets": {
         "icon_key": "card_loot_006",
         "card_art_key": "card_loot_006",
-        "card_art_path": "/assets/cards/loot_006.jpg",
-        "source_file": "export (19).png",
-        "sha256": "c6934c07dc524e5a5e365e0a00577dc6600e5cdf5fd47be4fe7c16b9e761a14c"
+        "card_art_path": "/assets/cards/v2/loot_006.jpg",
+        "source_file": "image 13.png",
+        "sha256": "3bfccf8ae6f42fce02156a97e76d48c0372c0bb5f854fe19f5b9438661c36288"
       },
       "data_status": "ACTIVE",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
-          "劳力士手表",
-          "20",
-          "30",
+          "劳力士",
+          "ROLEX",
+          "28",
+          "SYBMARINER",
+          "1000升t-300m",
+          "DE",
           "90000"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "SS",
+        "value_source": "FIXED_LOOT_VALUE",
+        "purchase_price": null,
+        "fixed_value": 90000
       }
     },
     {
@@ -1211,13 +1249,6 @@
       "rarity": "RED",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "SS",
-        "value_source": "FIXED_LOOT_VALUE",
-        "purchase_price": null,
-        "fixed_value": 100000
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -1234,67 +1265,25 @@
       "assets": {
         "icon_key": "card_loot_007",
         "card_art_key": "card_loot_007",
-        "card_art_path": "/assets/cards/loot_007.jpg",
-        "source_file": "export (20).png",
-        "sha256": "6526ca92f7cab921708940d15ba6fa258ad106624bf467e2bf4149407e36e676"
+        "card_art_path": "/assets/cards/v2/loot_007.jpg",
+        "source_file": "image 15.png",
+        "sha256": "3381dd1534dd3c46ccb8f44713838dc4891c6028c427c86077d6b9918b040fa5"
       },
       "data_status": "ACTIVE",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
           "十万筹码",
-          "100000",
           "100000"
         ]
-      }
-    },
-    {
-      "card_id": "loot_008",
-      "kind": "LOOT",
-      "category": "LOOT",
-      "name": "丢失银行卡",
-      "description": "物资卡，撤离结算价值100000 Gold。",
-      "rarity": "RED",
-      "attack_multiplier": null,
-      "defense_multiplier": null,
+      },
       "economy": {
         "currency": "GOLD",
         "grade": "SS",
         "value_source": "FIXED_LOOT_VALUE",
         "purchase_price": null,
         "fixed_value": 100000
-      },
-      "inventory": {
-        "slot_cost": 1,
-        "can_pickup": true,
-        "can_drop": true,
-        "can_steal": true
-      },
-      "rules": {
-        "requires_equipped": false,
-        "usable_phases": [
-          "NONE"
-        ],
-        "effects": []
-      },
-      "assets": {
-        "icon_key": "card_loot_008",
-        "card_art_key": "card_loot_008",
-        "card_art_path": "/assets/cards/loot_008.jpg",
-        "source_file": "export (21).png",
-        "sha256": "55fbd04436f45b7df360e0d8f074ee0808f5a7ea070cfbe710fbd01e92ebc2bc"
-      },
-      "data_status": "ACTIVE",
-      "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
-        "ocr_text": [
-          "丢失银行卡",
-          "？",
-          "1234 5678 9012 3456",
-          "100000"
-        ]
       }
     },
     {
@@ -1306,13 +1295,6 @@
       "rarity": "RED",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "SS",
-        "value_source": "FIXED_LOOT_VALUE",
-        "purchase_price": null,
-        "fixed_value": 200000
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -1329,18 +1311,25 @@
       "assets": {
         "icon_key": "card_loot_009",
         "card_art_key": "card_loot_009",
-        "card_art_path": "/assets/cards/loot_009.jpg",
-        "source_file": "export (22).png",
-        "sha256": "2dba035e6969ea2d9edcf9c9414ffb25b1cc70a2facdf7fbcd821e31dce76dda"
+        "card_art_path": "/assets/cards/v2/loot_009.jpg",
+        "source_file": "image 16.png",
+        "sha256": "fcc3d9fadb3000e6fc0854a50a775f6a432b9428a30da921f066b4d727a4a8e2"
       },
       "data_status": "ACTIVE",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
-          "爱马仕包",
-          "200000"
+          "爱马仕包包",
+          "$000007"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "SS",
+        "value_source": "FIXED_LOOT_VALUE",
+        "purchase_price": null,
+        "fixed_value": 200000
       }
     },
     {
@@ -1352,13 +1341,6 @@
       "rarity": "GREEN",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "B",
-        "value_source": "FIXED_LOOT_VALUE",
-        "purchase_price": null,
-        "fixed_value": 10
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -1375,18 +1357,25 @@
       "assets": {
         "icon_key": "card_loot_010",
         "card_art_key": "card_loot_010",
-        "card_art_path": "/assets/cards/loot_010.jpg",
-        "source_file": "export (23).png",
-        "sha256": "2f720449e5d2ac491afdc9958ffc8ba58861eb47a538d436d4bf1a7e15e53a02"
+        "card_art_path": "/assets/cards/v2/loot_010.jpg",
+        "source_file": "image 17.png",
+        "sha256": "ecd20924cc05c60bc114fbcc213e485d3fcd8f894ac55b55db65287254e68d04"
       },
       "data_status": "ACTIVE",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
           "黑色丝袜",
           "10"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "B",
+        "value_source": "FIXED_LOOT_VALUE",
+        "purchase_price": null,
+        "fixed_value": 10
       }
     },
     {
@@ -1398,13 +1387,6 @@
       "rarity": "GREEN",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "B",
-        "value_source": "FIXED_LOOT_VALUE",
-        "purchase_price": null,
-        "fixed_value": 300
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -1421,18 +1403,25 @@
       "assets": {
         "icon_key": "card_loot_011",
         "card_art_key": "card_loot_011",
-        "card_art_path": "/assets/cards/loot_011.jpg",
-        "source_file": "export (24).png",
-        "sha256": "97f6fe6ab07c55f708bbc4177f8e4aa9768e15820867f8ee4fcb739b9d8b5422"
+        "card_art_path": "/assets/cards/v2/loot_011.jpg",
+        "source_file": "image 18.png",
+        "sha256": "dabc409adf35334ca39816a0f84ed23d5b067b36892654a5445af74bf87ba325"
       },
       "data_status": "ACTIVE",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
           "荷官手套",
           "300"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "B",
+        "value_source": "FIXED_LOOT_VALUE",
+        "purchase_price": null,
+        "fixed_value": 300
       }
     },
     {
@@ -1444,13 +1433,6 @@
       "rarity": "GREEN",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "B",
-        "value_source": "FIXED_LOOT_VALUE",
-        "purchase_price": null,
-        "fixed_value": 2000
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -1467,19 +1449,25 @@
       "assets": {
         "icon_key": "card_loot_012",
         "card_art_key": "card_loot_012",
-        "card_art_path": "/assets/cards/loot_012.jpg",
-        "source_file": "export (25).png",
-        "sha256": "a7c23530ff4825d27e035ecf838d6a1743da2583a785ce4e74a26d2edad70708"
+        "card_art_path": "/assets/cards/v2/loot_012.jpg",
+        "source_file": "image 61.png",
+        "sha256": "1cce12dad73a0692166db6613681ea6ae6a2e79a2ee07a37f1156ad53f9e1bd3"
       },
       "data_status": "ACTIVE",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
           "眼镜",
-          "A",
           "2000"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "B",
+        "value_source": "FIXED_LOOT_VALUE",
+        "purchase_price": null,
+        "fixed_value": 2000
       }
     },
     {
@@ -1491,13 +1479,6 @@
       "rarity": "GREEN",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "B",
-        "value_source": "FIXED_LOOT_VALUE",
-        "purchase_price": null,
-        "fixed_value": 2500
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -1514,18 +1495,27 @@
       "assets": {
         "icon_key": "card_loot_013",
         "card_art_key": "card_loot_013",
-        "card_art_path": "/assets/cards/loot_013.jpg",
-        "source_file": "export (26).png",
-        "sha256": "cf677e6a59a0a5f67276ac9bb98a76e7f59fea761681572148d19632775c2876"
+        "card_art_path": "/assets/cards/v2/loot_013.jpg",
+        "source_file": "image 66.png",
+        "sha256": "93e61ec603f21a6c62505be9799db664ce4cd55a43529b4eb90d71ca99918dab"
       },
       "data_status": "ACTIVE",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
-          "双肩包",
+          "背包",
+          "ISOYALTRIP：",
+          "BOYAITRIP•",
           "2500"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "B",
+        "value_source": "FIXED_LOOT_VALUE",
+        "purchase_price": null,
+        "fixed_value": 2500
       }
     },
     {
@@ -1537,13 +1527,6 @@
       "rarity": "GREEN",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "A",
-        "value_source": "FIXED_LOOT_VALUE",
-        "purchase_price": null,
-        "fixed_value": 3000
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -1560,18 +1543,25 @@
       "assets": {
         "icon_key": "card_loot_014",
         "card_art_key": "card_loot_014",
-        "card_art_path": "/assets/cards/loot_014.jpg",
-        "source_file": "export (27).png",
-        "sha256": "93530d45869d3d6f1b0ae77da5c8f1ed6fa5fd88181f75ea87cc0b3cf1599c71"
+        "card_art_path": "/assets/cards/v2/loot_014.jpg",
+        "source_file": "image 60.png",
+        "sha256": "ffe6742c7a55677e03f5f91f161a1504a759873f8da1aadf0e954312467cbfa7"
       },
       "data_status": "ACTIVE",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
-          "皮带",
+          "皮帶",
           "3000"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "A",
+        "value_source": "FIXED_LOOT_VALUE",
+        "purchase_price": null,
+        "fixed_value": 3000
       }
     },
     {
@@ -1583,13 +1573,6 @@
       "rarity": "GREEN",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "A",
-        "value_source": "FIXED_LOOT_VALUE",
-        "purchase_price": null,
-        "fixed_value": 3000
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -1606,18 +1589,26 @@
       "assets": {
         "icon_key": "card_loot_015",
         "card_art_key": "card_loot_015",
-        "card_art_path": "/assets/cards/loot_015.jpg",
-        "source_file": "export (28).png",
-        "sha256": "516f471b7c6ffe3476218d48e322b116b0081112d7f675669591ec41ea925b78"
+        "card_art_path": "/assets/cards/v2/loot_015.jpg",
+        "source_file": "image 23.png",
+        "sha256": "cd3abf67cade0490a40bd4b555765873ece164b505cdc510d8987b79e212c79f"
       },
       "data_status": "ACTIVE",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
           "赌徒扑克",
+          "K",
           "3000"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "A",
+        "value_source": "FIXED_LOOT_VALUE",
+        "purchase_price": null,
+        "fixed_value": 3000
       }
     },
     {
@@ -1629,13 +1620,6 @@
       "rarity": "GREEN",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "A",
-        "value_source": "FIXED_LOOT_VALUE",
-        "purchase_price": null,
-        "fixed_value": 5000
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -1652,30 +1636,31 @@
       "assets": {
         "icon_key": "card_loot_016",
         "card_art_key": "card_loot_016",
-        "card_art_path": "/assets/cards/loot_016.jpg",
-        "source_file": "export (29).png",
-        "sha256": "5a9dad6aee5eaf3df3137253401de247f9654d1aeb2d2cfd05b48a848ace89a7"
+        "card_art_path": "/assets/cards/v2/loot_016.jpg",
+        "source_file": "image 24.png",
+        "sha256": "cfdcb1b9e87f958575d983f136c909965b685ad192ad00d91b9aa56f33ee6662"
       },
       "data_status": "ACTIVE",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
           "花呗欠帐单",
-          "花呗",
-          "已逾期",
-          "账单明细",
-          "消费本金",
-          "滞纳金",
-          "利息费用",
-          "¥4287.00",
-          "¥712.00",
-          "¥1.00",
-          "当前欠款",
-          "¥5000.00",
-          "① 请尽快还款",
+          "欠款账单",
+          "应还金额：",
+          "A逾期提醒",
+          "¥50,000",
+          "到期日：2025年05月30日",
+          "再不还就上征信了！",
           "5000"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "A",
+        "value_source": "FIXED_LOOT_VALUE",
+        "purchase_price": null,
+        "fixed_value": 5000
       }
     },
     {
@@ -1687,13 +1672,6 @@
       "rarity": "GREEN",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "A",
-        "value_source": "FIXED_LOOT_VALUE",
-        "purchase_price": null,
-        "fixed_value": 5000
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -1710,22 +1688,27 @@
       "assets": {
         "icon_key": "card_loot_017",
         "card_art_key": "card_loot_017",
-        "card_art_path": "/assets/cards/loot_017.jpg",
-        "source_file": "export (30).png",
-        "sha256": "2c08bf8ab9bf1a7f72b40084774a7e5165641ca85ceec8e08d290f4bf2872bd4"
+        "card_art_path": "/assets/cards/v2/loot_017.jpg",
+        "source_file": "image 25.png",
+        "sha256": "f92872ccc200eac615b24c87b5b7c706a31fb07f23c78f86a8848f2bff74338f"
       },
       "data_status": "ACTIVE",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
           "指南针",
-          "N",
-          "W",
           "E",
           "S",
           "5000"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "A",
+        "value_source": "FIXED_LOOT_VALUE",
+        "purchase_price": null,
+        "fixed_value": 5000
       }
     },
     {
@@ -1737,13 +1720,6 @@
       "rarity": "GREEN",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "A",
-        "value_source": "FIXED_LOOT_VALUE",
-        "purchase_price": null,
-        "fixed_value": 7000
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -1760,18 +1736,25 @@
       "assets": {
         "icon_key": "card_loot_018",
         "card_art_key": "card_loot_018",
-        "card_art_path": "/assets/cards/loot_018.jpg",
-        "source_file": "export (31).png",
-        "sha256": "3ce288f96de3c543ad546d6689b09b3faf87a29548f96f6995fa04d5d7318fc7"
+        "card_art_path": "/assets/cards/v2/loot_018.jpg",
+        "source_file": "image 65.png",
+        "sha256": "f9c02fa275c8b649497cd51e5567b91fc51304e829430d8d8e3d808f539d41e3"
       },
       "data_status": "ACTIVE",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
           "灭火器",
           "7000"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "A",
+        "value_source": "FIXED_LOOT_VALUE",
+        "purchase_price": null,
+        "fixed_value": 7000
       }
     },
     {
@@ -1783,13 +1766,6 @@
       "rarity": "BLUE",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "S",
-        "value_source": "FIXED_LOOT_VALUE",
-        "purchase_price": null,
-        "fixed_value": 10000
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -1806,18 +1782,26 @@
       "assets": {
         "icon_key": "card_loot_019",
         "card_art_key": "card_loot_019",
-        "card_art_path": "/assets/cards/loot_019.jpg",
-        "source_file": "export (32).png",
-        "sha256": "69f321739a903c40c135818330014f9d3746a2b33ad591aeb379efa0326ed3b0"
+        "card_art_path": "/assets/cards/v2/loot_019.jpg",
+        "source_file": "image 27.png",
+        "sha256": "dc90c15794eed6e8ac75ed28bcf26727c749505d787274d189a5c5d4eb423784"
       },
       "data_status": "ACTIVE",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
           "保安服",
+          "SECURITY",
           "10000"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "S",
+        "value_source": "FIXED_LOOT_VALUE",
+        "purchase_price": null,
+        "fixed_value": 10000
       }
     },
     {
@@ -1829,13 +1813,6 @@
       "rarity": "BLUE",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "S",
-        "value_source": "FIXED_LOOT_VALUE",
-        "purchase_price": null,
-        "fixed_value": 10000
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -1852,18 +1829,25 @@
       "assets": {
         "icon_key": "card_loot_020",
         "card_art_key": "card_loot_020",
-        "card_art_path": "/assets/cards/loot_020.jpg",
-        "source_file": "export (33).png",
-        "sha256": "b61761a30f6c78e38c5ae38894be161b91dc22b91ebff7f243205f5181fa736e"
+        "card_art_path": "/assets/cards/v2/loot_020.jpg",
+        "source_file": "image 28.png",
+        "sha256": "3e201adef73bc15e0da7646a4da24889391cc08d8db814dbed47ef1ef1c2446c"
       },
       "data_status": "ACTIVE",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
           "赌徒手指",
           "10000"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "S",
+        "value_source": "FIXED_LOOT_VALUE",
+        "purchase_price": null,
+        "fixed_value": 10000
       }
     },
     {
@@ -1875,13 +1859,6 @@
       "rarity": "BLUE",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "S",
-        "value_source": "FIXED_LOOT_VALUE",
-        "purchase_price": null,
-        "fixed_value": 10000
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -1898,19 +1875,28 @@
       "assets": {
         "icon_key": "card_loot_021",
         "card_art_key": "card_loot_021",
-        "card_art_path": "/assets/cards/loot_021.jpg",
-        "source_file": "export (34).png",
-        "sha256": "b4f94f16fe439b8030893deb4632929c7dc71ab1dbfa967d5908efe2840829fc"
+        "card_art_path": "/assets/cards/v2/loot_021.jpg",
+        "source_file": "image 29.png",
+        "sha256": "f07d0d6844ab92b17c32f29412d92d489226dcd2f16326bf9f7e2c345d3207d9"
       },
       "data_status": "ACTIVE",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
           "未归还充电宝",
-          "⑦",
+          "OUT？",
+          "INVOUT",
+          "OUT2",
           "10000"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "S",
+        "value_source": "FIXED_LOOT_VALUE",
+        "purchase_price": null,
+        "fixed_value": 10000
       }
     },
     {
@@ -1922,13 +1908,6 @@
       "rarity": "PURPLE",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "S",
-        "value_source": "FIXED_LOOT_VALUE",
-        "purchase_price": null,
-        "fixed_value": 15000
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -1945,18 +1924,25 @@
       "assets": {
         "icon_key": "card_loot_022",
         "card_art_key": "card_loot_022",
-        "card_art_path": "/assets/cards/loot_022.jpg",
-        "source_file": "export (35).png",
-        "sha256": "c306a788efb03ce7196997f32e8c77228ea24d3d894983bc2b5b662969cbc14c"
+        "card_art_path": "/assets/cards/v2/loot_022.jpg",
+        "source_file": "image 30.png",
+        "sha256": "6d0dc7b26f35e69013aeb0170dbdddffa22c577f0d33f5fc41625f7c0b1adde1"
       },
       "data_status": "ACTIVE",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
           "急救包",
           "15000"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "S",
+        "value_source": "FIXED_LOOT_VALUE",
+        "purchase_price": null,
+        "fixed_value": 15000
       }
     },
     {
@@ -1968,13 +1954,6 @@
       "rarity": "PURPLE",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "S",
-        "value_source": "FIXED_LOOT_VALUE",
-        "purchase_price": null,
-        "fixed_value": 20000
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -1991,18 +1970,73 @@
       "assets": {
         "icon_key": "card_loot_023",
         "card_art_key": "card_loot_023",
-        "card_art_path": "/assets/cards/loot_023.jpg",
-        "source_file": "export (36).png",
-        "sha256": "00f2224d280fd8b254c8a281e59705dff26928c4f8d45f96fb55d7dc511c6dd5"
+        "card_art_path": "/assets/cards/v2/loot_023.jpg",
+        "source_file": "image 31.png",
+        "sha256": "d12fbaac640fe6c42faebfb235dd474f9a7a3defffa077d595064beecf651393"
       },
       "data_status": "ACTIVE",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
-          "遗落钱包",
+          "遗落的钱包",
+          "①0",
+          "5①",
           "20000"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "S",
+        "value_source": "FIXED_LOOT_VALUE",
+        "purchase_price": null,
+        "fixed_value": 20000
+      }
+    },
+    {
+      "card_id": "loot_024",
+      "kind": "LOOT",
+      "category": "LOOT",
+      "name": "烟头",
+      "description": "物资卡，撤离结算价值1000 Gold。",
+      "rarity": "GREEN",
+      "attack_multiplier": null,
+      "defense_multiplier": null,
+      "inventory": {
+        "slot_cost": 1,
+        "can_pickup": true,
+        "can_drop": true,
+        "can_steal": true
+      },
+      "rules": {
+        "requires_equipped": false,
+        "usable_phases": [
+          "NONE"
+        ],
+        "effects": []
+      },
+      "assets": {
+        "icon_key": "card_loot_024",
+        "card_art_key": "card_loot_024",
+        "card_art_path": "/assets/cards/v2/loot_024.jpg",
+        "source_file": "image 59.png",
+        "sha256": "7a7f18fef3fa9a9a6c2986f58a88d05ceed1ca1a207848580e8d64efb95b71ba"
+      },
+      "data_status": "ACTIVE",
+      "source": {
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
+        "ocr_text": [
+          "烟头",
+          "1000"
+        ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "B",
+        "value_source": "FIXED_LOOT_VALUE",
+        "purchase_price": null,
+        "fixed_value": 1000
       }
     },
     {
@@ -2014,13 +2048,6 @@
       "rarity": "PURPLE",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "SS",
-        "value_source": "TRADE_VALUE",
-        "purchase_price": null,
-        "fixed_value": 50000
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -2044,21 +2071,26 @@
       "assets": {
         "icon_key": "card_sk_001",
         "card_art_key": "card_sk_001",
-        "card_art_path": "/assets/cards/sk_001.jpg",
-        "source_file": "3.1 (1).png",
-        "sha256": "e986dbac08d1d58b10b009e67671dc6c4236ab8b7a7329e6d53ad8c6ecfcf2ea"
+        "card_art_path": "/assets/cards/v2/sk_001.jpg",
+        "source_file": "image 45.png",
+        "sha256": "5e87148aeaa073361d69f1e4e1ded3a098f6e3a19ef7b7193568cee074c91856"
       },
       "data_status": "DRAFT",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
-          "如对方摇到的",
-          "两个点数相同的",
-          "骰子，最终伤害",
-          "*2",
-          "田田"
+          "同点加倍",
+          "使用如果己方摇到两个",
+          "相同骰子，最终伤害X2"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "SS",
+        "value_source": "TRADE_VALUE",
+        "purchase_price": null,
+        "fixed_value": 50000
       }
     },
     {
@@ -2070,13 +2102,6 @@
       "rarity": "PURPLE",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "S",
-        "value_source": "TRADE_VALUE",
-        "purchase_price": null,
-        "fixed_value": 10000
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -2102,19 +2127,26 @@
       "assets": {
         "icon_key": "card_sk_004",
         "card_art_key": "card_sk_004",
-        "card_art_path": "/assets/cards/sk_004.jpg",
-        "source_file": "3.1 (4).png",
-        "sha256": "b45a39e4d092334dc4b7944fb77e19f169da32ad0dfb92fb0588be077639083e"
+        "card_art_path": "/assets/cards/v2/sk_004.jpg",
+        "source_file": "image 47.png",
+        "sha256": "78a262c49a5d5d818e3ab2631fefd94a87e0120c7d961c51c367a0939202344c"
       },
       "data_status": "DRAFT",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
-          "使用此卡可使油方",
-          "减少 枚骰子",
-          "S-1公"
+          "削减骰子",
+          "使用此卡可使对方",
+          "减少一枚骰子"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "S",
+        "value_source": "TRADE_VALUE",
+        "purchase_price": null,
+        "fixed_value": 10000
       }
     },
     {
@@ -2126,13 +2158,6 @@
       "rarity": "PURPLE",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "S",
-        "value_source": "TRADE_VALUE",
-        "purchase_price": null,
-        "fixed_value": 10000
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -2156,18 +2181,27 @@
       "assets": {
         "icon_key": "card_sk_005",
         "card_art_key": "card_sk_005",
-        "card_art_path": "/assets/cards/sk_005.jpg",
-        "source_file": "3.1 (5).png",
-        "sha256": "2bec69c111da06baae214ce2d0f897c2d777af7190a31367374b6262fb530269"
+        "card_art_path": "/assets/cards/v2/sk_005.jpg",
+        "source_file": "image 48.png",
+        "sha256": "eb62c3dbb1429aa9c66d37d1423f1eae156afc73e66111e412bc8e8481eb3e28"
       },
       "data_status": "DRAFT",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
-          "使用此卡可使讨方",
-          "的手牌附上迷雾"
+          "手牌迷雾",
+          "K",
+          "使用此卡可使对方的",
+          "手牌附上迷雾"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "S",
+        "value_source": "TRADE_VALUE",
+        "purchase_price": null,
+        "fixed_value": 10000
       }
     },
     {
@@ -2179,13 +2213,6 @@
       "rarity": "PURPLE",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "A",
-        "value_source": "TRADE_VALUE",
-        "purchase_price": 6000,
-        "fixed_value": 5000
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -2218,20 +2245,30 @@
       "assets": {
         "icon_key": "card_sk_006",
         "card_art_key": "card_sk_006",
-        "card_art_path": "/assets/cards/sk_006.jpg",
-        "source_file": "3.1 (6).png",
-        "sha256": "d2c2001cdde8f0ed836658ab68a3050b92342986b9c06257547230d2bde287f5"
+        "card_art_path": "/assets/cards/v2/sk_006.jpg",
+        "source_file": "image 49.png",
+        "sha256": "e0358b1cc1762263987ae05b76cdac9bc56cee73f66e1c1bc53d24d495dba0d5"
       },
       "data_status": "DRAFT",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
-          "使用此卡如摇到1-9，",
-          "則已方扣除摇到点数的血量。",
-          "如摇到10-18，",
-          "则己方增加摇到点数的血量"
+          "命运血骰",
+          "1-9",
+          "10-18",
+          "（）",
+          "使用此卡如摇到1-9，则己方扣除",
+          "摇到点数的血量。如摇到10-18，则己方",
+          "增加摇到点数的血量。"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "A",
+        "value_source": "TRADE_VALUE",
+        "purchase_price": 6000,
+        "fixed_value": 5000
       }
     },
     {
@@ -2243,13 +2280,6 @@
       "rarity": "PURPLE",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "A",
-        "value_source": "TRADE_VALUE",
-        "purchase_price": 6000,
-        "fixed_value": 5000
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -2276,19 +2306,27 @@
       "assets": {
         "icon_key": "card_sk_007",
         "card_art_key": "card_sk_007",
-        "card_art_path": "/assets/cards/sk_007.jpg",
-        "source_file": "3.1 (7).png",
-        "sha256": "5fd17a73602ff8c99415845186ed58e242e97d8c201b949293e2e5814823c978"
+        "card_art_path": "/assets/cards/v2/sk_007.jpg",
+        "source_file": "image 50.png",
+        "sha256": "728b62a401b34e59f0a2a529e9929626db17559e274ec986cde6f32bd4a163e4"
       },
       "data_status": "DRAFT",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
+          "点数削减",
+          "205",
           "使用此卡能使对方",
-          "最终点数一5",
-          "-5"
+          "最终骰子点数一5"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "A",
+        "value_source": "TRADE_VALUE",
+        "purchase_price": 6000,
+        "fixed_value": 5000
       }
     },
     {
@@ -2300,13 +2338,6 @@
       "rarity": "PURPLE",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "B",
-        "value_source": "TRADE_VALUE",
-        "purchase_price": 960,
-        "fixed_value": 800
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -2333,19 +2364,26 @@
       "assets": {
         "icon_key": "card_sk_008",
         "card_art_key": "card_sk_008",
-        "card_art_path": "/assets/cards/sk_008.jpg",
-        "source_file": "3.1 (8).png",
-        "sha256": "52d9649f93de32dfd853f01448f7f68f6a33c04d9c43dcb184c79f1b08c7f404"
+        "card_art_path": "/assets/cards/v2/sk_008.jpg",
+        "source_file": "image 52.png",
+        "sha256": "66e0c3a68319c9e6ea66160ac4d21ca0a149e16b5b543cd2616d340a281fd123"
       },
       "data_status": "DRAFT",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
-          "使用此卡能使已方",
-          "最终点数+5",
-          "+5"
+          "点数增益",
+          "7+5",
+          "使用此卡使己方方最终点数+5"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "B",
+        "value_source": "TRADE_VALUE",
+        "purchase_price": 960,
+        "fixed_value": 800
       }
     },
     {
@@ -2357,13 +2395,6 @@
       "rarity": "PURPLE",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "B",
-        "value_source": "TRADE_VALUE",
-        "purchase_price": 960,
-        "fixed_value": 800
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -2389,18 +2420,25 @@
       "assets": {
         "icon_key": "card_sk_009",
         "card_art_key": "card_sk_009",
-        "card_art_path": "/assets/cards/sk_009.jpg",
-        "source_file": "3.1 (9).png",
-        "sha256": "b5b0cc225e41adabc8bf8fb9d41c55dd80792a989a53b08e5b874b820995bea1"
+        "card_art_path": "/assets/cards/v2/sk_009.jpg",
+        "source_file": "image 51.png",
+        "sha256": "60838ab613f62b640c40a953ef9e7f032dc16f1d1e913cacf356f29efc1641c3"
       },
       "data_status": "DRAFT",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
-          "使用此卡可使已方",
-          "骰"
+          "骰子重摇",
+          "使用此卡可使已方骰子重摇"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "B",
+        "value_source": "TRADE_VALUE",
+        "purchase_price": 960,
+        "fixed_value": 800
       }
     },
     {
@@ -2412,13 +2450,6 @@
       "rarity": "PURPLE",
       "attack_multiplier": null,
       "defense_multiplier": null,
-      "economy": {
-        "currency": "GOLD",
-        "grade": "SS",
-        "value_source": "TRADE_VALUE",
-        "purchase_price": null,
-        "fixed_value": 50000
-      },
       "inventory": {
         "slot_cost": 1,
         "can_pickup": true,
@@ -2448,20 +2479,26 @@
       "assets": {
         "icon_key": "card_sk_010",
         "card_art_key": "card_sk_010",
-        "card_art_path": "/assets/cards/sk_010.jpg",
-        "source_file": "3.1.png",
-        "sha256": "6176eab43861b4b338e6b876641368013cdc2e7703fda16c417149df7fddc0b5"
+        "card_art_path": "/assets/cards/v2/sk_010.jpg",
+        "source_file": "image 46.png",
+        "sha256": "134d185639165e7ad42f2891d64a251f3cbbe4fa2c00beac9f8a6f8ff9299fd6"
       },
       "data_status": "DRAFT",
       "source": {
-        "document": "卡牌！美术设计文件夹",
-        "notes": "卡名与数值由卡面 OCR 后人工校正。",
+        "document": "Figma / heisino / 2026-11-12 新版卡面",
+        "notes": "新版卡面 OCR 供美术核对，游戏字段按卡库配置。",
         "ocr_text": [
-          "使用此卡可用",
-          "对方最小点数骰子",
-          "与对方最大的骰子",
-          "交换"
+          "大小互换",
+          "使用此卡可用对方最小点数",
+          "骰子与对方最大的骰子交换"
         ]
+      },
+      "economy": {
+        "currency": "GOLD",
+        "grade": "SS",
+        "value_source": "TRADE_VALUE",
+        "purchase_price": null,
+        "fixed_value": 50000
       }
     }
   ]

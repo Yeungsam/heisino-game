@@ -76,17 +76,20 @@ test('战备校验数量与类别，失败请求不会扣除资产', async () =>
   assert.equal((await f.service.execute(f.token, 'me')).profile.quantities.wp_006, 1)
 })
 
-test('旧账号仓库与对局恢复移除停用技能，保留其余物品和历史流水', async () => {
+test('旧账号仓库与对局恢复移除停用技能和银行卡，保留其余物品和历史流水', async () => {
   const f = await fixture()
   const start = await f.start({ mode: 'SINGLE' })
   await f.edit(document => {
     document.quantities.sk_002 = 2
     document.quantities.sk_003 = 1
+    document.quantities.loot_008 = 3
     document.ledger[0].quantities.sk_002 = 2
+    document.ledger[0].quantities.loot_008 = 3
     const state = document.activeGame.state
     state.items.push({ cardId: 'sk_002', instanceId: 'retired-carried', ownerId: 'P1' },
-      { cardId: 'sk_003', instanceId: 'retired-room', nodeId: 'n_0_0', state: 'DROPPED' })
-    state.players[0].inventory.push('retired-carried')
+      { cardId: 'sk_003', instanceId: 'retired-room', nodeId: 'n_0_0', state: 'DROPPED' },
+      { cardId: 'loot_008', instanceId: 'retired-bank-card', ownerId: 'P1' })
+    state.players[0].inventory.push('retired-carried', 'retired-bank-card')
     state.searchAccess.P1 = ['retired-room']
   })
   const resumed = await f.service.execute(f.token, 'resume')
@@ -97,6 +100,8 @@ test('旧账号仓库与对局恢复移除停用技能，保留其余物品和�
   const document = await f.store.get(f.id)
   assert.deepEqual(document.quantities, start.profile.quantities)
   assert.equal(document.ledger[0].quantities.sk_002, 2)
+  assert.equal(document.ledger[0].quantities.loot_008, 3)
+  assert.deepEqual((await f.service.execute(f.token, 'resume')).profile.quantities, resumed.profile.quantities)
   assert.deepEqual(document.activeGame.state.searchAccess.P1, [])
   await assert.rejects(f.start({ cardIds: ['sk_002'], requestId: 'retired-start' }), { code: 'LOADOUT_INVALID' })
   await assert.rejects(f.start({ cardIds: ['sk_003'], requestId: 'retired-start' }), { code: 'LOADOUT_INVALID' })
