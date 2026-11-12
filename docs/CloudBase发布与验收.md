@@ -10,7 +10,7 @@
 
 | 云函数 | 公网路径 | 发布前准备 | 线上冒烟 |
 |---|---|---|---|
-| `heisino-account` | `/api/account` | `npm run account:build` 生成完整运行时 | `npm run verify:account:production` |
+| `heisino-account` | `/api/account` | `npm run account:build` 生成完整运行时 | `npm run verify:account:production`；商店变更加跑 `npm run verify:shop:production` |
 | `heisino-cards` | `/api/cards` | 核对生成的卡牌目录与卡面 | `npm run verify:cards:production` |
 | `heisino-game` | `/api/search` | `npm run account:build` 生成共享房型、物资库和随机抽取运行时 | `npm run verify:search:production` |
 
@@ -160,3 +160,12 @@ tcb fn code update heisino-game -e cloud1-d5ghcmrajdca722b5 --deployMode zip
 - 提交 `f9032c6` 的 `heisino-account` 于北京时间 00:37:50 更新至上海环境 `cloud1-d5ghcmrajdca722b5`。更新前已备份函数代码，账号、房间和资产流水权限确认为 `ADMINONLY`。
 - 公网三人对局验证两人在同一房间进行真人战斗，另一人独自进房时触发守卫。守卫满血、两骰一攻一防，击败后可在 20 秒内拾取蓝装。先完成守卫战的玩家等待其他人，房间人数只计真人。
 - 大厅、账号鉴权和微信换码冒烟通过。隔离账号、房间及资产流水已清理并复查。五轮全量回归每轮 219/219，微信战斗界面复用现有协议并通过模拟双端验收。
+
+## 2026-11-12 商店、金币和局内资产
+
+- 从提交 `f57c005` 构建部署包至上海环境 `cloud1-d5ghcmrajdca722b5`。备份旧版后，`heisino-account` 于北京时间 17:12:37、`heisino-cards` 于 17:12:42 更新成功。兼容搜索函数只使用卡牌 ID 与分类，不依赖本次变更的价格字段。
+- `POST /api/account/shop` 公网验证预检 204、未登录 401、16 种可购货品、出售纯金扑克 30,000 金币、购买两张 B 级技能支付 1,920 金币、守卫圆盾可售 1 金币且拒绝买入、旧报价 409、同请求号重复只成交一次且异内容复用返回 409。局内交易被拒绝，单人开局和恢复均返回同一带入基准。
+- 账号与资产流水集合为 `ADMINONLY`。初跑业务接口通过，验收脚本因 CloudBase CLI 返回扩展 JSON 整数而误判流水；修正解析后重跑，三个成交流水金额与数量均符合预期。两次隔离账号及流水已清理并复查。
+- 公网卡库 51 张的经济字段逐卡与提交一致，四类卡面可访问；账号鉴权、大厅预检和微信换码冒烟通过。
+- Node.js 22.22.0 发布回归五轮每轮 226/226，无跳过。发布前首跑发现三处旧战斗断言沿用技能价值 0，已更新为按售价选取；另修正冷重启用例跨模拟器上下文比较对象的问题，更新索引并复测通过。五轮行覆盖率均为 94.23%，分支覆盖率为 87.07%–87.14%。
+- 微信开发者工具已编译并生成开发预览，二维码于 17:39 失效。待安卓和 iOS 真机检查横屏布局、原生交易确认及弱网恢复。

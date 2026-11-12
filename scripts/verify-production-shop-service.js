@@ -71,7 +71,9 @@ async function verify() {
   assert.deepEqual(resumed.activeGame.backpackAssets, started.activeGame.backpackAssets)
   await call('shop', { ...buy, requestId: randomUUID() }, 409, 'ACTIVE_GAME_EXISTS')
   const [entries] = db([command(ledger, 'QUERY', { find: ledger, filter: { accountId }, projection: { _id: 1, type: 1, goldDelta: 1 }, limit: 20 })])
-  assert.deepEqual(entries.filter(entry => entry.type.startsWith('SHOP_')).map(entry => entry.goldDelta).sort((a, b) => a - b), [-1920, 1, 30000])
+  const deltas = entries.filter(entry => entry.type.startsWith('SHOP_')).map(({ goldDelta }) =>
+    typeof goldDelta === 'number' ? goldDelta : Number(goldDelta?.$numberInt ?? goldDelta?.$numberLong))
+  assert.deepEqual(deltas.sort((a, b) => a - b), [-1920, 1, 30000])
   console.log('公网商店：货架与价格、售出、批量购买、重复请求、旧报价和守卫盾禁购均通过；开局与恢复估值正确，交易流水只落一次。')
 }
 
